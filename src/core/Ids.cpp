@@ -10,20 +10,25 @@ QString newUuid()
     return QUuid::createUuid().toString(QUuid::WithoutBraces);
 }
 
-QString newToken(int bytes)
+QByteArray randomBytes(int count)
 {
-    if (bytes <= 0)
-        return QString();
+    if (count <= 0)
+        return QByteArray();
 
-    QByteArray buffer(bytes, Qt::Uninitialized);
+    QByteArray buffer(count, Qt::Uninitialized);
     auto *generator = QRandomGenerator::system();
-    for (int i = 0; i < bytes; i += 4) {
+    for (int i = 0; i < count; i += 4) {
         const quint32 value = generator->generate();
-        const int remaining = qMin(4, bytes - i);
+        const int remaining = qMin(4, count - i);
         for (int b = 0; b < remaining; ++b)
             buffer[i + b] = static_cast<char>((value >> (8 * b)) & 0xFF);
     }
-    return hexEncode(buffer);
+    return buffer;
+}
+
+QString newToken(int bytes)
+{
+    return hexEncode(randomBytes(bytes));
 }
 
 QString hexEncode(const QByteArray &bytes)

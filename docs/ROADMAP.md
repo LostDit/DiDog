@@ -18,10 +18,11 @@
 
 ## M1. Данные и безопасность
 
-- [ ] `Database` (WAL, busy_timeout, foreign_keys), `Migrations` по `user_version`
+- [x] `Database` (WAL, busy_timeout, foreign_keys), `Migrations` по `user_version`
+- [x] Карантин повреждённой БД и пересоздание (`*.corrupt-<ts>`)
+- [x] `PasswordHasher` (PBKDF2-HMAC-SHA256), валидация логина/пароля/имени/файлов
+- [x] `tst_password`, `tst_validation`, `tst_db` (схема, версия, переоткрытие, повреждение, FK)
 - [ ] Репозитории: пользователи, чаты, участники, сообщения, вложения, квитанции, outbox
-- [ ] `PasswordHasher` (PBKDF2-HMAC-SHA256), `TokenGenerator`
-- [ ] `tst_db`, `tst_password`
 
 Критерий: БД создаётся и мигрирует, тесты зелёные.
 

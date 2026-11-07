@@ -10,6 +10,13 @@ set(MESSENGER_CORE_SOURCES
     core/Ids.h                  core/Ids.cpp
     core/Limits.h
 
+    data/Database.h             data/Database.cpp
+    data/Migrations.h           data/Migrations.cpp
+    data/Models.h               data/Models.cpp
+
+    security/PasswordHasher.h   security/PasswordHasher.cpp
+    security/Validator.h        security/Validator.cpp
+
     server/ServerApp.h          server/ServerApp.cpp
 
     ui/AvatarWidget.h           ui/AvatarWidget.cpp
