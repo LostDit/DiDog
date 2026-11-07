@@ -33,6 +33,7 @@ private:
     void rebuild();
     void updateStatus();
     void adjustTextWidth();
+    void buildAttachment();
 
     data::Message m_message;
     bool m_own = false;
@@ -41,6 +42,8 @@ private:
 
     QFrame *m_bubble = nullptr;
     QLabel *m_text = nullptr;
+    QLabel *m_attachment = nullptr;
+    QString m_builtPath;
     QLabel *m_time = nullptr;
     QLabel *m_status = nullptr;
     QPushButton *m_retry = nullptr;

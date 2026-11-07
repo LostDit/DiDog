@@ -1,5 +1,6 @@
 #include "ui/ComposerWidget.h"
 
+#include <QFileDialog>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QKeyEvent>
@@ -54,8 +55,7 @@ ComposerWidget::ComposerWidget(QWidget *parent)
     m_attachButton->setIconSize(QSize(20, 20));
     m_attachButton->setFixedSize(36, 36);
     m_attachButton->setCursor(Qt::PointingHandCursor);
-    m_attachButton->setToolTip(tr("Вложение (скоро)"));
-    m_attachButton->setEnabled(false);
+    m_attachButton->setToolTip(tr("Прикрепить файл"));
     layout->addWidget(m_attachButton, 0, Qt::AlignBottom);
 
     m_edit = new ComposerEdit(this);
@@ -73,6 +73,7 @@ ComposerWidget::ComposerWidget(QWidget *parent)
     layout->addWidget(m_sendButton, 0, Qt::AlignBottom);
 
     connect(m_sendButton, &QToolButton::clicked, this, &ComposerWidget::onSendClicked);
+    connect(m_attachButton, &QToolButton::clicked, this, &ComposerWidget::onAttachClicked);
     connect(m_edit, &ComposerEdit::submitted, this, &ComposerWidget::onSendClicked);
     connect(m_edit, &QTextEdit::textChanged, this, &ComposerWidget::onTextChanged);
 }
@@ -80,13 +81,24 @@ ComposerWidget::ComposerWidget(QWidget *parent)
 void ComposerWidget::setInputEnabled(bool enabled)
 {
     m_edit->setEnabled(enabled);
-    m_attachButton->setEnabled(false);
+    m_attachButton->setEnabled(enabled);
     m_sendButton->setEnabled(enabled && !m_edit->toPlainText().trimmed().isEmpty());
 }
 
 void ComposerWidget::clear()
 {
     m_edit->clear();
+}
+
+void ComposerWidget::onAttachClicked()
+{
+    const QString path = QFileDialog::getOpenFileName(
+        this, tr("Прикрепить файл"), QString(),
+        tr("Все файлы (*.*);;Изображения (*.png *.jpg *.jpeg *.webp *.bmp *.gif);;"
+           "Видео (*.mp4 *.mov *.mkv *.webm *.avi)"));
+
+    if (!path.isEmpty())
+        emit attachRequested(path);
 }
 
 void ComposerWidget::onSendClicked()

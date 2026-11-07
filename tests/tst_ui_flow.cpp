@@ -10,8 +10,11 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QDirIterator>
+#include <QImage>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMovie>
 #include <QPushButton>
 #include <QScopedPointer>
 #include <QTemporaryDir>
@@ -28,6 +31,7 @@ private slots:
 
     void twoClientsExchangeMessages();
     void historySurvivesRestart();
+    void sendsImageAttachment();
 
 private:
     QLineEdit *editWithPlaceholder(QWidget *root, const QString &placeholder) const;
@@ -47,6 +51,7 @@ private:
                                  const QString &displayName);
 
     bool windowHasBubble(ui::MainWindow *window, const QString &textPart) const;
+    bool windowHasImage(ui::MainWindow *window) const;
 
     QScopedPointer<QTemporaryDir> m_dir;
     QScopedPointer<server::ServerApp> m_server;
@@ -275,6 +280,24 @@ void TestUiFlow::twoClientsExchangeMessages()
     bob->grab().save(shotDir + QStringLiteral("/chat-bob-dark.png"));
 }
 
+bool TestUiFlow::windowHasImage(ui::MainWindow *window) const
+{
+    if (!window)
+        return false;
+
+    for (const ui::MessageBubble *bubble : window->findChildren<ui::MessageBubble *>()) {
+        for (const QLabel *label : bubble->findChildren<QLabel *>()) {
+            if (label->objectName() != QLatin1String("AttachmentImage"))
+                continue;
+            if (label->pixmap() && !label->pixmap()->isNull())
+                return true;
+            if (label->movie() && label->movie()->isValid())
+                return true;
+        }
+    }
+    return false;
+}
+
 ui::MainWindow *TestUiFlow::resumeClient(app::SettingsStore *settings, const QString &dataDir,
                                          const QString &displayName)
 {
@@ -328,6 +351,46 @@ void TestUiFlow::historySurvivesRestart()
 
     QTRY_VERIFY_WITH_TIMEOUT(windowHasBubble(restored, QStringLiteral("переживёт перезапуск")),
                              10000);
+}
+
+void TestUiFlow::sendsImageAttachment()
+{
+    const QString aliceDir = m_dir->filePath(QStringLiteral("alice-attachment-data"));
+    const QString bobDir = m_dir->filePath(QStringLiteral("bob-attachment-data"));
+
+    ui::MainWindow *alice = registerClient(m_aliceSettings.data(), aliceDir,
+                                           QStringLiteral("alice"), QStringLiteral("Алиса"));
+    QVERIFY(alice);
+
+    ui::MainWindow *bob = registerClient(m_bobSettings.data(), bobDir,
+                                         QStringLiteral("bob"), QStringLiteral("Боб"));
+    QVERIFY(bob);
+    QTest::qWait(400);
+
+    QImage image(96, 64, QImage::Format_ARGB32);
+    image.fill(QColor(QStringLiteral("#3B7DF6")));
+    const QString imagePath = m_dir->filePath(QStringLiteral("picture.png"));
+    QVERIFY(image.save(imagePath));
+
+    alice->sendFile(imagePath);
+
+    QTRY_VERIFY_WITH_TIMEOUT(windowHasImage(alice), 10000);
+    QTRY_VERIFY_WITH_TIMEOUT(windowHasImage(bob), 15000);
+
+    // Файл скачан в кэш Боба: attachments/<ab>/<sha256>.
+    QStringList cached;
+    QDirIterator iterator(bobDir + QStringLiteral("/attachments"), QDir::Files,
+                          QDirIterator::Subdirectories);
+    while (iterator.hasNext())
+        cached.append(iterator.next());
+
+    QVERIFY2(!cached.isEmpty(), "файл не попал в кэш получателя");
+
+    const QString shotDir = QDir(QCoreApplication::applicationDirPath())
+                                .filePath(QStringLiteral("screenshots"));
+    QDir().mkpath(shotDir);
+    QTest::qWait(400);
+    bob->grab().save(shotDir + QStringLiteral("/chat-image.png"));
 }
 
 QTEST_MAIN(TestUiFlow)

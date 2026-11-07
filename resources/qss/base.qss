@@ -503,3 +503,26 @@ QStatusBar {
     color: {{text-muted}};
     font-size: 9pt;
 }
+
+/* ── Вложения ───────────────────────────────────────────────────────────── */
+
+#AttachmentImage {
+    background-color: transparent;
+    border-radius: 12px;
+    color: {{text-muted}};
+    padding: 4px;
+}
+
+#AttachmentFile {
+    background-color: {{surface-2}};
+    border: 1px solid {{border}};
+    border-radius: 12px;
+    color: {{text}};
+    padding: 10px 14px;
+}
+
+#BubbleOwn #AttachmentFile {
+    background-color: rgba(255, 255, 255, 40);
+    border: 1px solid rgba(255, 255, 255, 60);
+    color: #FFFFFF;
+}

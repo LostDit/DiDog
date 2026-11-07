@@ -73,6 +73,11 @@ struct Message {
     Attachment attachment;
     DeliveryState state = DeliveryState::Sent;
 
+    // Локальная копия файла (у отправителя — исходник, у получателя — кэш)
+    // и прогресс загрузки (-1, если не загружается).
+    QString localPath;
+    int uploadProgress = -1;
+
     // Денормализация для UI: подтягивается JOIN'ом, чтобы лента не делала N+1 запросов.
     QString senderDisplayName;
     int senderHue = 210;

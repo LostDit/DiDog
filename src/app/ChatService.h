@@ -11,6 +11,7 @@
 
 namespace app {
 
+class AttachmentService;
 class HistoryStore;
 
 // Состояние переписки на клиенте: список чатов, ленты сообщений, отправка.
@@ -21,7 +22,7 @@ class ChatService : public QObject
 
 public:
     ChatService(net::ClientConnection *connection, HistoryStore *history,
-                QObject *parent = nullptr);
+                AttachmentService *attachments, QObject *parent = nullptr);
 
     void setCurrentUser(const data::User &user);
     qint64 currentUserId() const { return m_currentUserId; }
@@ -39,6 +40,7 @@ public:
     void openChat(qint64 chatId);
     void loadOlder(qint64 chatId);
     void sendText(qint64 chatId, const QString &text);
+    void sendFile(qint64 chatId, const QString &filePath);
     void markRead(qint64 chatId);
     void createDirect(const QString &username);
     void retryFailed(qint64 chatId, const QString &clientMsgId);
@@ -75,9 +77,11 @@ private:
     void sendPending(const data::Message &message);
     void persistChats();
     void persistOutbox(qint64 chatId, const QString &clientMsgId);
+    void hydrateLocalPaths(qint64 chatId);
 
     net::ClientConnection *m_connection = nullptr;
     HistoryStore *m_history = nullptr;
+    AttachmentService *m_attachments = nullptr;
     qint64 m_currentUserId = 0;
     data::User m_currentUser;
 

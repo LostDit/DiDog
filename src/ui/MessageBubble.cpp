@@ -3,10 +3,14 @@
 #include "ui/AvatarWidget.h"
 #include "ui/Formatting.h"
 
+#include <QFileInfo>
 #include <QFrame>
 #include <QFontMetrics>
 #include <QHBoxLayout>
+#include <QImageReader>
 #include <QLabel>
+#include <QMovie>
+#include <QPainter>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QStyle>
@@ -83,6 +87,8 @@ MessageBubble::MessageBubble(const data::Message &message, bool own, bool showAv
     m_text->setVisible(!message.body.isEmpty());
     bubbleLayout->addWidget(m_text);
 
+    buildAttachment();
+
     auto *footer = new QHBoxLayout;
     footer->setSpacing(6);
     footer->addStretch(1);
@@ -145,11 +151,20 @@ void MessageBubble::adjustTextWidth()
 void MessageBubble::updateMessage(const data::Message &message)
 {
     const bool textChanged = (m_message.body != message.body);
+    const bool attachmentChanged = (m_message.localPath != message.localPath)
+                                   || (m_message.attachment.id != message.attachment.id)
+                                   || (m_message.kind != message.kind);
+
     m_message = message;
 
     if (textChanged && m_text) {
         m_text->setText(richText(message.body));
         m_text->setVisible(!message.body.isEmpty());
+        adjustTextWidth();
+    }
+
+    if (attachmentChanged) {
+        buildAttachment();
         adjustTextWidth();
     }
 
@@ -163,10 +178,100 @@ void MessageBubble::rebuild()
     updateStatus();
 }
 
+void MessageBubble::buildAttachment()
+{
+    if (m_message.kind == data::MessageKind::Text)
+        return;
+
+    if (m_attachment) {
+        m_attachment->deleteLater();
+        m_attachment = nullptr;
+    }
+
+    auto *layout = qobject_cast<QVBoxLayout *>(m_bubble->layout());
+    if (!layout)
+        return;
+
+    const bool hasFile = !m_message.localPath.isEmpty() && QFileInfo::exists(m_message.localPath);
+
+    auto *label = new QLabel(m_bubble);
+    label->setAlignment(Qt::AlignCenter);
+    label->setWordWrap(true);
+    label->setMaximumWidth(340);
+
+    if (m_message.kind == data::MessageKind::Image
+        || m_message.kind == data::MessageKind::Gif) {
+        label->setObjectName(QStringLiteral("AttachmentImage"));
+
+        if (!hasFile) {
+            label->setText(tr("Загрузка…"));
+            label->setMinimumSize(160, 90);
+        } else if (m_message.kind == data::MessageKind::Gif) {
+            auto *movie = new QMovie(m_message.localPath, QByteArray(), label);
+            if (movie->isValid()) {
+                movie->jumpToFrame(0);
+                const QSize original = movie->currentPixmap().size();
+                if (original.isValid()) {
+                    const QSize target = original.scaled(QSize(320, 240),
+                                                         Qt::KeepAspectRatio);
+                    movie->setScaledSize(target);
+                    label->setFixedSize(target);
+                }
+                label->setMovie(movie);
+                movie->start();
+            } else {
+                label->setText(tr("GIF недоступен"));
+            }
+        } else {
+            QImageReader reader(m_message.localPath);
+            reader.setAutoTransform(true);
+            QSize size = reader.size();
+            if (size.isValid()) {
+                size.scale(QSize(320, 240), Qt::KeepAspectRatio);
+                reader.setScaledSize(size);
+            }
+            const QImage image = reader.read();
+            if (!image.isNull()) {
+                label->setPixmap(QPixmap::fromImage(image));
+                label->setFixedSize(image.size());
+            } else {
+                label->setText(tr("Не удалось открыть изображение"));
+            }
+        }
+    } else if (m_message.kind == data::MessageKind::Video) {
+        label->setObjectName(QStringLiteral("AttachmentFile"));
+        const QString name = m_message.attachment.fileName.isEmpty()
+                                 ? tr("Видео")
+                                 : m_message.attachment.fileName;
+        label->setText(QStringLiteral("▶  %1").arg(name));
+    } else {
+        label->setObjectName(QStringLiteral("AttachmentFile"));
+        const QString name = m_message.attachment.fileName.isEmpty()
+                                 ? QFileInfo(m_message.localPath).fileName()
+                                 : m_message.attachment.fileName;
+        qint64 size = m_message.attachment.byteSize;
+        if (size <= 0 && hasFile)
+            size = QFileInfo(m_message.localPath).size();
+        label->setText(QStringLiteral("%1\n%2").arg(name, format::fileSize(size)));
+    }
+
+    layout->insertWidget(0, label, 0, Qt::AlignLeft);
+    m_attachment = label;
+}
+
 void MessageBubble::updateStatus()
 {
     if (!m_status)
         return;
+
+    const bool uploading = m_message.uploadProgress >= 0 && m_message.uploadProgress < 100;
+    if (uploading) {
+        m_status->setText(QStringLiteral("%1%").arg(m_message.uploadProgress));
+        m_status->setVisible(m_own);
+        if (m_retry)
+            m_retry->setVisible(false);
+        return;
+    }
 
     const bool failed = (m_message.state == data::DeliveryState::Failed);
     m_status->setText(statusText(m_message.state));

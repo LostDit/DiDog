@@ -1,5 +1,6 @@
 #include "app/ChatService.h"
 
+#include "app/AttachmentService.h"
 #include "app/HistoryStore.h"
 #include "core/Ids.h"
 #include "core/Limits.h"
@@ -8,6 +9,7 @@
 
 #include <QDateTime>
 #include <QDebug>
+#include <QFileInfo>
 #include <QJsonArray>
 
 namespace app {
@@ -26,13 +28,135 @@ bool replyOk(const QJsonObject &reply)
 } // namespace
 
 ChatService::ChatService(net::ClientConnection *connection, HistoryStore *history,
-                         QObject *parent)
+                         AttachmentService *attachments, QObject *parent)
     : QObject(parent)
     , m_connection(connection)
     , m_history(history)
+    , m_attachments(attachments)
 {
     connect(m_connection, &net::ClientConnection::eventReceived,
             this, &ChatService::onEvent);
+
+    if (m_attachments) {
+        connect(m_attachments, &AttachmentService::uploadProgress, this,
+                [this](qint64 chatId, const QString &path, int percent) {
+                    ChatState &state = m_states[chatId];
+                    bool changed = false;
+
+                    for (data::Message &message : state.messages) {
+                        if (message.localPath != path
+                            || message.state != data::DeliveryState::Pending) {
+                            continue;
+                        }
+                        if (percent < 100 && percent - message.uploadProgress < 5)
+                            return;
+                        message.uploadProgress = percent;
+                        changed = true;
+                        break;
+                    }
+
+                    if (changed)
+                        emit messagesChanged(chatId);
+                });
+
+        connect(m_attachments, &AttachmentService::uploadFailed, this,
+                [this](qint64 chatId, const QString &path, const QString &message) {
+                    ChatState &state = m_states[chatId];
+                    for (data::Message &stored : state.messages) {
+                        if (stored.localPath != path)
+                            continue;
+                        stored.state = data::DeliveryState::Failed;
+                        break;
+                    }
+                    emit errorOccurred(message);
+                    emit messagesChanged(chatId);
+                });
+
+        connect(m_attachments, &AttachmentService::uploaded, this,
+                [this](qint64 chatId, const QString &path, quint32 token) {
+                    ChatState &state = m_states[chatId];
+
+                    data::Message pending;
+                    for (const data::Message &stored : qAsConst(state.messages)) {
+                        if (stored.localPath == path
+                            && stored.state == data::DeliveryState::Pending) {
+                            pending = stored;
+                            break;
+                        }
+                    }
+                    if (pending.clientMsgId.isEmpty())
+                        return;
+
+                    for (data::Message &stored : state.messages) {
+                        if (stored.clientMsgId == pending.clientMsgId)
+                            stored.uploadProgress = -1;
+                    }
+
+                    const QString clientMsgId = pending.clientMsgId;
+
+                    QJsonObject request;
+                    request.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+                    request.insert(QStringLiteral("client_msg_id"), clientMsgId);
+                    request.insert(QStringLiteral("kind"),
+                                   data::messageKindToString(pending.kind));
+                    request.insert(QStringLiteral("body"), QString());
+                    request.insert(QStringLiteral("attachment_id"), static_cast<double>(token));
+
+                    m_connection->request(
+                        QStringLiteral("msg.send"), request,
+                        [this, chatId, clientMsgId](const QJsonObject &reply) {
+                            ChatState &current = m_states[chatId];
+
+                            for (data::Message &stored : current.messages) {
+                                if (stored.clientMsgId != clientMsgId)
+                                    continue;
+
+                                if (replyOk(reply)) {
+                                    const QJsonObject data = replyData(reply);
+                                    stored.id = static_cast<qint64>(
+                                        data.value(QStringLiteral("message_id")).toDouble());
+                                    stored.seq = static_cast<qint64>(
+                                        data.value(QStringLiteral("seq")).toDouble());
+                                    stored.createdAt = static_cast<qint64>(
+                                        data.value(QStringLiteral("created_at")).toDouble());
+                                    stored.state = data::DeliveryState::Sent;
+
+                                    if (m_history)
+                                        m_history->saveMessage(stored);
+                                    persistChats();
+                                } else {
+                                    stored.state = data::DeliveryState::Failed;
+                                    emit errorOccurred(core::proto::errorMessageOf(reply));
+                                }
+                                break;
+                            }
+
+                            emit messagesChanged(chatId);
+                        });
+                });
+
+        connect(m_attachments, &AttachmentService::downloaded, this,
+                [this](qint64 attachmentId, const QString &path) {
+                    for (auto it = m_states.begin(); it != m_states.end(); ++it) {
+                        bool changed = false;
+                        for (data::Message &message : it.value().messages) {
+                            if (message.hasAttachment() && message.attachment.id == attachmentId
+                                && message.localPath != path) {
+                                message.localPath = path;
+                                changed = true;
+                            }
+                        }
+                        if (changed)
+                            emit messagesChanged(it.key());
+                    }
+                });
+
+        connect(m_attachments, &AttachmentService::downloadFailed, this,
+                [this](qint64 attachmentId, const QString &message) {
+                    Q_UNUSED(attachmentId)
+                    emit errorOccurred(message);
+                });
+    }
 
     if (!m_history)
         return;
@@ -57,6 +181,7 @@ ChatService::ChatService(net::ClientConnection *connection, HistoryStore *histor
                 state.messages = messages;
                 state.loaded = true;
                 state.hasMore = messages.size() >= core::limits::kHistoryPageSize;
+                hydrateLocalPaths(chatId);
                 emit messagesChanged(chatId);
             });
 
@@ -201,6 +326,7 @@ void ChatService::openChat(qint64 chatId)
                               current.loaded = true;
                               current.hasMore = data.value(QStringLiteral("has_more")).toBool();
 
+                              hydrateLocalPaths(chatId);
                               emit messagesChanged(chatId);
                           });
 }
@@ -279,6 +405,61 @@ void ChatService::sendText(qint64 chatId, const QString &text)
     persistChats();
 
     sendPending(pending);
+}
+
+void ChatService::sendFile(qint64 chatId, const QString &filePath)
+{
+    if (!m_attachments) {
+        emit errorOccurred(tr("Отправка вложений недоступна."));
+        return;
+    }
+
+    const QFileInfo info(filePath);
+    if (!info.exists() || !info.isFile()) {
+        emit errorOccurred(tr("Файл не найден."));
+        return;
+    }
+
+    if (info.size() > core::limits::kAttachmentMaxBytes) {
+        emit errorOccurred(tr("Файл больше 25 МБ."));
+        return;
+    }
+
+    if (!m_connection->isConnected()) {
+        emit errorOccurred(tr("Нет соединения с сервером."));
+        return;
+    }
+
+    data::Message pending;
+    pending.chatId = chatId;
+    pending.senderId = m_currentUserId;
+    pending.clientMsgId = core::newUuid();
+    pending.kind = AttachmentService::kindForFile(filePath);
+    pending.createdAt = QDateTime::currentMSecsSinceEpoch();
+    pending.state = data::DeliveryState::Pending;
+    pending.senderDisplayName = m_currentUser.displayName;
+    pending.senderHue = m_currentUser.avatarHue;
+    pending.localPath = filePath;
+    pending.uploadProgress = 0;
+
+    m_states[chatId].messages.append(pending);
+    updateSummaryForMessage(chatId, pending);
+    emit messagesChanged(chatId);
+
+    m_attachments->upload(chatId, filePath);
+}
+
+void ChatService::hydrateLocalPaths(qint64 chatId)
+{
+    if (!m_attachments)
+        return;
+
+    for (data::Message &message : m_states[chatId].messages) {
+        if (message.hasAttachment() && message.localPath.isEmpty()
+            && m_attachments->hasLocalCopy(message.attachment)) {
+            message.localPath = m_attachments->localPath(message.attachment);
+        }
+    }
 }
 
 void ChatService::sendPending(const data::Message &message)
@@ -501,6 +682,17 @@ void ChatService::handleNewMessage(const data::Message &message)
 
     if (m_history && message.id > 0)
         m_history->saveMessage(message);
+
+    if (m_attachments && message.hasAttachment()) {
+        if (m_attachments->hasLocalCopy(message.attachment)) {
+            for (data::Message &stored : m_states[message.chatId].messages) {
+                if (stored.id == message.id)
+                    stored.localPath = m_attachments->localPath(message.attachment);
+            }
+        } else {
+            m_attachments->download(message.attachment);
+        }
+    }
 
     ChatState &state = m_states[message.chatId];
     if (state.loaded)

@@ -1,6 +1,7 @@
 #include "app/ClientController.h"
 
 #include "app/AppPaths.h"
+#include "app/AttachmentService.h"
 #include "app/ChatService.h"
 #include "app/HistoryStore.h"
 #include "app/SessionService.h"
@@ -46,6 +47,7 @@ void ClientController::createConnection()
     m_connection->setAutoReconnect(true);
 
     m_session = new SessionService(m_connection, m_settings, this);
+    m_attachments = new AttachmentService(m_connection, paths::attachmentsDir(), this);
 
     connect(m_session, &SessionService::authenticated, this, &ClientController::onAuthenticated);
     connect(m_session, &SessionService::loggedOut, this, &ClientController::onLoggedOut);
@@ -61,7 +63,7 @@ void ClientController::start()
 void ClientController::onAuthenticated(const data::User &user)
 {
     if (!m_chats)
-        m_chats = new ChatService(m_connection, m_history, this);
+        m_chats = new ChatService(m_connection, m_history, m_attachments, this);
 
     m_chats->setCurrentUser(user);
     m_chats->loadChats();

@@ -1,6 +1,7 @@
 # Ядро приложения: общая статическая библиотека для клиента и сервера.
 set(MESSENGER_CORE_SOURCES
     app/AppPaths.h              app/AppPaths.cpp
+    app/AttachmentService.h     app/AttachmentService.cpp
     app/ChatService.h           app/ChatService.cpp
     app/ClientController.h      app/ClientController.cpp
     app/HistoryStore.h          app/HistoryStore.cpp

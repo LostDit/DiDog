@@ -44,6 +44,9 @@ public:
 
     void setUser(const data::User &user);
 
+    // Отправка файла в текущий чат (используется кнопкой «скрепка» и тестами).
+    void sendFile(const QString &filePath);
+
 protected:
     void closeEvent(QCloseEvent *event) override;
 

@@ -35,9 +35,11 @@ public:
 
 signals:
     void sendRequested(const QString &text);
+    void attachRequested(const QString &filePath);
 
 private slots:
     void onSendClicked();
+    void onAttachClicked();
     void onTextChanged();
 
 private:

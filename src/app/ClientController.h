@@ -16,6 +16,7 @@ class ClientConnection;
 
 namespace app {
 
+class AttachmentService;
 class ChatService;
 class HistoryStore;
 class SessionService;
@@ -44,6 +45,7 @@ private:
     ThemeManager *m_theme = nullptr;
     net::ClientConnection *m_connection = nullptr;
     HistoryStore *m_history = nullptr;
+    AttachmentService *m_attachments = nullptr;
     ChatService *m_chats = nullptr;
     SessionService *m_session = nullptr;
     QScopedPointer<ui::LoginWindow> m_loginWindow;

@@ -304,6 +304,9 @@ QWidget *MainWindow::buildConversationPane()
     m_composer = new ComposerWidget;
     layout->addWidget(m_composer);
 
+    connect(m_composer, &ComposerWidget::attachRequested, this, [this](const QString &path) {
+        sendFile(path);
+    });
     connect(m_composer, &ComposerWidget::sendRequested, this, &MainWindow::onSendRequested);
     connect(m_messageView, &MessageView::loadOlderRequested, this, [this]() {
         if (m_currentChatId > 0)
@@ -418,6 +421,14 @@ void MainWindow::onSendRequested(const QString &text)
         return;
 
     m_chats->sendText(m_currentChatId, text);
+}
+
+void MainWindow::sendFile(const QString &filePath)
+{
+    if (m_currentChatId <= 0 || filePath.isEmpty())
+        return;
+
+    m_chats->sendFile(m_currentChatId, filePath);
 }
 
 void MainWindow::onThemeToggleClicked()

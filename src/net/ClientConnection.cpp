@@ -33,6 +33,7 @@ ClientConnection::ClientConnection(QObject *parent)
     connect(m_socket, &QTcpSocket::readyRead, this, &ClientConnection::onReadyRead);
     connect(m_socket, QOverload<QAbstractSocket::SocketError>::of(&QTcpSocket::error),
             this, &ClientConnection::onSocketError);
+    connect(m_socket, &QTcpSocket::bytesWritten, this, &ClientConnection::bytesWritten);
 
     connect(m_reconnectTimer, &QTimer::timeout, this, &ClientConnection::connectToServer);
 
@@ -165,8 +166,12 @@ void ClientConnection::onSocketError(QAbstractSocket::SocketError error)
 
 void ClientConnection::handleFrame(const core::Frame &frame)
 {
-    if (frame.type != core::FrameType::Json) {
-        qWarning() << "Неожиданный бинарный кадр от сервера";
+    if (frame.type == core::FrameType::Binary) {
+        quint32 transferId = 0;
+        quint32 sequence = 0;
+        QByteArray data;
+        if (core::decodeChunk(frame.payload, &transferId, &sequence, &data))
+            emit chunkReceived(transferId, sequence, data);
         return;
     }
 
@@ -177,7 +182,17 @@ void ClientConnection::handleFrame(const core::Frame &frame)
         return;
     }
 
-    if (object.value(QStringLiteral("type")).toString() == QLatin1String("ev")) {
+    const QString type = object.value(QStringLiteral("type")).toString();
+
+    if (type == QLatin1String("attach.end")) {
+        const quint32 transferId = static_cast<quint32>(
+            object.value(QStringLiteral("data")).toObject()
+                .value(QStringLiteral("transfer_id")).toDouble());
+        emit transferFinished(transferId);
+        return;
+    }
+
+    if (type == QLatin1String("ev")) {
         const QString event = object.value(QStringLiteral("event")).toString();
         emit eventReceived(event, object.value(QStringLiteral("data")).toObject());
         return;
@@ -186,6 +201,21 @@ void ClientConnection::handleFrame(const core::Frame &frame)
     const QString replyTo = object.value(QStringLiteral("reply_to")).toString();
     if (!replyTo.isEmpty())
         m_tracker->complete(replyTo, object);
+}
+
+bool ClientConnection::sendChunk(quint32 transferId, quint32 sequence, const QByteArray &data)
+{
+    if (m_socket->state() != QAbstractSocket::ConnectedState)
+        return false;
+
+    const QByteArray chunk = core::encodeChunk(transferId, sequence, data);
+    const QByteArray frame = core::FrameCodec::encode(core::FrameType::Binary, chunk);
+    return m_socket->write(frame) == frame.size();
+}
+
+qint64 ClientConnection::bytesToWrite() const
+{
+    return m_socket->bytesToWrite();
 }
 
 void ClientConnection::setState(State state)

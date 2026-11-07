@@ -52,6 +52,11 @@ public:
     QString request(const QString &type, const QJsonObject &data, Callback callback,
                     int timeoutMs = 30000);
 
+    // Отправка бинарного чанка (загрузка вложения).
+    bool sendChunk(quint32 transferId, quint32 sequence, const QByteArray &data);
+
+    qint64 bytesToWrite() const;
+
 signals:
     void stateChanged(net::ClientConnection::State state);
     void socketConnected();
@@ -59,6 +64,11 @@ signals:
     void eventReceived(const QString &event, const QJsonObject &data);
     void errorOccurred(const QString &message);
     void reconnectScheduled(int delayMs);
+
+    // Бинарные кадры и завершение выдачи файла (attach.end).
+    void chunkReceived(quint32 transferId, quint32 sequence, const QByteArray &data);
+    void transferFinished(quint32 transferId);
+    void bytesWritten(qint64 bytes);
 
 private slots:
     void onConnected();
