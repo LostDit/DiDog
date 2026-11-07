@@ -1,5 +1,8 @@
 #include "server/ServerApp.h"
 
+#include "server/ClientSession.h"
+#include "server/ServerCore.h"
+
 #include <QDebug>
 #include <QHostAddress>
 #include <QTcpServer>
@@ -10,6 +13,7 @@ namespace server {
 ServerApp::ServerApp(QObject *parent)
     : QObject(parent)
     , m_server(new QTcpServer(this))
+    , m_core(new ServerCore(this))
 {
     connect(m_server, &QTcpServer::newConnection, this, &ServerApp::onNewConnection);
 }
@@ -17,6 +21,12 @@ ServerApp::ServerApp(QObject *parent)
 ServerApp::~ServerApp()
 {
     stop();
+}
+
+bool ServerApp::initialize(const QString &databasePath, const QString &attachmentsRoot,
+                           QString *error)
+{
+    return m_core->initialize(databasePath, attachmentsRoot, error);
 }
 
 bool ServerApp::start(quint16 port)
@@ -43,12 +53,14 @@ void ServerApp::stop()
     if (!m_server->isListening())
         return;
 
-    const auto sockets = m_clients.keys();
-    for (QTcpSocket *socket : sockets) {
-        socket->disconnectFromHost();
-        socket->deleteLater();
+    const auto sessions = m_sessions.values();
+    for (ClientSession *session : sessions) {
+        if (m_core)
+            m_core->unregisterSession(session);
+        session->deleteLater();
     }
-    m_clients.clear();
+
+    m_sessions.clear();
     m_server->close();
 }
 
@@ -60,21 +72,15 @@ quint16 ServerApp::port() const
 void ServerApp::onNewConnection()
 {
     while (QTcpSocket *socket = m_server->nextPendingConnection()) {
-        const QString peer = QStringLiteral("%1:%2")
-                                 .arg(socket->peerAddress().toString())
-                                 .arg(socket->peerPort());
-        m_clients.insert(socket, peer);
-        qInfo().noquote() << QStringLiteral("Подключение %1 (всего: %2)")
-                                 .arg(peer)
-                                 .arg(m_clients.size());
+        auto *session = new ClientSession(socket, m_core, this);
+        m_sessions.insert(socket, session);
+
+        qInfo().noquote() << QStringLiteral("Подключение %1 (соединений: %2)")
+                                 .arg(session->peerAddress())
+                                 .arg(m_sessions.size());
 
         connect(socket, &QTcpSocket::disconnected, this, [this, socket]() {
-            const QString address = m_clients.value(socket);
-            m_clients.remove(socket);
-            qInfo().noquote() << QStringLiteral("Отключение %1 (осталось: %2)")
-                                     .arg(address)
-                                     .arg(m_clients.size());
-            socket->deleteLater();
+            m_sessions.remove(socket);
         });
     }
 }

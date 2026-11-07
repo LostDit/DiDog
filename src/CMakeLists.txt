@@ -27,7 +27,10 @@ set(MESSENGER_CORE_SOURCES
     security/PasswordHasher.h   security/PasswordHasher.cpp
     security/Validator.h        security/Validator.cpp
 
+    server/ClientSession.h      server/ClientSession.cpp
+    server/HandlerResult.h
     server/ServerApp.h          server/ServerApp.cpp
+    server/ServerCore.h         server/ServerCore.cpp
 
     ui/AvatarWidget.h           ui/AvatarWidget.cpp
     ui/MainWindow.h             ui/MainWindow.cpp

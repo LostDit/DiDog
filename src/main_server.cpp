@@ -70,8 +70,17 @@ int main(int argc, char *argv[])
     }
 
     server::ServerApp server;
-    if (!server.start(static_cast<quint16>(port)))
+
+    QString serverError;
+    if (!server.initialize(app::paths::serverDbPath(), app::paths::attachmentsDir(),
+                           &serverError)) {
+        qCritical().noquote() << QStringLiteral("Не удалось инициализировать сервер: %1")
+                                     .arg(serverError);
         return 3;
+    }
+
+    if (!server.start(static_cast<quint16>(port)))
+        return 4;
 
     return app.exec();
 }

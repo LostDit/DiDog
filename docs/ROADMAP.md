@@ -29,10 +29,11 @@
 
 ## M2. Протокол и сервер
 
-- [ ] `FrameCodec`, `Protocol` (JSON-конверт, коды ошибок)
-- [ ] `ServerCore`: сессии, auth (register/login/resume), chat.list/open/read, msg.send, receipts
+- [x] `FrameCodec`, `Protocol` (JSON-конверт, коды ошибок), `JsonMapping`
+- [x] `ServerCore`: сессии, auth (register/login/resume/logout), chat.list/open/direct/read, msg.send, receipts, typing, presence
+- [x] `ClientSession`: разбор кадров, диспетчеризация, ответы и события
+- [x] `tst_protocol`, `tst_server_smoke` (два клиента, ack, идемпотентность, ev.msg/ev.read/ev.receipt)
 - [ ] `AttachmentStore`: приём чанками, sha256, контент-адресация
-- [ ] `tst_protocol`, `tst_server_smoke`
 
 Критерий: headless smoke — два клиента обменялись текстом, ack и read корректы.
 
