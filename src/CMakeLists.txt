@@ -1,6 +1,8 @@
 # Ядро приложения: общая статическая библиотека для клиента и сервера.
 set(MESSENGER_CORE_SOURCES
     app/AppPaths.h              app/AppPaths.cpp
+    app/ChatService.h           app/ChatService.cpp
+    app/ClientController.h      app/ClientController.cpp
     app/Logging.h               app/Logging.cpp
     app/SettingsStore.h         app/SettingsStore.cpp
     app/SessionService.h        app/SessionService.cpp
@@ -36,8 +38,16 @@ set(MESSENGER_CORE_SOURCES
     server/ServerApp.h          server/ServerApp.cpp
     server/ServerCore.h         server/ServerCore.cpp
 
+    ui/AvatarPainter.h          ui/AvatarPainter.cpp
     ui/AvatarWidget.h           ui/AvatarWidget.cpp
+    ui/ChatItemDelegate.h       ui/ChatItemDelegate.cpp
+    ui/ChatListModel.h          ui/ChatListModel.cpp
+    ui/ComposerWidget.h         ui/ComposerWidget.cpp
+    ui/Formatting.h             ui/Formatting.cpp
+    ui/LoginWindow.h            ui/LoginWindow.cpp
     ui/MainWindow.h             ui/MainWindow.cpp
+    ui/MessageBubble.h          ui/MessageBubble.cpp
+    ui/MessageView.h            ui/MessageView.cpp
 )
 
 add_library(messenger_core STATIC ${MESSENGER_CORE_SOURCES})

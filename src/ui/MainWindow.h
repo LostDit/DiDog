@@ -1,58 +1,104 @@
 #pragma once
 
+#include "app/ChatService.h"
+#include "data/Models.h"
+
+#include <QHash>
 #include <QMainWindow>
 
-class QCloseEvent;
 class QLabel;
 class QLineEdit;
-class QListWidget;
+class QListView;
+class QSortFilterProxyModel;
 class QStackedWidget;
+class QTimer;
 class QToolButton;
 
 namespace app {
+class SessionService;
 class SettingsStore;
 class ThemeManager;
 } // namespace app
 
+namespace net {
+class ClientConnection;
+} // namespace net
+
 namespace ui {
 
 class AvatarWidget;
+class ChatListModel;
+class ComposerWidget;
+class MessageView;
 
-// Главное окно: сайдбар со списком чатов + область переписки.
-// На этапе M0 — каркас и тема; наполнение появляется на M4.
+// Главное окно: список чатов и переписка.
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
 public:
-    MainWindow(app::ThemeManager *theme, app::SettingsStore *settings,
-               QWidget *parent = nullptr);
+    MainWindow(app::ChatService *chats, app::SessionService *session,
+               net::ClientConnection *connection, app::SettingsStore *settings,
+               app::ThemeManager *theme, QWidget *parent = nullptr);
     ~MainWindow() override;
+
+    void setUser(const data::User &user);
 
 protected:
     void closeEvent(QCloseEvent *event) override;
 
 private slots:
+    void onChatsChanged();
+    void onMessagesChanged(qint64 chatId);
+    void onChatSelectionChanged();
+    void onSendRequested(const QString &text);
     void onThemeToggleClicked();
+    void onNewChatClicked();
+    void onTypingChanged(qint64 chatId, qint64 userId, bool typing);
+    void onPresenceChanged(qint64 userId, bool online);
+    void onError(const QString &message);
 
 private:
+    void buildUi();
     QWidget *buildSidebar();
     QWidget *buildChatPane();
-    QWidget *buildEmptyChatPane();
+    QWidget *buildEmptyPane();
+    QWidget *buildConversationPane();
 
-    void restoreWindowState();
+    void openChat(qint64 chatId);
+    void selectChatRow(qint64 chatId);
+    void updateHeader();
     void updateThemeButton();
+    void updateConnectionBanner();
+    void restoreWindowState();
 
-    app::ThemeManager *m_theme = nullptr;
+    app::ChatService *m_chats = nullptr;
+    app::SessionService *m_session = nullptr;
     app::SettingsStore *m_settings = nullptr;
+    app::ThemeManager *m_theme = nullptr;
+    data::User m_user;
 
     AvatarWidget *m_profileAvatar = nullptr;
     QLabel *m_profileName = nullptr;
     QLabel *m_profileSub = nullptr;
     QToolButton *m_themeButton = nullptr;
     QLineEdit *m_searchField = nullptr;
-    QListWidget *m_chatList = nullptr;
+    QListView *m_chatList = nullptr;
+    ChatListModel *m_chatModel = nullptr;
+    QSortFilterProxyModel *m_chatProxy = nullptr;
+
     QStackedWidget *m_chatStack = nullptr;
+    AvatarWidget *m_headerAvatar = nullptr;
+    QLabel *m_headerTitle = nullptr;
+    QLabel *m_headerStatus = nullptr;
+    MessageView *m_messageView = nullptr;
+    ComposerWidget *m_composer = nullptr;
+    QLabel *m_connectionBanner = nullptr;
+    QTimer *m_typingTimer = nullptr;
+
+    qint64 m_currentChatId = 0;
+    QHash<qint64, bool> m_online;
+    qint64 m_typingUserId = 0;
 };
 
 } // namespace ui

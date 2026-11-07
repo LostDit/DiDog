@@ -1,22 +1,43 @@
 #include "ui/MainWindow.h"
 
+#include "app/SessionService.h"
 #include "app/SettingsStore.h"
 #include "app/ThemeManager.h"
+#include "net/ClientConnection.h"
 #include "ui/AvatarWidget.h"
+#include "ui/ChatItemDelegate.h"
+#include "ui/ChatListModel.h"
+#include "ui/ComposerWidget.h"
+#include "ui/MessageView.h"
 
+#include <QAction>
 #include <QCloseEvent>
+#include <QDebug>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
-#include <QListWidget>
+#include <QListView>
+#include <QMenu>
+#include <QSortFilterProxyModel>
 #include <QStackedWidget>
+#include <QStatusBar>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 namespace ui {
 namespace {
+
+QLabel *makeLabel(const QString &text, const char *objectName, Qt::Alignment alignment)
+{
+    auto *label = new QLabel(text);
+    label->setObjectName(QString::fromLatin1(objectName));
+    label->setAlignment(alignment);
+    return label;
+}
 
 QToolButton *makeIconButton(const QString &iconPath, const QString &toolTip)
 {
@@ -30,26 +51,65 @@ QToolButton *makeIconButton(const QString &iconPath, const QString &toolTip)
     return button;
 }
 
-QLabel *makeLabel(const QString &text, const char *objectName, Qt::Alignment alignment)
-{
-    auto *label = new QLabel(text);
-    label->setObjectName(QString::fromLatin1(objectName));
-    label->setAlignment(alignment);
-    return label;
-}
-
 } // namespace
 
-MainWindow::MainWindow(app::ThemeManager *theme, app::SettingsStore *settings, QWidget *parent)
+MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
+                       net::ClientConnection *connection, app::SettingsStore *settings,
+                       app::ThemeManager *theme, QWidget *parent)
     : QMainWindow(parent)
-    , m_theme(theme)
+    , m_chats(chats)
+    , m_session(session)
     , m_settings(settings)
+    , m_theme(theme)
 {
     setObjectName(QStringLiteral("Root"));
     setWindowTitle(QStringLiteral("MessengerApp"));
     setWindowIcon(QIcon(QStringLiteral(":/icons/logo.svg")));
     setMinimumSize(900, 600);
 
+    buildUi();
+    restoreWindowState();
+
+    connect(m_chats, &app::ChatService::chatsChanged, this, &MainWindow::onChatsChanged);
+    connect(m_chats, &app::ChatService::messagesChanged, this, &MainWindow::onMessagesChanged);
+    connect(m_chats, &app::ChatService::errorOccurred, this, &MainWindow::onError);
+    connect(m_chats, &app::ChatService::typingChanged, this, &MainWindow::onTypingChanged);
+    connect(m_chats, &app::ChatService::presenceChanged, this, &MainWindow::onPresenceChanged);
+
+    if (connection) {
+        connect(connection, &net::ClientConnection::stateChanged, this,
+                [this](net::ClientConnection::State) { updateConnectionBanner(); });
+        updateConnectionBanner();
+    }
+
+    if (m_theme) {
+        connect(m_theme, &app::ThemeManager::themeChanged, this,
+                [this](app::ThemeManager::Theme) { updateThemeButton(); });
+        updateThemeButton();
+    }
+
+    m_typingTimer = new QTimer(this);
+    m_typingTimer->setSingleShot(true);
+    m_typingTimer->setInterval(5000);
+    connect(m_typingTimer, &QTimer::timeout, this, [this]() {
+        m_typingUserId = 0;
+        updateHeader();
+    });
+}
+
+MainWindow::~MainWindow() = default;
+
+void MainWindow::setUser(const data::User &user)
+{
+    m_user = user;
+    m_profileAvatar->setIdentity(user.displayName, user.avatarHue);
+    m_profileName->setText(user.displayName);
+    m_profileSub->setText(QStringLiteral("@%1").arg(user.username));
+    m_messageView->setCurrentUserId(user.id);
+}
+
+void MainWindow::buildUi()
+{
     auto *central = new QWidget;
     central->setObjectName(QStringLiteral("Root"));
 
@@ -60,17 +120,7 @@ MainWindow::MainWindow(app::ThemeManager *theme, app::SettingsStore *settings, Q
     layout->addWidget(buildChatPane(), 1);
 
     setCentralWidget(central);
-
-    restoreWindowState();
-    updateThemeButton();
-
-    if (m_theme) {
-        connect(m_theme, &app::ThemeManager::themeChanged, this,
-                [this](app::ThemeManager::Theme) { updateThemeButton(); });
-    }
 }
-
-MainWindow::~MainWindow() = default;
 
 QWidget *MainWindow::buildSidebar()
 {
@@ -82,7 +132,6 @@ QWidget *MainWindow::buildSidebar()
     layout->setContentsMargins(16, 16, 16, 12);
     layout->setSpacing(12);
 
-    // ── Профиль ────────────────────────────────────────────────────────────
     auto *profileRow = new QHBoxLayout;
     profileRow->setSpacing(10);
 
@@ -94,33 +143,39 @@ QWidget *MainWindow::buildSidebar()
     auto *nameColumn = new QVBoxLayout;
     nameColumn->setSpacing(1);
     m_profileName = makeLabel(QStringLiteral("Гость"), "ProfileName", Qt::AlignLeft);
-    m_profileSub = makeLabel(QStringLiteral("Не подключено"), "ProfileSub", Qt::AlignLeft);
+    m_profileSub = makeLabel(QString(), "ProfileSub", Qt::AlignLeft);
     nameColumn->addWidget(m_profileName);
     nameColumn->addWidget(m_profileSub);
     profileRow->addLayout(nameColumn);
     profileRow->addStretch(1);
 
-    m_themeButton = makeIconButton(QStringLiteral(":/icons/moon.svg"),
-                                   tr("Переключить тему"));
+    m_themeButton = makeIconButton(QStringLiteral(":/icons/moon.svg"), tr("Переключить тему"));
     connect(m_themeButton, &QToolButton::clicked, this, &MainWindow::onThemeToggleClicked);
     profileRow->addWidget(m_themeButton);
 
+    auto *menuButton = makeIconButton(QStringLiteral(":/icons/more.svg"), tr("Меню"));
+    auto *menu = new QMenu(menuButton);
+    QAction *logoutAction = menu->addAction(tr("Выйти"));
+    connect(logoutAction, &QAction::triggered, this, [this]() {
+        if (m_session)
+            m_session->logout();
+    });
+    menuButton->setMenu(menu);
+    menuButton->setPopupMode(QToolButton::InstantPopup);
+    profileRow->addWidget(menuButton);
+
     layout->addLayout(profileRow);
 
-    // ── Заголовок раздела ──────────────────────────────────────────────────
     auto *chatsRow = new QHBoxLayout;
     chatsRow->setSpacing(8);
     chatsRow->addWidget(makeLabel(tr("Чаты"), "SectionTitle", Qt::AlignLeft));
     chatsRow->addStretch(1);
 
-    auto *newChatButton = makeIconButton(QStringLiteral(":/icons/plus.svg"),
-                                         tr("Новый чат"));
-    newChatButton->setEnabled(false);
-    newChatButton->setToolTip(tr("Новый чат появится вместе со списком чатов"));
+    auto *newChatButton = makeIconButton(QStringLiteral(":/icons/plus.svg"), tr("Новый чат"));
+    connect(newChatButton, &QToolButton::clicked, this, &MainWindow::onNewChatClicked);
     chatsRow->addWidget(newChatButton);
     layout->addLayout(chatsRow);
 
-    // ── Поиск ──────────────────────────────────────────────────────────────
     m_searchField = new QLineEdit;
     m_searchField->setObjectName(QStringLiteral("SearchField"));
     m_searchField->setPlaceholderText(tr("Поиск"));
@@ -130,23 +185,31 @@ QWidget *MainWindow::buildSidebar()
     m_searchField->setFixedHeight(38);
     layout->addWidget(m_searchField);
 
-    // ── Список чатов / пустое состояние ────────────────────────────────────
-    m_chatList = new QListWidget;
+    m_chatModel = new ChatListModel(this);
+    m_chatProxy = new QSortFilterProxyModel(this);
+    m_chatProxy->setSourceModel(m_chatModel);
+    m_chatProxy->setFilterCaseSensitivity(Qt::CaseInsensitive);
+    m_chatProxy->setFilterRole(Qt::DisplayRole);
+    m_chatProxy->setDynamicSortFilter(true);
+
+    m_chatList = new QListView;
     m_chatList->setObjectName(QStringLiteral("ChatList"));
+    m_chatList->setModel(m_chatProxy);
+    m_chatList->setItemDelegate(new ChatItemDelegate(this));
     m_chatList->setFrameShape(QFrame::NoFrame);
-    m_chatList->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     m_chatList->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_chatList->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_chatList->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    m_chatList->setUniformItemSizes(true);
+    m_chatList->setMouseTracking(true);
+    m_chatList->viewport()->setMouseTracking(true);
+    layout->addWidget(m_chatList, 1);
 
-    auto *emptyList = makeLabel(tr("Пока нет чатов.\nНачните первую переписку."),
-                                "EmptySubtitle", Qt::AlignCenter);
-    emptyList->setWordWrap(true);
-
-    auto *listStack = new QStackedWidget;
-    listStack->addWidget(m_chatList);
-    listStack->addWidget(emptyList);
-    listStack->setCurrentIndex(m_chatList->count() == 0 ? 1 : 0);
-
-    layout->addWidget(listStack, 1);
+    connect(m_searchField, &QLineEdit::textChanged, this, [this](const QString &text) {
+        m_chatProxy->setFilterFixedString(text);
+    });
+    connect(m_chatList->selectionModel(), &QItemSelectionModel::currentChanged, this,
+            [this](const QModelIndex &, const QModelIndex &) { onChatSelectionChanged(); });
 
     layout->addWidget(makeLabel(QStringLiteral("v%1").arg(QStringLiteral(MESSENGER_VERSION)),
                                 "EmptySubtitle", Qt::AlignLeft));
@@ -164,13 +227,15 @@ QWidget *MainWindow::buildChatPane()
     layout->setSpacing(0);
 
     m_chatStack = new QStackedWidget;
-    m_chatStack->addWidget(buildEmptyChatPane());
+    m_chatStack->addWidget(buildEmptyPane());
+    m_chatStack->addWidget(buildConversationPane());
+    m_chatStack->setCurrentIndex(0);
     layout->addWidget(m_chatStack, 1);
 
     return pane;
 }
 
-QWidget *MainWindow::buildEmptyChatPane()
+QWidget *MainWindow::buildEmptyPane()
 {
     auto *page = new QWidget;
 
@@ -197,6 +262,164 @@ QWidget *MainWindow::buildEmptyChatPane()
     return page;
 }
 
+QWidget *MainWindow::buildConversationPane()
+{
+    auto *page = new QWidget;
+
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+
+    m_connectionBanner = makeLabel(tr("Нет соединения. Переподключение…"), "ConnectionBanner",
+                                   Qt::AlignCenter);
+    m_connectionBanner->hide();
+    layout->addWidget(m_connectionBanner);
+
+    // Шапка чата.
+    auto *header = new QFrame;
+    header->setObjectName(QStringLiteral("ChatHeader"));
+
+    auto *headerLayout = new QHBoxLayout(header);
+    headerLayout->setContentsMargins(18, 10, 18, 10);
+    headerLayout->setSpacing(12);
+
+    m_headerAvatar = new AvatarWidget;
+    m_headerAvatar->setDiameter(40);
+    headerLayout->addWidget(m_headerAvatar);
+
+    auto *titleColumn = new QVBoxLayout;
+    titleColumn->setSpacing(0);
+    m_headerTitle = makeLabel(QString(), "ChatTitle", Qt::AlignLeft);
+    m_headerStatus = makeLabel(QString(), "ChatStatus", Qt::AlignLeft);
+    titleColumn->addWidget(m_headerTitle);
+    titleColumn->addWidget(m_headerStatus);
+    headerLayout->addLayout(titleColumn);
+    headerLayout->addStretch(1);
+
+    layout->addWidget(header);
+
+    m_messageView = new MessageView;
+    layout->addWidget(m_messageView, 1);
+
+    m_composer = new ComposerWidget;
+    layout->addWidget(m_composer);
+
+    connect(m_composer, &ComposerWidget::sendRequested, this, &MainWindow::onSendRequested);
+    connect(m_messageView, &MessageView::loadOlderRequested, this, [this]() {
+        if (m_currentChatId > 0)
+            m_chats->loadOlder(m_currentChatId);
+    });
+    connect(m_messageView, &MessageView::retryRequested, this, [this](const QString &clientMsgId) {
+        if (m_currentChatId > 0)
+            m_chats->retryFailed(m_currentChatId, clientMsgId);
+    });
+
+    return page;
+}
+
+void MainWindow::onChatsChanged()
+{
+    m_chatModel->setChats(m_chats->chats());
+
+    if (m_currentChatId > 0) {
+        selectChatRow(m_currentChatId);
+    } else if (!m_chats->chats().isEmpty()) {
+        openChat(m_chats->chats().first().chat.id);
+        selectChatRow(m_currentChatId);
+    }
+
+    updateHeader();
+}
+
+void MainWindow::onMessagesChanged(qint64 chatId)
+{
+    if (chatId != m_currentChatId)
+        return;
+
+    m_messageView->setHasMore(m_chats->hasMore(chatId));
+    m_messageView->setMessages(m_chats->messages(chatId));
+    m_composer->setInputEnabled(true);
+}
+
+void MainWindow::onChatSelectionChanged()
+{
+    const QModelIndex current = m_chatList->currentIndex();
+    if (!current.isValid())
+        return;
+
+    const QModelIndex source = m_chatProxy->mapToSource(current);
+    const data::ChatSummary summary = m_chatModel->chatAt(source.row());
+    if (summary.chat.id > 0)
+        openChat(summary.chat.id);
+}
+
+void MainWindow::openChat(qint64 chatId)
+{
+    if (chatId <= 0)
+        return;
+
+    m_currentChatId = chatId;
+    m_chats->setActiveChat(chatId);
+
+    m_chatStack->setCurrentIndex(1);
+    updateHeader();
+
+    m_messageView->setCurrentUserId(m_chats->currentUserId());
+    m_messageView->setHasMore(m_chats->hasMore(chatId));
+    m_messageView->setMessages(m_chats->messages(chatId));
+
+    m_chats->openChat(chatId);
+    m_chats->markRead(chatId);
+
+    m_composer->setInputEnabled(true);
+    m_composer->setFocus();
+}
+
+void MainWindow::selectChatRow(qint64 chatId)
+{
+    for (int row = 0; row < m_chatProxy->rowCount(); ++row) {
+        const QModelIndex proxyIndex = m_chatProxy->index(row, 0);
+        const QModelIndex source = m_chatProxy->mapToSource(proxyIndex);
+        if (m_chatModel->chatAt(source.row()).chat.id == chatId) {
+            if (m_chatList->currentIndex() != proxyIndex)
+                m_chatList->setCurrentIndex(proxyIndex);
+            return;
+        }
+    }
+}
+
+void MainWindow::updateHeader()
+{
+    if (m_currentChatId <= 0) {
+        m_chatStack->setCurrentIndex(0);
+        return;
+    }
+
+    const data::ChatSummary summary = m_chats->chat(m_currentChatId);
+    if (summary.chat.id <= 0)
+        return;
+
+    m_headerAvatar->setIdentity(summary.peerDisplayName, summary.peerHue);
+    m_headerTitle->setText(summary.peerDisplayName);
+
+    QString status;
+    if (m_typingUserId > 0) {
+        status = tr("печатает…");
+    } else if (summary.chat.kind == QLatin1String("direct")) {
+        status = m_online.value(summary.peerId, false) ? tr("в сети") : tr("не в сети");
+    }
+
+    m_headerStatus->setText(status);
+}
+
+void MainWindow::onSendRequested(const QString &text)
+{
+    if (m_currentChatId <= 0 || text.trimmed().isEmpty())
+        return;
+
+    m_chats->sendText(m_currentChatId, text);
+}
+
 void MainWindow::onThemeToggleClicked()
 {
     if (m_theme)
@@ -212,6 +435,55 @@ void MainWindow::updateThemeButton()
     m_themeButton->setIcon(QIcon(dark ? QStringLiteral(":/icons/sun.svg")
                                       : QStringLiteral(":/icons/moon.svg")));
     m_themeButton->setToolTip(dark ? tr("Светлая тема") : tr("Тёмная тема"));
+}
+
+void MainWindow::onNewChatClicked()
+{
+    bool ok = false;
+    const QString username = QInputDialog::getText(this, tr("Новый чат"),
+                                                   tr("Логин собеседника:"),
+                                                   QLineEdit::Normal, QString(), &ok);
+    if (!ok || username.trimmed().isEmpty())
+        return;
+
+    m_chats->createDirect(username.trimmed());
+}
+
+void MainWindow::onTypingChanged(qint64 chatId, qint64 userId, bool typing)
+{
+    if (chatId != m_currentChatId || userId == m_user.id)
+        return;
+
+    m_typingUserId = typing ? userId : 0;
+
+    if (typing)
+        m_typingTimer->start();
+    else
+        m_typingTimer->stop();
+
+    updateHeader();
+}
+
+void MainWindow::onPresenceChanged(qint64 userId, bool online)
+{
+    m_online.insert(userId, online);
+    updateHeader();
+}
+
+void MainWindow::onError(const QString &message)
+{
+    statusBar()->showMessage(message, 6000);
+}
+
+void MainWindow::updateConnectionBanner()
+{
+    if (!m_connectionBanner)
+        return;
+
+    const bool connected = m_session && m_session->isAuthenticated();
+    m_connectionBanner->setVisible(!connected);
+    if (m_composer)
+        m_composer->setInputEnabled(connected);
 }
 
 void MainWindow::restoreWindowState()

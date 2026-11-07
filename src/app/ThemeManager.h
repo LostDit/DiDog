@@ -21,6 +21,7 @@ public:
     Q_ENUM(Theme)
 
     explicit ThemeManager(SettingsStore *settings, QObject *parent = nullptr);
+    ~ThemeManager() override;
 
     Theme theme() const { return m_theme; }
     void setTheme(Theme theme);
@@ -29,6 +30,12 @@ public:
 
     // QSS с подставленными токенами; пустая строка, если ресурс недоступен.
     static QString styleSheetFor(Theme theme);
+
+    // Цвет токена текущей темы — для делегатов, которые рисуют вручную.
+    QColor color(const QString &token) const;
+
+    // Активный экземпляр (для делегатов и вспомогательного кода).
+    static ThemeManager *instance();
 
 signals:
     void themeChanged(app::ThemeManager::Theme theme);

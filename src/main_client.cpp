@@ -1,9 +1,9 @@
 #include "app/AppPaths.h"
+#include "app/ClientController.h"
 #include "app/Logging.h"
 #include "app/SettingsStore.h"
 #include "app/SingleInstance.h"
 #include "app/ThemeManager.h"
-#include "ui/MainWindow.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -111,8 +111,8 @@ int main(int argc, char *argv[])
     app::ThemeManager theme(&settings);
     theme.apply();
 
-    ui::MainWindow window(&theme, &settings);
-    window.show();
+    app::ClientController controller(&settings, &theme);
+    controller.start();
 
     const int exitCode = app.exec();
 

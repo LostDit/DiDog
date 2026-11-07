@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QMetaType>
 #include <QString>
 #include <QtGlobal>
 
@@ -104,3 +105,7 @@ struct OutboxEntry {
 };
 
 } // namespace data
+
+Q_DECLARE_METATYPE(data::ChatSummary)
+Q_DECLARE_METATYPE(data::Message)
+Q_DECLARE_METATYPE(data::User)

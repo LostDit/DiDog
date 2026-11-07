@@ -302,3 +302,204 @@ QSplitter::handle {
 QSplitter::handle:horizontal {
     width: 1px;
 }
+
+/* ── Список чатов (рисуется делегатом) ──────────────────────────────────── */
+
+QListView#ChatList {
+    background: transparent;
+    border: none;
+    outline: 0;
+}
+
+/* ── Шапка чата ─────────────────────────────────────────────────────────── */
+
+#ChatHeader {
+    background-color: {{surface}};
+    border-bottom: 1px solid {{border}};
+}
+
+#ChatTitle {
+    font-size: 11pt;
+    font-weight: bold;
+    color: {{text}};
+}
+
+#ChatStatus {
+    color: {{text-muted}};
+    font-size: 9pt;
+}
+
+/* ── Лента сообщений ────────────────────────────────────────────────────── */
+
+#MessageArea, #MessageContent {
+    background-color: {{bg}};
+    border: none;
+}
+
+#MessageBubble {
+    background: transparent;
+}
+
+#DayChip {
+    background-color: {{surface-2}};
+    color: {{text-muted}};
+    border-radius: 10px;
+    padding: 3px 10px;
+    font-size: 8.5pt;
+}
+
+#BubbleOwn {
+    background-color: {{accent}};
+    border-radius: 16px;
+}
+
+#BubbleOther {
+    background-color: {{surface}};
+    border: 1px solid {{border}};
+    border-radius: 16px;
+}
+
+#BubbleOwn QLabel {
+    color: #FFFFFF;
+}
+
+#BubbleOther QLabel {
+    color: {{text}};
+}
+
+#MessageText {
+    font-size: 10pt;
+}
+
+#MessageTime {
+    color: {{text-faint}};
+    font-size: 8pt;
+}
+
+#BubbleOwn #MessageTime {
+    color: rgba(255, 255, 255, 190);
+}
+
+#MessageStatus {
+    color: {{text-faint}};
+    font-size: 8.5pt;
+}
+
+#BubbleOwn #MessageStatus {
+    color: rgba(255, 255, 255, 190);
+}
+
+#MessageStatus[state="read"] {
+    color: {{accent}};
+}
+
+#BubbleOwn #MessageStatus[state="read"] {
+    color: #FFFFFF;
+}
+
+#MessageStatus[state="failed"] {
+    color: {{danger}};
+}
+
+/* ── Панель ввода ───────────────────────────────────────────────────────── */
+
+#Composer {
+    background-color: {{surface}};
+    border-top: 1px solid {{border}};
+}
+
+#ComposerEdit {
+    background-color: {{surface-2}};
+    border: 1px solid transparent;
+    border-radius: 14px;
+    padding: 8px 12px;
+    color: {{text}};
+}
+
+#ComposerEdit:focus {
+    background-color: {{surface}};
+    border: 1px solid {{accent}};
+}
+
+QToolButton#SendButton {
+    background-color: {{accent}};
+    border: none;
+    border-radius: 18px;
+}
+
+QToolButton#SendButton:hover {
+    background-color: {{accent-hover}};
+}
+
+QToolButton#SendButton:pressed {
+    background-color: {{accent-pressed}};
+}
+
+QToolButton#SendButton:disabled {
+    background-color: {{surface-3}};
+}
+
+/* ── Баннер соединения ──────────────────────────────────────────────────── */
+
+#ConnectionBanner {
+    background-color: {{warning}};
+    color: #1F1300;
+    padding: 6px;
+    font-size: 9pt;
+}
+
+/* ── Экран входа ────────────────────────────────────────────────────────── */
+
+#LoginCard {
+    background-color: {{surface}};
+    border: 1px solid {{border}};
+    border-radius: 20px;
+}
+
+#LoginTitle {
+    font-size: 16pt;
+    font-weight: bold;
+    color: {{text}};
+}
+
+#LoginInput {
+    background-color: {{surface-2}};
+    border: 1px solid transparent;
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: {{text}};
+}
+
+#LoginInput:focus {
+    background-color: {{surface}};
+    border: 1px solid {{accent}};
+}
+
+QPushButton#TabButton {
+    background: transparent;
+    border: none;
+    padding: 8px;
+    border-radius: 10px;
+    color: {{text-muted}};
+}
+
+QPushButton#TabButton:checked {
+    background-color: {{accent-soft}};
+    color: {{accent}};
+    font-weight: bold;
+}
+
+#ErrorLabel {
+    color: {{danger}};
+    font-size: 9pt;
+}
+
+QStatusBar {
+    background-color: {{bg}};
+    color: {{text-muted}};
+}
+
+#LoginStatus {
+    color: {{text-muted}};
+    font-size: 9pt;
+}

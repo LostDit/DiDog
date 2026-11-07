@@ -7,6 +7,7 @@
 #include <QDebug>
 #include <QFile>
 #include <QPalette>
+#include <QPointer>
 #include <QTextStream>
 
 namespace app {
@@ -40,19 +41,44 @@ const TokenPair kTokens[] = {
     {"scroll",         "#C7CBD1", "#3A3F47"},
     {"scroll-hover",   "#AEB4BC", "#4A505A"},
     {"danger",         "#EF4444", "#F87171"},
+    {"warning",        "#D97706", "#FBBF24"},
     {"success",        "#22C55E", "#34D399"},
 };
 
 } // namespace
 
+QColor ThemeManager::color(const QString &token) const
+{
+    const QHash<QString, QString> tokens = tokensFor(m_theme);
+    const QString value = tokens.value(token);
+    return value.isEmpty() ? QColor() : QColor(value);
+}
+
+namespace {
+QPointer<ThemeManager> g_instance;
+}
+
+ThemeManager *ThemeManager::instance()
+{
+    return g_instance.data();
+}
+
 ThemeManager::ThemeManager(SettingsStore *settings, QObject *parent)
     : QObject(parent)
     , m_settings(settings)
 {
+    g_instance = this;
+
     if (m_settings) {
         const int stored = m_settings->theme();
         m_theme = (stored == static_cast<int>(Theme::Dark)) ? Theme::Dark : Theme::Light;
     }
+}
+
+ThemeManager::~ThemeManager()
+{
+    if (g_instance == this)
+        g_instance.clear();
 }
 
 void ThemeManager::setTheme(Theme theme)
