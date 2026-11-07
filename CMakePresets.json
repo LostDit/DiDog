@@ -1,0 +1,55 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 23, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "windows-mingw",
+      "displayName": "Windows • MinGW • Debug",
+      "description": "Сборка Qt 5.14+ через MinGW. Задайте QT_PREFIX.",
+      "generator": "MinGW Makefiles",
+      "binaryDir": "${sourceDir}/build/mingw",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_PREFIX_PATH": "$env{QT_PREFIX}"
+      }
+    },
+    {
+      "name": "windows-msvc",
+      "displayName": "Windows • MSVC • Release",
+      "description": "Сборка Qt 5.14+ через Visual Studio 2022. Задайте QT_PREFIX.",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build/msvc",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "$env{QT_PREFIX}"
+      }
+    },
+    {
+      "name": "linux-release",
+      "displayName": "Linux • Release",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/linux",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "windows-mingw", "configurePreset": "windows-mingw", "jobs": 8 },
+    { "name": "windows-msvc", "configurePreset": "windows-msvc", "configuration": "Release", "jobs": 8 },
+    { "name": "linux-release", "configurePreset": "linux-release", "jobs": 8 }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-mingw",
+      "configurePreset": "windows-mingw",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "linux-release",
+      "configurePreset": "linux-release",
+      "output": { "outputOnFailure": true },
+      "environment": { "QT_QPA_PLATFORM": "offscreen" }
+    }
+  ]
+}

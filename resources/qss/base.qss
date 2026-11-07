@@ -1,0 +1,304 @@
+/* ==========================================================================
+   MessengerApp — базовые стили.
+   Плейсхолдеры {{token}} подставляются ThemeManager (см. app/ThemeManager.cpp).
+   ========================================================================== */
+
+QWidget {
+    color: {{text}};
+    font-family: "Segoe UI", "Inter", "Noto Sans", "DejaVu Sans", sans-serif;
+    font-size: 10pt;
+}
+
+QMainWindow,
+QDialog,
+#Root {
+    background-color: {{bg}};
+}
+
+/* ── Сайдбар ────────────────────────────────────────────────────────────── */
+
+#Sidebar {
+    background-color: {{surface}};
+    border-right: 1px solid {{border}};
+}
+
+#ProfileName {
+    font-size: 11pt;
+    font-weight: bold;
+    color: {{text}};
+}
+
+#SectionTitle {
+    font-size: 12pt;
+    font-weight: bold;
+    color: {{text}};
+}
+
+#ChatPane {
+    background-color: {{bg}};
+}
+
+#ProfileSub {
+    color: {{text-muted}};
+    font-size: 9pt;
+}
+
+/* ── Поиск ──────────────────────────────────────────────────────────────── */
+
+QLineEdit#SearchField {
+    background-color: {{surface-2}};
+    border: 1px solid transparent;
+    border-radius: 10px;
+    padding: 8px 12px 8px 34px;
+    color: {{text}};
+    selection-background-color: {{accent}};
+    selection-color: #FFFFFF;
+}
+
+QLineEdit#SearchField:hover {
+    background-color: {{surface-3}};
+}
+
+QLineEdit#SearchField:focus {
+    background-color: {{surface}};
+    border: 1px solid {{accent}};
+}
+
+/* ── Список чатов ───────────────────────────────────────────────────────── */
+
+QListWidget#ChatList {
+    background: transparent;
+    border: none;
+    outline: 0;
+}
+
+QListWidget#ChatList::item {
+    border-radius: 12px;
+    padding: 0px;
+    margin: 2px 0px;
+    color: {{text}};
+}
+
+QListWidget#ChatList::item:hover {
+    background-color: {{hover}};
+}
+
+QListWidget#ChatList::item:selected {
+    background-color: {{selected}};
+    color: {{text}};
+}
+
+/* ── Кнопки-иконки ──────────────────────────────────────────────────────── */
+
+QToolButton#IconButton {
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+    padding: 6px;
+}
+
+QToolButton#IconButton:hover {
+    background-color: {{hover}};
+}
+
+QToolButton#IconButton:pressed {
+    background-color: {{surface-3}};
+}
+
+/* ── Кнопки ─────────────────────────────────────────────────────────────── */
+
+QPushButton#PrimaryButton {
+    background-color: {{accent}};
+    color: #FFFFFF;
+    border: none;
+    border-radius: 10px;
+    padding: 9px 18px;
+    font-weight: bold;
+}
+
+QPushButton#PrimaryButton:hover {
+    background-color: {{accent-hover}};
+}
+
+QPushButton#PrimaryButton:pressed {
+    background-color: {{accent-pressed}};
+}
+
+QPushButton#PrimaryButton:disabled {
+    background-color: {{surface-3}};
+    color: {{text-faint}};
+}
+
+QPushButton#GhostButton {
+    background-color: transparent;
+    color: {{text}};
+    border: 1px solid {{border}};
+    border-radius: 10px;
+    padding: 8px 16px;
+}
+
+QPushButton#GhostButton:hover {
+    background-color: {{hover}};
+}
+
+QPushButton#LinkButton {
+    background: transparent;
+    border: none;
+    color: {{accent}};
+    padding: 2px 4px;
+}
+
+QPushButton#LinkButton:hover {
+    color: {{accent-hover}};
+    text-decoration: underline;
+}
+
+/* ── Поля ввода ─────────────────────────────────────────────────────────── */
+
+QLineEdit,
+QTextEdit,
+QPlainTextEdit {
+    background-color: {{surface}};
+    border: 1px solid {{border}};
+    border-radius: 10px;
+    padding: 9px 12px;
+    color: {{text}};
+    selection-background-color: {{accent}};
+    selection-color: #FFFFFF;
+}
+
+QLineEdit:focus,
+QTextEdit:focus,
+QPlainTextEdit:focus {
+    border: 1px solid {{accent}};
+}
+
+QLineEdit:disabled,
+QTextEdit:disabled {
+    color: {{text-faint}};
+    background-color: {{surface-2}};
+}
+
+QLineEdit::placeholder {
+    color: {{text-faint}};
+}
+
+/* ── Пустые состояния ───────────────────────────────────────────────────── */
+
+#EmptyTitle {
+    font-size: 13pt;
+    font-weight: bold;
+    color: {{text}};
+}
+
+#EmptySubtitle {
+    font-size: 10pt;
+    color: {{text-muted}};
+}
+
+#EmptyBadge {
+    background-color: {{surface-2}};
+    border-radius: 32px;
+}
+
+/* ── Скроллбары ─────────────────────────────────────────────────────────── */
+
+QScrollBar:vertical {
+    background: transparent;
+    width: 10px;
+    margin: 2px 2px 2px 0px;
+}
+
+QScrollBar::handle:vertical {
+    background-color: {{scroll}};
+    border-radius: 4px;
+    min-height: 32px;
+}
+
+QScrollBar::handle:vertical:hover {
+    background-color: {{scroll-hover}};
+}
+
+QScrollBar::add-line:vertical,
+QScrollBar::sub-line:vertical,
+QScrollBar::add-page:vertical,
+QScrollBar::sub-page:vertical {
+    background: transparent;
+    height: 0px;
+}
+
+QScrollBar:horizontal {
+    background: transparent;
+    height: 10px;
+    margin: 0px 2px 2px 2px;
+}
+
+QScrollBar::handle:horizontal {
+    background-color: {{scroll}};
+    border-radius: 4px;
+    min-width: 32px;
+}
+
+QScrollBar::add-line:horizontal,
+QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+
+/* ── Меню, тултипы, диалоги ─────────────────────────────────────────────── */
+
+QMenu {
+    background-color: {{surface}};
+    border: 1px solid {{border}};
+    border-radius: 10px;
+    padding: 6px;
+}
+
+QMenu::item {
+    padding: 7px 24px 7px 12px;
+    border-radius: 8px;
+    color: {{text}};
+}
+
+QMenu::item:selected {
+    background-color: {{hover}};
+}
+
+QMenu::separator {
+    height: 1px;
+    background-color: {{border}};
+    margin: 6px 4px;
+}
+
+QToolTip {
+    background-color: {{surface}};
+    color: {{text}};
+    border: 1px solid {{border}};
+    border-radius: 8px;
+    padding: 6px 9px;
+}
+
+QCheckBox {
+    color: {{text}};
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    border: 1px solid {{border-strong}};
+    background-color: {{surface}};
+}
+
+QCheckBox::indicator:checked {
+    background-color: {{accent}};
+    border-color: {{accent}};
+}
+
+QSplitter::handle {
+    background-color: {{border}};
+}
+
+QSplitter::handle:horizontal {
+    width: 1px;
+}

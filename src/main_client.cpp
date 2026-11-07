@@ -1,0 +1,121 @@
+#include "app/AppPaths.h"
+#include "app/Logging.h"
+#include "app/SettingsStore.h"
+#include "app/SingleInstance.h"
+#include "app/ThemeManager.h"
+#include "ui/MainWindow.h"
+
+#include <QApplication>
+#include <QCommandLineParser>
+#include <QDebug>
+#include <QDir>
+#include <QIcon>
+#include <QMessageBox>
+#include <QRegularExpression>
+#include <QStyleFactory>
+
+namespace {
+
+struct ClientOptions {
+    QString profile;
+    QString dataDir;
+    bool verbose = false;
+};
+
+bool parseProfile(const QString &profile, QString *dataDir, QString *error)
+{
+    if (profile.isEmpty() || !QRegularExpression(QStringLiteral("^[A-Za-z0-9_.-]{1,32}$"))
+                                  .match(profile).hasMatch()) {
+        *error = QStringLiteral("Недопустимое имя профиля: используйте латиницу, цифры, «_», «-», «.».");
+        return false;
+    }
+
+    // Базовый каталог вычисляется до подмены: профиль — подкаталог базового.
+    *dataDir = app::paths::dataDir() + QStringLiteral("/profiles/") + profile;
+    return true;
+}
+
+} // namespace
+
+int main(int argc, char *argv[])
+{
+    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
+        Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+
+    QApplication app(argc, argv);
+    QCoreApplication::setApplicationName(QStringLiteral("MessengerApp"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(MESSENGER_VERSION));
+    QApplication::setWindowIcon(QIcon(QStringLiteral(":/icons/logo.svg")));
+
+    QCommandLineParser parser;
+    parser.setApplicationDescription(QStringLiteral("MessengerApp — клиент мессенджера"));
+    parser.addHelpOption();
+    parser.addVersionOption();
+
+    const QCommandLineOption profileOption(
+        QStringLiteral("profile"),
+        QStringLiteral("Отдельный профиль: свой каталог данных (для второго клиента на машине)."),
+        QStringLiteral("name"));
+    const QCommandLineOption dataOption(
+        QStringLiteral("data"),
+        QStringLiteral("Каталог данных приложения."),
+        QStringLiteral("dir"));
+    const QCommandLineOption verboseOption(
+        QStringLiteral("verbose"),
+        QStringLiteral("Подробное логирование в консоль."));
+
+    parser.addOptions({profileOption, dataOption, verboseOption});
+    parser.process(app);
+
+    ClientOptions options;
+    options.verbose = parser.isSet(verboseOption);
+
+    if (parser.isSet(profileOption)) {
+        QString error;
+        if (!parseProfile(parser.value(profileOption), &options.dataDir, &error)) {
+            QMessageBox::critical(nullptr, QStringLiteral("MessengerApp"), error);
+            return 1;
+        }
+    }
+    if (parser.isSet(dataOption))
+        options.dataDir = parser.value(dataOption);
+
+    if (!options.dataDir.isEmpty())
+        app::paths::setOverrideDataDir(options.dataDir);
+
+    QString pathError;
+    if (!app::paths::ensureDirectories(&pathError)) {
+        QMessageBox::critical(nullptr, QStringLiteral("MessengerApp"), pathError);
+        return 1;
+    }
+
+    app::logging::install(app::paths::logsDir(), options.verbose);
+    qInfo().noquote() << QStringLiteral("Клиент %1, данные: %2")
+                             .arg(QStringLiteral(MESSENGER_VERSION), app::paths::dataDir());
+
+    app::SingleInstance instanceGuard(app::paths::dataDir() + QStringLiteral("/client.lock"));
+    if (!instanceGuard.tryAcquire()) {
+        qWarning().noquote() << instanceGuard.errorString();
+        QMessageBox::information(nullptr, QStringLiteral("MessengerApp"),
+                                 instanceGuard.errorString()
+                                     + QStringLiteral("\n\nЗакройте уже запущенный клиент или "
+                                                      "запустите второй с флагом --profile second."));
+        return 0;
+    }
+
+    QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+
+    app::SettingsStore settings(app::paths::settingsFile());
+    app::ThemeManager theme(&settings);
+    theme.apply();
+
+    ui::MainWindow window(&theme, &settings);
+    window.show();
+
+    const int exitCode = app.exec();
+
+    app::logging::shutdown();
+    return exitCode;
+}
