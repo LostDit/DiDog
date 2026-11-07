@@ -3,6 +3,7 @@ set(MESSENGER_CORE_SOURCES
     app/AppPaths.h              app/AppPaths.cpp
     app/ChatService.h           app/ChatService.cpp
     app/ClientController.h      app/ClientController.cpp
+    app/HistoryStore.h          app/HistoryStore.cpp
     app/Logging.h               app/Logging.cpp
     app/SettingsStore.h         app/SettingsStore.cpp
     app/SessionService.h        app/SessionService.cpp
@@ -16,6 +17,7 @@ set(MESSENGER_CORE_SOURCES
     core/Protocol.h             core/Protocol.cpp
 
     data/AttachmentRepository.h data/AttachmentRepository.cpp
+    data/ChatCacheRepository.h  data/ChatCacheRepository.cpp
     data/ChatRepository.h       data/ChatRepository.cpp
     data/Database.h             data/Database.cpp
     data/JsonMapping.h          data/JsonMapping.cpp

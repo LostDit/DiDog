@@ -102,6 +102,23 @@ const char *const kSchemaV1[] = {
     "CREATE INDEX IF NOT EXISTS ix_outbox_chat ON outbox(chat_id, created_at)",
 };
 
+// Схема v2: кэш списка чатов для мгновенного показа истории при запуске.
+const char *const kSchemaV2[] = {
+    "CREATE TABLE IF NOT EXISTS chat_cache ("
+    "  chat_id   INTEGER PRIMARY KEY,"
+    "  kind      TEXT    NOT NULL,"
+    "  title     TEXT,"
+    "  peer_id   INTEGER NOT NULL DEFAULT 0,"
+    "  peer_name TEXT    NOT NULL DEFAULT '',"
+    "  peer_hue  INTEGER NOT NULL DEFAULT 210,"
+    "  last_body TEXT    NOT NULL DEFAULT '',"
+    "  last_kind TEXT    NOT NULL DEFAULT 'text',"
+    "  last_at   INTEGER NOT NULL DEFAULT 0,"
+    "  last_seq  INTEGER NOT NULL DEFAULT 0,"
+    "  unread    INTEGER NOT NULL DEFAULT 0"
+    ")",
+};
+
 bool exec(QSqlDatabase &db, const QString &sql, QString *error)
 {
     QSqlQuery query(db);
@@ -147,6 +164,31 @@ bool applyV1(QSqlDatabase &db, QString *error)
     return true;
 }
 
+bool applyV2(QSqlDatabase &db, QString *error)
+{
+    if (!db.transaction()) {
+        if (error)
+            *error = QStringLiteral("Не удалось начать транзакцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+
+    for (const char *statement : kSchemaV2) {
+        if (!exec(db, QString::fromLatin1(statement), error)) {
+            db.rollback();
+            return false;
+        }
+    }
+
+    if (!db.commit()) {
+        if (error)
+            *error = QStringLiteral("Не удалось зафиксировать миграцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+    return true;
+}
+
 } // namespace
 
 int version(QSqlDatabase &db)
@@ -180,6 +222,9 @@ bool apply(QSqlDatabase &db, QString *error)
         return true;
 
     if (current < 1 && !applyV1(db, error))
+        return false;
+
+    if (current < 2 && !applyV2(db, error))
         return false;
 
     if (!exec(db, QStringLiteral("PRAGMA user_version = %1").arg(kCurrentVersion), error))

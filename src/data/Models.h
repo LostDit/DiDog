@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QList>
 #include <QMetaType>
 #include <QString>
 #include <QtGlobal>
@@ -109,3 +110,7 @@ struct OutboxEntry {
 Q_DECLARE_METATYPE(data::ChatSummary)
 Q_DECLARE_METATYPE(data::Message)
 Q_DECLARE_METATYPE(data::User)
+Q_DECLARE_METATYPE(data::OutboxEntry)
+Q_DECLARE_METATYPE(QList<data::ChatSummary>)
+Q_DECLARE_METATYPE(QList<data::Message>)
+Q_DECLARE_METATYPE(QList<data::OutboxEntry>)

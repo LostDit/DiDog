@@ -1,3 +1,4 @@
+#include "app/AppPaths.h"
 #include "app/ClientController.h"
 #include "app/SettingsStore.h"
 #include "app/ThemeManager.h"
@@ -26,6 +27,7 @@ private slots:
     void cleanup();
 
     void twoClientsExchangeMessages();
+    void historySurvivesRestart();
 
 private:
     QLineEdit *editWithPlaceholder(QWidget *root, const QString &placeholder) const;
@@ -36,8 +38,13 @@ private:
 
     // Регистрирует клиента и возвращает его главное окно (nullptr при ошибке).
     ui::MainWindow *registerClient(app::SettingsStore *settings,
+                                   const QString &dataDir,
                                    const QString &username,
                                    const QString &displayName);
+
+    // Поднимает клиента с сохранённым токеном (без формы входа).
+    ui::MainWindow *resumeClient(app::SettingsStore *settings, const QString &dataDir,
+                                 const QString &displayName);
 
     bool windowHasBubble(ui::MainWindow *window, const QString &textPart) const;
 
@@ -89,6 +96,7 @@ void TestUiFlow::cleanup()
     m_aliceSettings.reset();
     m_bobSettings.reset();
     m_server.reset();
+    app::paths::setOverrideDataDir(QString());
     m_dir.reset();
 }
 
@@ -148,9 +156,14 @@ bool TestUiFlow::windowHasBubble(ui::MainWindow *window, const QString &textPart
 }
 
 ui::MainWindow *TestUiFlow::registerClient(app::SettingsStore *settings,
+                                           const QString &dataDir,
                                            const QString &username,
                                            const QString &displayName)
 {
+    // Каждый клиент в тесте получает собственный каталог данных (история, кэш).
+    app::paths::setOverrideDataDir(dataDir);
+    QDir().mkpath(dataDir);
+
     auto *controller = new app::ClientController(settings, m_theme.data(), this);
     m_controllers.append(controller);
     controller->start();
@@ -217,13 +230,15 @@ ui::MainWindow *TestUiFlow::registerClient(app::SettingsStore *settings,
 
 void TestUiFlow::twoClientsExchangeMessages()
 {
-    ui::MainWindow *alice = registerClient(m_aliceSettings.data(), QStringLiteral("alice"),
-                                           QStringLiteral("Алиса"));
+    ui::MainWindow *alice = registerClient(m_aliceSettings.data(),
+                                           m_dir->filePath(QStringLiteral("alice-data")),
+                                           QStringLiteral("alice"), QStringLiteral("Алиса"));
     QVERIFY(alice);
     QTest::qWait(300);
 
-    ui::MainWindow *bob = registerClient(m_bobSettings.data(), QStringLiteral("bob"),
-                                         QStringLiteral("Боб"));
+    ui::MainWindow *bob = registerClient(m_bobSettings.data(),
+                                         m_dir->filePath(QStringLiteral("bob-data")),
+                                         QStringLiteral("bob"), QStringLiteral("Боб"));
     QVERIFY(bob);
     QTest::qWait(400);
 
@@ -258,6 +273,61 @@ void TestUiFlow::twoClientsExchangeMessages()
     alice->grab().save(shotDir + QStringLiteral("/chat-dark.png"));
 
     bob->grab().save(shotDir + QStringLiteral("/chat-bob-dark.png"));
+}
+
+ui::MainWindow *TestUiFlow::resumeClient(app::SettingsStore *settings, const QString &dataDir,
+                                         const QString &displayName)
+{
+    app::paths::setOverrideDataDir(dataDir);
+
+    auto *controller = new app::ClientController(settings, m_theme.data(), this);
+    m_controllers.append(controller);
+    controller->start();
+
+    QElapsedTimer timer;
+    timer.start();
+    ui::MainWindow *window = nullptr;
+    while (timer.elapsed() < 10000) {
+        if ((window = findMainWindow(displayName)) != nullptr)
+            return window;
+        QTest::qWait(20);
+    }
+
+    qWarning("Не удалось восстановить сессию по сохранённому токену");
+    return nullptr;
+}
+
+void TestUiFlow::historySurvivesRestart()
+{
+    const QString dataDir = m_dir->filePath(QStringLiteral("alice-data"));
+
+    ui::MainWindow *alice = registerClient(m_aliceSettings.data(), dataDir,
+                                           QStringLiteral("alice"), QStringLiteral("Алиса"));
+    QVERIFY(alice);
+    QTest::qWait(400);
+
+    auto *composer = alice->findChild<ui::ComposerEdit *>();
+    QVERIFY(composer);
+    QTRY_VERIFY_WITH_TIMEOUT(composer->isEnabled(), 5000);
+
+    composer->setPlainText(QStringLiteral("История переживёт перезапуск."));
+    QTest::keyClick(composer, Qt::Key_Return);
+
+    QTRY_VERIFY_WITH_TIMEOUT(windowHasBubble(alice, QStringLiteral("переживёт перезапуск")),
+                             10000);
+
+    // Даём рабочему потоку записать сообщение, затем закрываем клиента.
+    QTest::qWait(600);
+    QVERIFY(!m_controllers.isEmpty());
+    delete m_controllers.takeFirst();
+    QTest::qWait(300);
+
+    ui::MainWindow *restored = resumeClient(m_aliceSettings.data(), dataDir,
+                                            QStringLiteral("Алиса"));
+    QVERIFY(restored);
+
+    QTRY_VERIFY_WITH_TIMEOUT(windowHasBubble(restored, QStringLiteral("переживёт перезапуск")),
+                             10000);
 }
 
 QTEST_MAIN(TestUiFlow)

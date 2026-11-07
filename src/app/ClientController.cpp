@@ -1,6 +1,8 @@
 #include "app/ClientController.h"
 
+#include "app/AppPaths.h"
 #include "app/ChatService.h"
+#include "app/HistoryStore.h"
 #include "app/SessionService.h"
 #include "app/SettingsStore.h"
 #include "app/ThemeManager.h"
@@ -18,6 +20,21 @@ ClientController::ClientController(SettingsStore *settings, ThemeManager *theme,
     , m_theme(theme)
 {
     createConnection();
+
+    m_history = new HistoryStore(this);
+    QString historyError;
+    if (!m_history->open(paths::clientDbPath(), &historyError)) {
+        qWarning().noquote() << QStringLiteral("Локальная история недоступна: %1")
+                                    .arg(historyError);
+        delete m_history;
+        m_history = nullptr;
+    }
+
+    if (m_history) {
+        connect(m_history, &HistoryStore::failed, this, [](const QString &message) {
+            qWarning().noquote() << QStringLiteral("История: %1").arg(message);
+        });
+    }
 }
 
 ClientController::~ClientController() = default;
@@ -44,7 +61,7 @@ void ClientController::start()
 void ClientController::onAuthenticated(const data::User &user)
 {
     if (!m_chats)
-        m_chats = new ChatService(m_connection, this);
+        m_chats = new ChatService(m_connection, m_history, this);
 
     m_chats->setCurrentUser(user);
     m_chats->loadChats();

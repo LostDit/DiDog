@@ -3,6 +3,7 @@
 #include "data/SqlUtil.h"
 
 #include <QDateTime>
+#include <QDebug>
 #include <QSqlQuery>
 #include <QVariant>
 
@@ -127,6 +128,30 @@ bool MessageRepository::append(const Message &message, Message *stored, QString 
 
 bool MessageRepository::store(const Message &message, bool *inserted, QString *error)
 {
+    // Клиентская БД наполняется из сети: сначала гарантируем существование
+    // связанных записей, иначе внешние ключи отклонят вставку.
+    QSqlQuery chatRef(m_db);
+    chatRef.prepare(QStringLiteral(
+        "INSERT OR IGNORE INTO chats(id, kind, title, created_at) VALUES(?, 'direct', NULL, ?)"));
+    chatRef.addBindValue(message.chatId);
+    chatRef.addBindValue(message.createdAt);
+    if (!chatRef.exec()) {
+        // Чат мог быть создан между вызовами — не считаем это фатальным, проверим ниже.
+        qWarning().noquote() << "chat ref:" << chatRef.lastError().text();
+    }
+
+    QSqlQuery userRef(m_db);
+    userRef.prepare(QStringLiteral(
+        "INSERT OR IGNORE INTO users(id, username, display_name, avatar_hue, created_at) "
+        "VALUES(?, ?, ?, ?, ?)"));
+    userRef.addBindValue(message.senderId);
+    userRef.addBindValue(QStringLiteral("user%1").arg(message.senderId));
+    userRef.addBindValue(message.senderDisplayName);
+    userRef.addBindValue(message.senderHue);
+    userRef.addBindValue(message.createdAt);
+    if (!userRef.exec())
+        qWarning().noquote() << "user ref:" << userRef.lastError().text();
+
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
         "INSERT OR IGNORE INTO messages(id, chat_id, sender_id, seq, client_msg_id, kind, body, "

@@ -11,14 +11,17 @@
 
 namespace app {
 
+class HistoryStore;
+
 // Состояние переписки на клиенте: список чатов, ленты сообщений, отправка.
-// Живёт в GUI-потоке; сетевые запросы асинхронны.
+// Живёт в GUI-потоке; сетевые запросы асинхронны, история — в рабочем потоке.
 class ChatService : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit ChatService(net::ClientConnection *connection, QObject *parent = nullptr);
+    ChatService(net::ClientConnection *connection, HistoryStore *history,
+                QObject *parent = nullptr);
 
     void setCurrentUser(const data::User &user);
     qint64 currentUserId() const { return m_currentUserId; }
@@ -39,6 +42,9 @@ public:
     void markRead(qint64 chatId);
     void createDirect(const QString &username);
     void retryFailed(qint64 chatId, const QString &clientMsgId);
+
+    // Отправляет накопленные офлайн-сообщения (вызывается после переподключения).
+    void flushOutbox();
 
 signals:
     void chatsChanged();
@@ -66,9 +72,12 @@ private:
     void upsertSummary(const data::ChatSummary &summary);
     void insertMessageSorted(qint64 chatId, const data::Message &message);
     void updateSummaryForMessage(qint64 chatId, const data::Message &message);
-    QString displayNameOf(qint64 userId) const;
+    void sendPending(const data::Message &message);
+    void persistChats();
+    void persistOutbox(qint64 chatId, const QString &clientMsgId);
 
     net::ClientConnection *m_connection = nullptr;
+    HistoryStore *m_history = nullptr;
     qint64 m_currentUserId = 0;
     data::User m_currentUser;
 

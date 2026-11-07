@@ -17,6 +17,7 @@ class ClientConnection;
 namespace app {
 
 class ChatService;
+class HistoryStore;
 class SessionService;
 class SettingsStore;
 class ThemeManager;
@@ -42,6 +43,7 @@ private:
     SettingsStore *m_settings = nullptr;
     ThemeManager *m_theme = nullptr;
     net::ClientConnection *m_connection = nullptr;
+    HistoryStore *m_history = nullptr;
     ChatService *m_chats = nullptr;
     SessionService *m_session = nullptr;
     QScopedPointer<ui::LoginWindow> m_loginWindow;

@@ -1,5 +1,6 @@
 #include "app/ChatService.h"
 
+#include "app/HistoryStore.h"
 #include "core/Ids.h"
 #include "core/Limits.h"
 #include "core/Protocol.h"
@@ -24,18 +25,80 @@ bool replyOk(const QJsonObject &reply)
 
 } // namespace
 
-ChatService::ChatService(net::ClientConnection *connection, QObject *parent)
+ChatService::ChatService(net::ClientConnection *connection, HistoryStore *history,
+                         QObject *parent)
     : QObject(parent)
     , m_connection(connection)
+    , m_history(history)
 {
     connect(m_connection, &net::ClientConnection::eventReceived,
             this, &ChatService::onEvent);
+
+    if (!m_history)
+        return;
+
+    connect(m_connection, &net::ClientConnection::socketConnected, this,
+            [this]() { flushOutbox(); });
+
+    connect(m_history, &HistoryStore::chatsLoaded, this,
+            [this](const QList<data::ChatSummary> &chats) {
+                // Кэш показывает интерфейс сразу; сетевой список его заменит.
+                if (!m_chats.isEmpty() || chats.isEmpty())
+                    return;
+                m_chats = chats;
+                emit chatsChanged();
+            });
+
+    connect(m_history, &HistoryStore::messagesLoaded, this,
+            [this](qint64 chatId, const QList<data::Message> &messages) {
+                ChatState &state = m_states[chatId];
+                if (state.loaded || messages.isEmpty())
+                    return;
+                state.messages = messages;
+                state.loaded = true;
+                state.hasMore = messages.size() >= core::limits::kHistoryPageSize;
+                emit messagesChanged(chatId);
+            });
+
+    connect(m_history, &HistoryStore::outboxLoaded, this,
+            [this](const QList<data::OutboxEntry> &entries) {
+                for (const data::OutboxEntry &entry : entries) {
+                    ChatState &state = m_states[entry.chatId];
+
+                    data::Message pending;
+                    for (const data::Message &message : qAsConst(state.messages)) {
+                        if (message.clientMsgId == entry.clientMsgId) {
+                            pending = message;
+                            break;
+                        }
+                    }
+
+                    if (pending.clientMsgId.isEmpty()) {
+                        pending.chatId = entry.chatId;
+                        pending.senderId = m_currentUserId;
+                        pending.clientMsgId = entry.clientMsgId;
+                        pending.kind = entry.kind;
+                        pending.body = entry.body;
+                        pending.createdAt = entry.createdAt;
+                        pending.state = data::DeliveryState::Pending;
+                        pending.senderDisplayName = m_currentUser.displayName;
+                        pending.senderHue = m_currentUser.avatarHue;
+                        state.messages.append(pending);
+                        emit messagesChanged(entry.chatId);
+                    }
+
+                    sendPending(pending);
+                }
+            });
 }
 
 void ChatService::setCurrentUser(const data::User &user)
 {
     m_currentUser = user;
     m_currentUserId = user.id;
+
+    if (m_history)
+        m_history->loadChats();
 }
 
 data::ChatSummary ChatService::chat(qint64 chatId) const
@@ -86,6 +149,7 @@ void ChatService::loadChats()
 
                               m_chats = summaries;
                               emit chatsChanged();
+                              persistChats();
                           });
 }
 
@@ -99,6 +163,10 @@ void ChatService::openChat(qint64 chatId)
     }
 
     state.loading = true;
+
+    // Сначала показываем кэш с диска, затем страницу с сервера.
+    if (m_history)
+        m_history->loadMessages(chatId, core::limits::kHistoryPageSize * 2);
 
     QJsonObject request;
     request.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
@@ -208,41 +276,107 @@ void ChatService::sendText(qint64 chatId, const QString &text)
 
     updateSummaryForMessage(chatId, pending);
     emit messagesChanged(chatId);
+    persistChats();
 
-    const QString clientMsgId = pending.clientMsgId;
+    sendPending(pending);
+}
+
+void ChatService::sendPending(const data::Message &message)
+{
+    const qint64 chatId = message.chatId;
+    const QString clientMsgId = message.clientMsgId;
 
     QJsonObject request;
     request.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
     request.insert(QStringLiteral("client_msg_id"), clientMsgId);
-    request.insert(QStringLiteral("kind"), QStringLiteral("text"));
-    request.insert(QStringLiteral("body"), body);
+    request.insert(QStringLiteral("kind"), data::messageKindToString(message.kind));
+    request.insert(QStringLiteral("body"), message.body);
 
     m_connection->request(QStringLiteral("msg.send"), request,
                           [this, chatId, clientMsgId](const QJsonObject &reply) {
                               ChatState &current = m_states[chatId];
 
-                              for (data::Message &message : current.messages) {
-                                  if (message.clientMsgId != clientMsgId)
+                              bool updated = false;
+                              for (data::Message &stored : current.messages) {
+                                  if (stored.clientMsgId != clientMsgId)
                                       continue;
 
                                   if (replyOk(reply)) {
                                       const QJsonObject data = replyData(reply);
-                                      message.id = static_cast<qint64>(
+                                      stored.id = static_cast<qint64>(
                                           data.value(QStringLiteral("message_id")).toDouble());
-                                      message.seq = static_cast<qint64>(
+                                      stored.seq = static_cast<qint64>(
                                           data.value(QStringLiteral("seq")).toDouble());
-                                      message.createdAt = static_cast<qint64>(
+                                      stored.createdAt = static_cast<qint64>(
                                           data.value(QStringLiteral("created_at")).toDouble());
-                                      message.state = data::DeliveryState::Sent;
+                                      stored.state = data::DeliveryState::Sent;
+                                      updated = true;
+                                  } else if (core::proto::errorCodeOf(reply)
+                                             == core::ErrorCode::Offline) {
+                                      // Останется в очереди до восстановления соединения.
+                                      stored.state = data::DeliveryState::Pending;
                                   } else {
-                                      message.state = data::DeliveryState::Failed;
+                                      stored.state = data::DeliveryState::Failed;
                                       emit errorOccurred(core::proto::errorMessageOf(reply));
                                   }
                                   break;
                               }
 
+                              if (updated) {
+                                  data::Message saved;
+                                  for (const data::Message &stored : qAsConst(current.messages)) {
+                                      if (stored.clientMsgId == clientMsgId) {
+                                          saved = stored;
+                                          break;
+                                      }
+                                  }
+
+                                  if (m_history && saved.id > 0) {
+                                      m_history->saveMessage(saved);
+                                      m_history->removeOutbox(clientMsgId);
+                                  }
+                                  persistChats();
+                              } else {
+                                  if (core::proto::errorCodeOf(reply) == core::ErrorCode::Offline)
+                                      persistOutbox(chatId, clientMsgId);
+                              }
+
                               emit messagesChanged(chatId);
                           });
+}
+
+void ChatService::persistOutbox(qint64 chatId, const QString &clientMsgId)
+{
+    if (!m_history)
+        return;
+
+    const ChatState &state = m_states[chatId];
+    for (const data::Message &message : state.messages) {
+        if (message.clientMsgId != clientMsgId)
+            continue;
+
+        data::OutboxEntry entry;
+        entry.clientMsgId = clientMsgId;
+        entry.chatId = chatId;
+        entry.kind = message.kind;
+        entry.body = message.body;
+        entry.createdAt = message.createdAt;
+        entry.state = data::DeliveryState::Pending;
+        m_history->addOutbox(entry);
+        return;
+    }
+}
+
+void ChatService::flushOutbox()
+{
+    if (m_history)
+        m_history->loadOutbox();
+}
+
+void ChatService::persistChats()
+{
+    if (m_history)
+        m_history->saveChats(m_chats);
 }
 
 void ChatService::retryFailed(qint64 chatId, const QString &clientMsgId)
@@ -362,7 +496,11 @@ void ChatService::handleNewMessage(const data::Message &message)
         loadChats();
     } else {
         updateSummaryForMessage(message.chatId, message);
+        persistChats();
     }
+
+    if (m_history && message.id > 0)
+        m_history->saveMessage(message);
 
     ChatState &state = m_states[message.chatId];
     if (state.loaded)
