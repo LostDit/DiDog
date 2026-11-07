@@ -5,6 +5,7 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QFile>
 #include <QImage>
 #include <QScopedPointer>
 #include <QTemporaryDir>
@@ -20,6 +21,7 @@ private slots:
 
     void detectsFileKinds();
     void formatsFileSize();
+    void rejectsOversizedFile();
     void imageViewerLoadsPicture();
 
 private:
@@ -59,6 +61,25 @@ void TestMedia::formatsFileSize()
     QCOMPARE(ui::format::fileSize(512), QStringLiteral("512 Б"));
     QVERIFY(ui::format::fileSize(2048).contains(QStringLiteral("КБ")));
     QVERIFY(ui::format::fileSize(5 * 1024 * 1024).contains(QStringLiteral("МБ")));
+}
+
+void TestMedia::rejectsOversizedFile()
+{
+    const QString path = m_dir->filePath(QStringLiteral("big.bin"));
+
+    QFile file(path);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    QVERIFY(file.resize(26 * 1024 * 1024)); // 26 МБ > лимита 25 МБ
+    file.close();
+
+    app::AttachmentService service(nullptr, m_dir->path());
+    QSignalSpy failed(&service, &app::AttachmentService::uploadFailed);
+
+    service.upload(1, path);
+
+    QCOMPARE(failed.count(), 1);
+    QVERIFY2(failed.first().at(2).toString().contains(QStringLiteral("25")),
+             qPrintable(failed.first().at(2).toString()));
 }
 
 void TestMedia::imageViewerLoadsPicture()

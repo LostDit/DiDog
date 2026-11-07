@@ -38,6 +38,9 @@ AttachmentService::AttachmentService(net::ClientConnection *connection, const QS
     , m_connection(connection)
     , m_cacheRoot(cacheRoot)
 {
+    if (!m_connection)
+        return;
+
     connect(m_connection, &net::ClientConnection::chunkReceived,
             this, &AttachmentService::onChunk);
     connect(m_connection, &net::ClientConnection::transferFinished,

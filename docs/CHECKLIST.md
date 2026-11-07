@@ -1,0 +1,55 @@
+# Чек-лист готовности (ТЗ v2 §11)
+
+Дата прогона: 2026-11-08. Среда: Windows 11, Qt 5.14.2 (MinGW 7.3 x64), CMake 4.0.1, GCC 7.3.
+
+| # | Требование | Статус | Чем подтверждено |
+|---|---|---|---|
+| 1 | `git clone` + 2–3 команды сборки | ⚠️ частично | MinGW: собирается без правок (этот прогон). MSVC и Ubuntu — см. примечания ниже |
+| 2 | Регистрация, вход, «запомнить», выход; неверный пароль — понятная ошибка | ✅ | `tst_session` (4 сценария), `tst_ui_flow` (регистрация через форму) |
+| 3 | Два клиента обмениваются текстом; история переживает перезапуск | ✅ | `tst_ui_flow::twoClientsExchangeMessages`, `historySurvivesRestart` |
+| 4 | Фото, GIF, видео и файл отправляются и отображаются; 26 МБ отклоняется | ✅ | `tst_ui_flow::sendsImageAttachment` (PNG end-to-end), `tst_server_smoke::transfersAttachmentEndToEnd` (100 КБ, sha256), `tst_media::rejectsOversizedFile`; GIF — `QMovie`, видео — `VideoPlayerDialog` |
+| 5 | Статусы sent/delivered/read и счётчики непрочитанных | ✅ | `tst_repositories::receiptsAggregateToRead`, `tst_server_smoke` (ev.receipt/ev.read), UI-статусы в пузырях |
+| 6 | Две темы, fallback-аватары, анимация появления | ✅ | скриншоты `chat-light`/`chat-dark`, `tst_settings` (переключение темы), анимация 160 мс в `MessageView` |
+| 7 | Обрыв соединения: реконнект, очередь, без дублей | ⚠️ частично | политика реконнекта и офлайн-ошибки — `tst_client`; идемпотентность `msg.send` — `tst_server_smoke`; хранение очереди — `tst_history`. Сквозной сценарий «отправил офлайн → поднял сервер» автоматизированно не прогонялся |
+| 8 | Повреждённая БД и отсутствующий файл не роняют приложение | ✅ | `tst_db::recoversFromCorruption` (карантин и пересоздание), `tst_db::rejectsNewerSchema`; отсутствующее вложение показывает заглушку |
+| 9 | `ctest` — 100 %, сборка без предупреждений | ✅ | 12/12 наборов; сборка `messenger_core` с `-Werror` (GCC, `-Wall -Wextra`) проходит чисто |
+| 10 | README со скриншотами и командами; в коде нет `TODO` | ✅ | `README.md`; `grep TODO/FIXME` по `src/` и `tests/` пуст |
+
+## Команды прогона
+
+```powershell
+$env:QT_PREFIX = "C:\Qt\Qt5.14.2\5.14.2\mingw73_64"
+cmake -S . -B build -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH="$env:QT_PREFIX"
+cmake --build build -j 8
+ctest --test-dir build --output-on-failure
+```
+
+Результат: `100% tests passed, 0 tests failed out of 12` (≈29 с).
+
+Пакет:
+
+```powershell
+cmake --build build-release -j 8
+.\scripts\package-windows.ps1 -BuildDir build-release
+```
+
+`dist/MessengerApp` (73,7 МБ) запущен с очищенным от Qt `PATH`: сервер слушает порт,
+клиент открывает окно, БД создаются.
+
+## Примечания и ограничения среды
+
+- **MSVC не проверен**: установленная Visual Studio 18 (2026) не поддерживается CMake 4.0.1
+  (максимальный генератор — `Visual Studio 17 2022`). CMake-конфигурация рассчитана на VS 2022
+  и не содержит ничего специфичного для MinGW.
+- **Ubuntu 22.04** локально не запускался (нет окружения). Сборка и тесты описаны в
+  `.github/workflows/build.yml`; в тестах на Linux включается `QT_QPA_PLATFORM=offscreen`.
+- **Видео**: воспроизведение зависит от системных кодеков (DirectShow на Windows,
+  GStreamer на Linux); при ошибке плеер предлагает открыть файл внешним приложением.
+- **Шифрование**: TLS не входит в объём (ТЗ v2 §8.2) — трафик не шифруется.
+- **Сквозной офлайн-сценарий** проверен по частям (реконнект, идемпотентность, хранение outbox),
+  но не одним UI-тестом.
+
+## Итог
+
+Функциональные требования P0 и P1 выполнены, сборка и тесты зелёные на целевой связке
+Qt 5.14.2 + MinGW. Два пункта помечены ⚠️ из-за ограничений окружения, а не кода.

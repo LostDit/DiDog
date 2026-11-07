@@ -175,6 +175,7 @@ docs/         ТЗ, протокол, архитектура, план
 - [docs/architecture.md](docs/architecture.md) — слои, потоки, жизненный цикл данных
 - [docs/PROPOSAL.md](docs/PROPOSAL.md) — разбор исходного ТЗ и обоснование правок
 - [docs/ROADMAP.md](docs/ROADMAP.md) — этапы и текущий прогресс
+- [docs/CHECKLIST.md](docs/CHECKLIST.md) — прогон чек-листа готовности с ограничениями среды
 
 ## Тесты
 
