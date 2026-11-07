@@ -1,0 +1,59 @@
+# ─── Сборка ────────────────────────────────────────────────────────────────
+build/
+build-*/
+out/
+dist/
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+install_manifest.txt
+compile_commands.json
+Makefile
+*.make
+*.ninja
+.ninja_deps
+.ninja_log
+
+# ─── IDE ───────────────────────────────────────────────────────────────────
+.vs/
+.vscode/
+.idea/
+*.user
+*.user.*
+CMakeLists.txt.user
+*.autosave
+
+# ─── Бинарники и артефакты ─────────────────────────────────────────────────
+*.exe
+*.dll
+*.so
+*.so.*
+*.dylib
+*.a
+*.lib
+*.o
+*.obj
+*.exp
+*.pdb
+*.ilk
+
+# ─── Данные приложения ─────────────────────────────────────────────────────
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+logs/
+*.log
+tmp/
+attachments/
+thumbnails/
+
+# ─── Сгенерированное ───────────────────────────────────────────────────────
+*.qm
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
