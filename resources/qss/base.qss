@@ -526,3 +526,22 @@ QStatusBar {
     border: 1px solid rgba(255, 255, 255, 60);
     color: #FFFFFF;
 }
+
+/* ── Просмотр медиа ─────────────────────────────────────────────────────── */
+
+#ImageViewer, #VideoViewer {
+    background-color: #0E1014;
+}
+
+#ViewerImage {
+    color: #E8EAED;
+    background: transparent;
+}
+
+#VideoSurface {
+    background-color: #000000;
+}
+
+#VideoViewer QLabel {
+    color: #E8EAED;
+}

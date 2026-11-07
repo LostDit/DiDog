@@ -9,6 +9,7 @@
 #include <QHBoxLayout>
 #include <QImageReader>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QMovie>
 #include <QPainter>
 #include <QPushButton>
@@ -257,6 +258,41 @@ void MessageBubble::buildAttachment()
 
     layout->insertWidget(0, label, 0, Qt::AlignLeft);
     m_attachment = label;
+
+    if (hasFile) {
+        label->setCursor(Qt::PointingHandCursor);
+        label->setToolTip(m_message.kind == data::MessageKind::Video
+                              ? tr("Открыть видео")
+                              : (m_message.kind == data::MessageKind::File
+                                     ? tr("Сохранить файл")
+                                     : tr("Открыть изображение")));
+    }
+}
+
+void MessageBubble::mousePressEvent(QMouseEvent *event)
+{
+    if (event->button() != Qt::LeftButton || !m_attachment
+        || m_message.localPath.isEmpty() || !m_attachment->geometry().contains(event->pos())) {
+        QWidget::mousePressEvent(event);
+        return;
+    }
+
+    switch (m_message.kind) {
+    case data::MessageKind::Image:
+    case data::MessageKind::Gif:
+        emit imageActivated(m_message.localPath);
+        break;
+    case data::MessageKind::Video:
+        emit videoActivated(m_message.localPath);
+        break;
+    case data::MessageKind::File:
+        emit fileActivated(m_message.attachment.fileName, m_message.localPath);
+        break;
+    case data::MessageKind::Text:
+        break;
+    }
+
+    event->accept();
 }
 
 void MessageBubble::updateStatus()

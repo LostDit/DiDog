@@ -8,11 +8,16 @@
 #include "ui/ChatItemDelegate.h"
 #include "ui/ChatListModel.h"
 #include "ui/ComposerWidget.h"
+#include "ui/ImageViewerDialog.h"
 #include "ui/MessageView.h"
+#include "ui/VideoPlayerDialog.h"
 
 #include <QAction>
 #include <QCloseEvent>
 #include <QDebug>
+#include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -21,6 +26,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QMenu>
+#include <QMessageBox>
 #include <QSortFilterProxyModel>
 #include <QStackedWidget>
 #include <QStatusBar>
@@ -316,6 +322,37 @@ QWidget *MainWindow::buildConversationPane()
         if (m_currentChatId > 0)
             m_chats->retryFailed(m_currentChatId, clientMsgId);
     });
+
+    connect(m_messageView, &MessageView::imageActivated, this, [this](const QString &filePath) {
+        ui::ImageViewerDialog viewer(filePath, this);
+        viewer.exec();
+    });
+
+    connect(m_messageView, &MessageView::videoActivated, this, [this](const QString &filePath) {
+        ui::VideoPlayerDialog player(filePath, this);
+        player.exec();
+    });
+
+    connect(m_messageView, &MessageView::fileActivated, this,
+            [this](const QString &fileName, const QString &filePath) {
+                const QString target = QFileDialog::getSaveFileName(
+                    this, tr("Сохранить файл"),
+                    fileName.isEmpty() ? QFileInfo(filePath).fileName() : fileName);
+
+                if (target.isEmpty())
+                    return;
+
+                if (QFileInfo::exists(target) && !QFile::remove(target)) {
+                    QMessageBox::warning(this, tr("Не удалось сохранить файл"),
+                                         tr("Файл занят или недоступен для записи."));
+                    return;
+                }
+
+                if (!QFile::copy(filePath, target)) {
+                    QMessageBox::warning(this, tr("Не удалось сохранить файл"),
+                                         tr("Не удалось скопировать файл в выбранное место."));
+                }
+            });
 
     return page;
 }

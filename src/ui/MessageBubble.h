@@ -28,6 +28,12 @@ public:
 
 signals:
     void retryRequested(const QString &clientMsgId);
+    void imageActivated(const QString &filePath);
+    void videoActivated(const QString &filePath);
+    void fileActivated(const QString &fileName, const QString &filePath);
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
 
 private:
     void rebuild();
