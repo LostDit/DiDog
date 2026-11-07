@@ -6,6 +6,7 @@ set(MESSENGER_CORE_SOURCES
     app/ClientController.h      app/ClientController.cpp
     app/HistoryStore.h          app/HistoryStore.cpp
     app/Logging.h               app/Logging.cpp
+    app/NotificationService.h   app/NotificationService.cpp
     app/SettingsStore.h         app/SettingsStore.cpp
     app/SessionService.h        app/SessionService.cpp
     app/SingleInstance.h        app/SingleInstance.cpp
@@ -53,6 +54,7 @@ set(MESSENGER_CORE_SOURCES
     ui/MainWindow.h             ui/MainWindow.cpp
     ui/MessageBubble.h          ui/MessageBubble.cpp
     ui/MessageView.h            ui/MessageView.cpp
+    ui/SearchDialog.h           ui/SearchDialog.cpp
     ui/VideoPlayerDialog.h      ui/VideoPlayerDialog.cpp
 )
 

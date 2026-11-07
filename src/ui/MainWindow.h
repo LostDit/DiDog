@@ -5,6 +5,7 @@
 
 #include <QHash>
 #include <QMainWindow>
+#include <QPointer>
 
 class QLabel;
 class QLineEdit;
@@ -30,6 +31,7 @@ class AvatarWidget;
 class ChatListModel;
 class ComposerWidget;
 class MessageView;
+class SearchDialog;
 
 // Главное окно: список чатов и переписка.
 class MainWindow : public QMainWindow
@@ -46,6 +48,16 @@ public:
 
     // Отправка файла в текущий чат (используется кнопкой «скрепка» и тестами).
     void sendFile(const QString &filePath);
+
+    // Открыть чат по id (из уведомления или поиска).
+    void openChatById(qint64 chatId);
+    qint64 currentChatId() const { return m_currentChatId; }
+
+    // Показать окно поверх остальных.
+    void activate();
+
+    // Открыть глобальный поиск (Ctrl+F).
+    void openSearch();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -74,6 +86,7 @@ private:
     void updateThemeButton();
     void updateConnectionBanner();
     void restoreWindowState();
+    QHash<qint64, QString> chatNames() const;
 
     app::ChatService *m_chats = nullptr;
     app::SessionService *m_session = nullptr;
@@ -98,6 +111,8 @@ private:
     ComposerWidget *m_composer = nullptr;
     QLabel *m_connectionBanner = nullptr;
     QTimer *m_typingTimer = nullptr;
+    QPointer<SearchDialog> m_searchDialog;
+    qint64 m_pendingScrollMessageId = 0;
 
     qint64 m_currentChatId = 0;
     QHash<qint64, bool> m_online;

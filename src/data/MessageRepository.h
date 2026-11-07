@@ -31,6 +31,9 @@ public:
     bool maxSeq(qint64 chatId, qint64 *value, QString *error) const;
     bool countInChat(qint64 chatId, int *value, QString *error) const;
 
+    // Поиск по тексту сообщений (LIKE, регистронезависимо для ASCII).
+    bool search(const QString &query, int limit, QList<Message> *out, QString *error) const;
+
 private:
     QSqlDatabase m_db;
 };

@@ -126,6 +126,23 @@ void HistoryWorker::loadOutbox()
     emit outboxLoaded(entries);
 }
 
+void HistoryWorker::searchMessages(const QString &query, int limit)
+{
+    if (!m_open)
+        return;
+
+    data::MessageRepository messages(m_database.handle());
+    QList<data::Message> found;
+    QString error;
+
+    if (!messages.search(query, limit, &found, &error)) {
+        report(error);
+        return;
+    }
+
+    emit searchResults(query, found);
+}
+
 void HistoryWorker::report(const QString &error)
 {
     qWarning().noquote() << QStringLiteral("История: %1").arg(error);
@@ -164,6 +181,8 @@ bool HistoryStore::open(const QString &databasePath, QString *error)
     connect(m_worker, &HistoryWorker::outboxLoaded, this, &HistoryStore::outboxLoaded,
             Qt::QueuedConnection);
     connect(m_worker, &HistoryWorker::failed, this, &HistoryStore::failed,
+            Qt::QueuedConnection);
+    connect(m_worker, &HistoryWorker::searchResults, this, &HistoryStore::searchResults,
             Qt::QueuedConnection);
 
     m_thread->start();
@@ -234,6 +253,13 @@ void HistoryStore::removeOutbox(const QString &clientMsgId)
 void HistoryStore::loadOutbox()
 {
     submit([](HistoryWorker *worker) { worker->loadOutbox(); });
+}
+
+void HistoryStore::searchMessages(const QString &query, int limit)
+{
+    submit([query, limit](HistoryWorker *worker) {
+        worker->searchMessages(query, limit);
+    });
 }
 
 } // namespace app

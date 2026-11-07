@@ -277,6 +277,37 @@ bool MessageRepository::maxSeq(qint64 chatId, qint64 *value, QString *error) con
     return true;
 }
 
+bool MessageRepository::search(const QString &query, int limit, QList<Message> *out,
+                               QString *error) const
+{
+    const QString trimmed = query.trimmed();
+    if (trimmed.size() < 2)
+        return true;
+
+    QString pattern = trimmed;
+    pattern.replace(QLatin1Char('\\'), QStringLiteral("\\\\"));
+    pattern.replace(QLatin1Char('%'), QStringLiteral("\\%"));
+    pattern.replace(QLatin1Char('_'), QStringLiteral("\\_"));
+
+    QString sql = QString::fromLatin1(kSelectMessage);
+    sql += QStringLiteral("WHERE m.body LIKE ? ESCAPE '\\' ORDER BY m.created_at DESC LIMIT ?");
+
+    QSqlQuery statement(m_db);
+    statement.prepare(sql);
+    statement.addBindValue(QStringLiteral("%") + pattern + QStringLiteral("%"));
+    statement.addBindValue(qBound(1, limit, 200));
+
+    if (!statement.exec())
+        return sql::failQuery(error, statement, QStringLiteral("Поиск по сообщениям"));
+
+    if (out) {
+        out->clear();
+        while (statement.next())
+            out->append(readMessage(statement));
+    }
+    return true;
+}
+
 bool MessageRepository::countInChat(qint64 chatId, int *value, QString *error) const
 {
     QSqlQuery query(m_db);

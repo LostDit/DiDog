@@ -7,6 +7,7 @@
 #include "ui/LoginWindow.h"
 #include "ui/MainWindow.h"
 #include "ui/MessageBubble.h"
+#include "ui/SearchDialog.h"
 
 #include <QApplication>
 #include <QDir>
@@ -14,6 +15,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMovie>
 #include <QPushButton>
 #include <QScopedPointer>
@@ -32,6 +34,7 @@ private slots:
     void twoClientsExchangeMessages();
     void historySurvivesRestart();
     void sendsImageAttachment();
+    void searchesMessages();
 
 private:
     QLineEdit *editWithPlaceholder(QWidget *root, const QString &placeholder) const;
@@ -391,6 +394,50 @@ void TestUiFlow::sendsImageAttachment()
     QDir().mkpath(shotDir);
     QTest::qWait(400);
     bob->grab().save(shotDir + QStringLiteral("/chat-image.png"));
+}
+
+void TestUiFlow::searchesMessages()
+{
+    const QString dataDir = m_dir->filePath(QStringLiteral("alice-search-data"));
+    ui::MainWindow *alice = registerClient(m_aliceSettings.data(), dataDir,
+                                           QStringLiteral("alice"), QStringLiteral("Алиса"));
+    QVERIFY(alice);
+    QTest::qWait(300);
+
+    auto *composer = alice->findChild<ui::ComposerEdit *>();
+    QVERIFY(composer);
+    QTRY_VERIFY_WITH_TIMEOUT(composer->isEnabled(), 5000);
+
+    composer->setPlainText(QStringLiteral("Уникальное слово для поиска"));
+    QTest::keyClick(composer, Qt::Key_Return);
+    QTRY_VERIFY_WITH_TIMEOUT(windowHasBubble(alice, QStringLiteral("Уникальное")), 10000);
+
+    // Даём локальной истории записать сообщение.
+    QTest::qWait(600);
+
+    alice->openSearch();
+    auto *dialog = alice->findChild<ui::SearchDialog *>();
+    QVERIFY(dialog);
+
+    auto *query = dialog->findChild<QLineEdit *>();
+    auto *results = dialog->findChild<QListWidget *>();
+    QVERIFY(query);
+    QVERIFY(results);
+
+    query->setText(QStringLiteral("Уникальное")); // кириллица не набирается через keyClicks
+    QTRY_VERIFY_WITH_TIMEOUT(results->count() > 0, 5000);
+
+    QTest::qWait(150);
+
+    const QString shotDir = QDir(QCoreApplication::applicationDirPath())
+                                .filePath(QStringLiteral("screenshots"));
+    QDir().mkpath(shotDir);
+    dialog->grab().save(shotDir + QStringLiteral("/search-results.png"));
+
+    results->setCurrentRow(0);
+    QTest::keyClick(results, Qt::Key_Return);
+
+    QTRY_VERIFY_WITH_TIMEOUT(!dialog->isVisible(), 2000);
 }
 
 QTEST_MAIN(TestUiFlow)

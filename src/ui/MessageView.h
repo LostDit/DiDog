@@ -30,6 +30,9 @@ public:
     void scrollToBottom();
     bool isAtBottom() const;
 
+    // Прокрутить к сообщению, если оно есть в ленте.
+    bool scrollToMessage(qint64 messageId);
+
 signals:
     void loadOlderRequested();
     void retryRequested(const QString &clientMsgId);

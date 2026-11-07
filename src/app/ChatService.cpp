@@ -185,8 +185,7 @@ ChatService::ChatService(net::ClientConnection *connection, HistoryStore *histor
                 emit messagesChanged(chatId);
             });
 
-    connect(m_history, &HistoryStore::outboxLoaded, this,
-            [this](const QList<data::OutboxEntry> &entries) {
+    connect(m_history, &HistoryStore::outboxLoaded, this,            [this](const QList<data::OutboxEntry> &entries) {
                 for (const data::OutboxEntry &entry : entries) {
                     ChatState &state = m_states[entry.chatId];
 
@@ -215,6 +214,8 @@ ChatService::ChatService(net::ClientConnection *connection, HistoryStore *histor
                     sendPending(pending);
                 }
             });
+
+    connect(m_history, &HistoryStore::searchResults, this, &ChatService::searchResults);
 }
 
 void ChatService::setCurrentUser(const data::User &user)
@@ -619,6 +620,20 @@ void ChatService::createDirect(const QString &username)
                           });
 }
 
+void ChatService::searchMessages(const QString &query)
+{
+    if (m_history)
+        m_history->searchMessages(query);
+}
+
+int ChatService::totalUnread() const
+{
+    int total = 0;
+    for (const data::ChatSummary &summary : m_chats)
+        total += summary.unread;
+    return total;
+}
+
 void ChatService::onEvent(const QString &event, const QJsonObject &data)
 {
     if (event == QLatin1String(core::proto::event::kMsg)) {
@@ -700,6 +715,9 @@ void ChatService::handleNewMessage(const data::Message &message)
 
     if (state.loaded)
         emit messagesChanged(message.chatId);
+
+    if (message.senderId != m_currentUserId)
+        emit messageArrived(message.chatId, message);
 }
 
 void ChatService::applyReceipt(qint64 chatId, qint64 messageId, data::DeliveryState state)

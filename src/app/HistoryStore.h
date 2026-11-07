@@ -28,11 +28,13 @@ public:
     void addOutbox(const data::OutboxEntry &entry);
     void removeOutbox(const QString &clientMsgId);
     void loadOutbox();
+    void searchMessages(const QString &query, int limit);
 
 signals:
     void chatsLoaded(const QList<data::ChatSummary> &chats);
     void messagesLoaded(qint64 chatId, const QList<data::Message> &messages);
     void outboxLoaded(const QList<data::OutboxEntry> &entries);
+    void searchResults(const QString &query, const QList<data::Message> &messages);
     void failed(const QString &message);
 
 private:
@@ -62,11 +64,13 @@ public:
     void addOutbox(const data::OutboxEntry &entry);
     void removeOutbox(const QString &clientMsgId);
     void loadOutbox();
+    void searchMessages(const QString &query, int limit = 50);
 
 signals:
     void chatsLoaded(const QList<data::ChatSummary> &chats);
     void messagesLoaded(qint64 chatId, const QList<data::Message> &messages);
     void outboxLoaded(const QList<data::OutboxEntry> &entries);
+    void searchResults(const QString &query, const QList<data::Message> &messages);
     void failed(const QString &message);
 
 private:

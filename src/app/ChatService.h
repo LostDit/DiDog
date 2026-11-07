@@ -44,6 +44,8 @@ public:
     void markRead(qint64 chatId);
     void createDirect(const QString &username);
     void retryFailed(qint64 chatId, const QString &clientMsgId);
+    void searchMessages(const QString &query);
+    int totalUnread() const;
 
     // Отправляет накопленные офлайн-сообщения (вызывается после переподключения).
     void flushOutbox();
@@ -56,6 +58,8 @@ signals:
     void errorOccurred(const QString &message);
     void typingChanged(qint64 chatId, qint64 userId, bool typing);
     void presenceChanged(qint64 userId, bool online);
+    void messageArrived(qint64 chatId, const data::Message &message);
+    void searchResults(const QString &query, const QList<data::Message> &messages);
 
 private slots:
     void onEvent(const QString &event, const QJsonObject &data);

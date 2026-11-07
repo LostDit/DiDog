@@ -17,6 +17,7 @@ private slots:
     void persistsChatsAndMessages();
     void survivesReopen();
     void outboxLifecycle();
+    void searchesByText();
 
 private:
     data::Message makeMessage(qint64 chatId, qint64 seq, const QString &body);
@@ -140,6 +141,21 @@ void TestHistory::outboxLifecycle()
     m_store->loadOutbox();
     QTRY_COMPARE_WITH_TIMEOUT(spy.count(), 1, 5000);
     QCOMPARE(spy.first().at(0).value<QList<data::OutboxEntry>>().size(), 0);
+}
+
+void TestHistory::searchesByText()
+{
+    m_store->saveMessage(makeMessage(7, 1, QStringLiteral("Уникальное слово для поиска")));
+    m_store->saveMessage(makeMessage(7, 2, QStringLiteral("обычное сообщение")));
+
+    QSignalSpy spy(m_store.data(), &app::HistoryStore::searchResults);
+    m_store->searchMessages(QStringLiteral("Уникальное"));
+
+    QTRY_COMPARE_WITH_TIMEOUT(spy.count(), 1, 5000);
+
+    const auto found = spy.first().at(1).value<QList<data::Message>>();
+    QCOMPARE(found.size(), 1);
+    QCOMPARE(found.first().body, QStringLiteral("Уникальное слово для поиска"));
 }
 
 QTEST_GUILESS_MAIN(TestHistory)

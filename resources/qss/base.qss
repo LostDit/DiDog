@@ -545,3 +545,26 @@ QStatusBar {
 #VideoViewer QLabel {
     color: #E8EAED;
 }
+
+#SearchDialog {
+    background-color: {{bg}};
+}
+
+QListWidget#SearchResults {
+    background: transparent;
+    border: none;
+}
+
+QListWidget#SearchResults::item {
+    padding: 8px 10px;
+    border-radius: 8px;
+    color: {{text}};
+}
+
+QListWidget#SearchResults::item:hover {
+    background-color: {{hover}};
+}
+
+QListWidget#SearchResults::item:selected {
+    background-color: {{selected}};
+}

@@ -56,6 +56,18 @@ void MessageView::scrollToBottom()
     });
 }
 
+bool MessageView::scrollToMessage(qint64 messageId)
+{
+    for (MessageBubble *bubble : qAsConst(m_bubbles)) {
+        if (bubble->messageId() != messageId)
+            continue;
+
+        ensureWidgetVisible(bubble, 0, 60);
+        return true;
+    }
+    return false;
+}
+
 void MessageView::setMessages(const QList<data::Message> &messages)
 {
     const bool wasAtBottom = isAtBottom();

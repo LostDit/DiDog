@@ -4,6 +4,7 @@
 #include "app/AttachmentService.h"
 #include "app/ChatService.h"
 #include "app/HistoryStore.h"
+#include "app/NotificationService.h"
 #include "app/SessionService.h"
 #include "app/SettingsStore.h"
 #include "app/ThemeManager.h"
@@ -11,9 +12,27 @@
 #include "ui/LoginWindow.h"
 #include "ui/MainWindow.h"
 
+#include <QCoreApplication>
 #include <QDebug>
 
 namespace app {
+namespace {
+
+QString previewOf(const data::Message &message)
+{
+    switch (message.kind) {
+    case data::MessageKind::Image: return QStringLiteral("📷 Фотография");
+    case data::MessageKind::Video: return QStringLiteral("🎬 Видео");
+    case data::MessageKind::Gif:   return QStringLiteral("GIF");
+    case data::MessageKind::File:  return QStringLiteral("📎 Файл");
+    case data::MessageKind::Text:  break;
+    }
+
+    const QString text = message.body.simplified();
+    return text.size() > 80 ? text.left(80) + QStringLiteral("…") : text;
+}
+
+} // namespace
 
 ClientController::ClientController(SettingsStore *settings, ThemeManager *theme, QObject *parent)
     : QObject(parent)
@@ -21,6 +40,30 @@ ClientController::ClientController(SettingsStore *settings, ThemeManager *theme,
     , m_theme(theme)
 {
     createConnection();
+
+    m_notifications = new NotificationService(this);
+
+    connect(m_notifications, &NotificationService::showRequested, this, [this]() {
+        if (m_mainWindow) {
+            m_mainWindow->show();
+            m_mainWindow->activate();
+        } else if (m_loginWindow) {
+            m_loginWindow->show();
+            m_loginWindow->raise();
+        }
+    });
+
+    connect(m_notifications, &NotificationService::openChatRequested, this,
+            [this](qint64 chatId) {
+                if (!m_mainWindow)
+                    return;
+                m_mainWindow->show();
+                m_mainWindow->activate();
+                m_mainWindow->openChatById(chatId);
+            });
+
+    connect(m_notifications, &NotificationService::quitRequested, this,
+            []() { QCoreApplication::quit(); });
 
     m_history = new HistoryStore(this);
     QString historyError;
@@ -62,8 +105,31 @@ void ClientController::start()
 
 void ClientController::onAuthenticated(const data::User &user)
 {
-    if (!m_chats)
+    if (!m_chats) {
         m_chats = new ChatService(m_connection, m_history, m_attachments, this);
+
+        connect(m_chats, &ChatService::messageArrived, this,
+                [this](qint64 chatId, const data::Message &message) {
+                    if (!m_mainWindow || !m_notifications)
+                        return;
+
+                    if (m_mainWindow->isActiveWindow() && !m_mainWindow->isMinimized()
+                        && m_mainWindow->currentChatId() == chatId) {
+                        return;
+                    }
+
+                    const data::ChatSummary summary = m_chats->chat(chatId);
+                    const QString title = summary.peerDisplayName.isEmpty()
+                                              ? tr("Новое сообщение")
+                                              : summary.peerDisplayName;
+                    m_notifications->notify(title, previewOf(message), chatId);
+                });
+
+        connect(m_chats, &ChatService::chatsChanged, this, [this]() {
+            if (m_notifications)
+                m_notifications->setUnreadCount(m_chats->totalUnread());
+        });
+    }
 
     m_chats->setCurrentUser(user);
     m_chats->loadChats();
@@ -73,6 +139,9 @@ void ClientController::onAuthenticated(const data::User &user)
                                               m_settings, m_theme));
         m_mainWindow->setUser(user);
         m_mainWindow->show();
+
+        if (m_notifications)
+            m_notifications->setMainWindow(m_mainWindow.data());
     }
 
     if (m_loginWindow)
@@ -84,6 +153,11 @@ void ClientController::onAuthenticated(const data::User &user)
 void ClientController::onLoggedOut()
 {
     m_mainWindow.reset();
+
+    if (m_notifications) {
+        m_notifications->setMainWindow(nullptr);
+        m_notifications->setUnreadCount(0);
+    }
 
     if (m_chats) {
         m_chats->deleteLater();

@@ -10,6 +10,7 @@
 #include "ui/ComposerWidget.h"
 #include "ui/ImageViewerDialog.h"
 #include "ui/MessageView.h"
+#include "ui/SearchDialog.h"
 #include "ui/VideoPlayerDialog.h"
 
 #include <QAction>
@@ -27,6 +28,7 @@
 #include <QListView>
 #include <QMenu>
 #include <QMessageBox>
+#include <QShortcut>
 #include <QSortFilterProxyModel>
 #include <QStackedWidget>
 #include <QStatusBar>
@@ -93,6 +95,15 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
                 [this](app::ThemeManager::Theme) { updateThemeButton(); });
         updateThemeButton();
     }
+
+    auto *findShortcut = new QShortcut(QKeySequence::Find, this);
+    connect(findShortcut, &QShortcut::activated, this, &MainWindow::openSearch);
+
+    connect(m_chats, &app::ChatService::searchResults, this,
+            [this](const QString &, const QList<data::Message> &messages) {
+                if (m_searchDialog)
+                    m_searchDialog->setResults(messages, chatNames());
+            });
 
     m_typingTimer = new QTimer(this);
     m_typingTimer->setSingleShot(true);
@@ -379,6 +390,11 @@ void MainWindow::onMessagesChanged(qint64 chatId)
     m_messageView->setHasMore(m_chats->hasMore(chatId));
     m_messageView->setMessages(m_chats->messages(chatId));
     m_composer->setInputEnabled(true);
+
+    if (m_pendingScrollMessageId > 0
+        && m_messageView->scrollToMessage(m_pendingScrollMessageId)) {
+        m_pendingScrollMessageId = 0;
+    }
 }
 
 void MainWindow::onChatSelectionChanged()
@@ -466,6 +482,56 @@ void MainWindow::sendFile(const QString &filePath)
         return;
 
     m_chats->sendFile(m_currentChatId, filePath);
+}
+
+void MainWindow::openSearch()
+{
+    if (!m_searchDialog) {
+        m_searchDialog = new SearchDialog(this);
+
+        connect(m_searchDialog, &SearchDialog::searchRequested, this,
+                [this](const QString &query) { m_chats->searchMessages(query); });
+
+        connect(m_searchDialog, &SearchDialog::messageActivated, this,
+                [this](qint64 chatId, qint64 messageId) {
+                    openChatById(chatId);
+                    m_pendingScrollMessageId = messageId;
+                    m_messageView->scrollToMessage(messageId);
+                });
+    }
+
+    m_searchDialog->show();
+    m_searchDialog->raise();
+    m_searchDialog->activateWindow();
+}
+
+QHash<qint64, QString> MainWindow::chatNames() const
+{
+    QHash<qint64, QString> names;
+    for (const data::ChatSummary &summary : m_chats->chats())
+        names.insert(summary.chat.id, summary.peerDisplayName);
+    return names;
+}
+
+void MainWindow::openChatById(qint64 chatId)
+{
+    if (chatId <= 0)
+        return;
+
+    if (m_chats->chat(chatId).chat.id <= 0) {
+        m_chats->loadChats();
+        return;
+    }
+
+    selectChatRow(chatId);
+    openChat(chatId);
+}
+
+void MainWindow::activate()
+{
+    showNormal();
+    raise();
+    activateWindow();
 }
 
 void MainWindow::onThemeToggleClicked()
