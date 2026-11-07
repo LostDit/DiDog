@@ -72,8 +72,14 @@ void ClientConnection::wireSocket()
     connect(m_socket, &QTcpSocket::connected, this, &ClientConnection::onConnected);
     connect(m_socket, &QTcpSocket::disconnected, this, &ClientConnection::onDisconnected);
     connect(m_socket, &QTcpSocket::readyRead, this, &ClientConnection::onReadyRead);
+    // В Qt 5.15 сигнал error() объявлен устаревшим; на 5.14 используем его.
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    connect(m_socket, &QAbstractSocket::errorOccurred,
+            this, &ClientConnection::onSocketError);
+#else
     connect(m_socket, QOverload<QAbstractSocket::SocketError>::of(&QTcpSocket::error),
             this, &ClientConnection::onSocketError);
+#endif
     connect(m_socket, &QTcpSocket::bytesWritten, this, &ClientConnection::bytesWritten);
 
     if (auto *ssl = qobject_cast<QSslSocket *>(m_socket)) {

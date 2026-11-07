@@ -34,11 +34,19 @@ void TlsServer::incomingConnection(qintptr handle)
         emit securedConnection(socket);
     });
 
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    connect(socket, &QSslSocket::errorOccurred, this,
+            [socket](QAbstractSocket::SocketError) {
+                qWarning().noquote() << QStringLiteral("TLS handshake: %1")
+                                            .arg(socket->errorString());
+            });
+#else
     connect(socket, QOverload<QAbstractSocket::SocketError>::of(&QAbstractSocket::error),
             this, [socket](QAbstractSocket::SocketError) {
                 qWarning().noquote() << QStringLiteral("TLS handshake: %1")
                                             .arg(socket->errorString());
             });
+#endif
 
     connect(socket, &QSslSocket::disconnected, this, [this, socket]() {
         if (socket->parent() == this)
