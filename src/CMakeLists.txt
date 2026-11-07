@@ -7,12 +7,15 @@ set(MESSENGER_CORE_SOURCES
     app/ThemeManager.h          app/ThemeManager.cpp
 
     core/Error.h                core/Error.cpp
+    core/FrameCodec.h           core/FrameCodec.cpp
     core/Ids.h                  core/Ids.cpp
     core/Limits.h
+    core/Protocol.h             core/Protocol.cpp
 
     data/AttachmentRepository.h data/AttachmentRepository.cpp
     data/ChatRepository.h       data/ChatRepository.cpp
     data/Database.h             data/Database.cpp
+    data/JsonMapping.h          data/JsonMapping.cpp
     data/MessageRepository.h    data/MessageRepository.cpp
     data/Migrations.h           data/Migrations.cpp
     data/Models.h               data/Models.cpp
