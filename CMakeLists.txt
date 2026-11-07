@@ -27,6 +27,13 @@ endif()
 find_package(Qt5 5.14 REQUIRED COMPONENTS
     Core Gui Widgets Network Sql Multimedia MultimediaWidgets Concurrent Svg)
 
+# OpenSSL 1.1.1 нужен QSslSocket из Qt 5.14; раскладываем рядом с бинарниками.
+if(WIN32)
+    set(MESSENGER_OPENSSL_DLLS
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/openssl/win64/libcrypto-1_1-x64.dll
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/openssl/win64/libssl-1_1-x64.dll)
+endif()
+
 # Переводы: .ts → .qm рядом с исполняемым файлом.
 find_package(Qt5 5.14 QUIET COMPONENTS LinguistTools)
 if(Qt5LinguistTools_FOUND)

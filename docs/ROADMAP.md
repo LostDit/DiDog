@@ -97,3 +97,15 @@
 - [x] GitHub Actions: Windows (MSVC 2019) и Ubuntu 22.04 (GCC), сборка + ctest
 - [x] README: сборка, запуск, упаковка, CI, скриншоты
 - [x] Финальный прогон чек-листа готовности (TZ-v2 §11) — [CHECKLIST.md](CHECKLIST.md)
+
+## M8. Безопасность и развёртывание
+
+- [x] TLS: `QSslSocket`, серверный `TlsServer`, самоподписанный сертификат
+- [x] Закрепление отпечатка сертификата на клиенте (TOFU) и блокировка при подмене
+- [x] Галочка «Защищённое соединение (TLS)» на экране входа
+- [x] `scripts/make-cert.ps1` / `make-cert.sh`, сертификат в пакете и установщике
+- [x] Служба Windows: `--install-service`, `--uninstall-service`, режим `--service`
+- [x] `scripts/deploy-vps.sh` и `docs/VPS-DEPLOY.md` (systemd, TLS, ufw, бэкапы)
+- [x] `docs/WINDOWS-SERVICE.md`, `tst_tls`
+
+Критерий: трафик шифруется, сервер работает без консоли и разворачивается на VPS.

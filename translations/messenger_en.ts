@@ -65,7 +65,7 @@
 <context>
     <name>app::ClientController</name>
     <message>
-        <location filename="../src/app/ClientController.cpp" line="123"/>
+        <location filename="../src/app/ClientController.cpp" line="137"/>
         <source>Новое сообщение</source>
         <translation>New message</translation>
     </message>
@@ -162,6 +162,19 @@
     </message>
 </context>
 <context>
+    <name>net::ClientConnection</name>
+    <message>
+        <location filename="../src/net/ClientConnection.cpp" line="245"/>
+        <source>Сервер не предъявил сертификат.</source>
+        <translation>The server did not present a certificate.</translation>
+    </message>
+    <message>
+        <location filename="../src/net/ClientConnection.cpp" line="253"/>
+        <source>Сертификат сервера не совпадает с сохранённым. Возможна подмена сервера.</source>
+        <translation>The server certificate does not match the saved one. The server may be impersonated.</translation>
+    </message>
+</context>
+<context>
     <name>ui::ComposerEdit</name>
     <message>
         <location filename="../src/ui/ComposerWidget.cpp" line="26"/>
@@ -245,7 +258,7 @@
     </message>
     <message>
         <location filename="../src/ui/LoginWindow.cpp" line="148"/>
-        <location filename="../src/ui/LoginWindow.cpp" line="228"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="240"/>
         <source>Пароль</source>
         <translation>Password</translation>
     </message>
@@ -275,52 +288,62 @@
         <translation>On another computer, enter its IP and port</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="185"/>
-        <location filename="../src/ui/LoginWindow.cpp" line="227"/>
-        <location filename="../src/ui/LoginWindow.cpp" line="288"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="180"/>
+        <source>Защищённое соединение (TLS)</source>
+        <translation>Secure connection (TLS)</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/LoginWindow.cpp" line="182"/>
+        <source>Сервер должен быть запущен с флагом --tls</source>
+        <translation>The server must be started with the --tls flag</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/LoginWindow.cpp" line="190"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="239"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="300"/>
         <source>Войти</source>
         <translation>Sign in</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="192"/>
-        <location filename="../src/ui/LoginWindow.cpp" line="274"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="197"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="286"/>
         <source>Подключение…</source>
         <translation>Connecting…</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="227"/>
-        <location filename="../src/ui/LoginWindow.cpp" line="288"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="239"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="300"/>
         <source>Создать аккаунт</source>
         <translation>Create account</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="228"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="240"/>
         <source>Пароль (от 8 символов)</source>
         <translation>Password (min. 8 characters)</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="242"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="254"/>
         <source>Введите логин и пароль.</source>
         <translation>Enter your login and password.</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="248"/>
-        <location filename="../src/ui/LoginWindow.cpp" line="287"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="260"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="299"/>
         <source>Подождите…</source>
         <translation>Please wait…</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="271"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="283"/>
         <source>Нет соединения с сервером…</source>
         <translation>No connection to the server…</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="277"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="289"/>
         <source>Сервер доступен</source>
         <translation>Server available</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="308"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="318"/>
         <source>Нет соединения с сервером. Проверьте адрес и запустите сервер.</source>
         <translation>No connection to the server. Check the address and start the server.</translation>
     </message>

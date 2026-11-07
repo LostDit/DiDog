@@ -40,6 +40,8 @@
 | ✅ | Светлая и тёмная темы с переключением на лету, fallback-аватары, анимация появления |
 | ✅ | Логирование в файл, профили (`--profile`), защита от второго экземпляра |
 | ✅ | Портативный пакет Windows и CI для Windows/Ubuntu |
+| ✅ | TLS-шифрование канала с закреплением отпечатка сертификата |
+| ✅ | Служба Windows для сервера и развёртывание на VPS (systemd) |
 
 ## Стек
 
@@ -94,6 +96,50 @@ MessengerApp-Setup-1.0.0.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Pr
 [docs/NETWORK-TESTING.md](docs/NETWORK-TESTING.md). Коротко: на сервере запускается
 «Сервер MessengerApp», он печатает свой адрес в локальной сети (`192.168.x.x:45000`),
 этот адрес вводится в клиенте на втором компьютере.
+
+## Безопасность соединения (TLS)
+
+Сервер по умолчанию работает без шифрования. Включить TLS:
+
+```powershell
+.\MessengerServer.exe --tls
+```
+
+Сертификат берётся из `tls\server.crt` и `tls\server.key` рядом с сервером
+(пути можно задать через `--tls-cert` и `--tls-key`). В комплекте идёт
+демонстрационный самоподписанный сертификат; для реального использования
+выпустите свой:
+
+```powershell
+.\scripts\make-cert.ps1 -OutputDir .\tls
+```
+
+В клиенте поставьте галочку **«Защищённое соединение (TLS)»**. При первом
+подключении клиент запоминает SHA-256 отпечаток сертификата и сверяет его при
+следующих подключениях; если сертификат сменился, соединение блокируется с
+понятной ошибкой (защита от подмены сервера). Отпечаток выводится в логах
+сервера при старте.
+
+## Служба Windows
+
+```powershell
+# от имени администратора
+cd "C:\Program Files\MessengerApp"
+.\MessengerServer.exe --install-service --port 45000 --tls
+```
+
+Подробнее: [docs/WINDOWS-SERVICE.md](docs/WINDOWS-SERVICE.md). Установщик умеет
+сделать это сам — галочка «Установить сервер как службу Windows».
+
+## VPS (доступ из любых сетей)
+
+```bash
+sudo ./scripts/deploy-vps.sh
+```
+
+Скрипт собирает сервер, ставит его в `/opt/messengerapp`, генерирует сертификат,
+создаёт systemd-службу с TLS и открывает порт. Пошагово и с диагностикой —
+[docs/VPS-DEPLOY.md](docs/VPS-DEPLOY.md).
 
 ## Сборка
 
@@ -201,6 +247,8 @@ docs/         ТЗ, протокол, архитектура, план
 - [docs/ROADMAP.md](docs/ROADMAP.md) — этапы и текущий прогресс
 - [docs/CHECKLIST.md](docs/CHECKLIST.md) — прогон чек-листа готовности с ограничениями среды
 - [docs/NETWORK-TESTING.md](docs/NETWORK-TESTING.md) — проверка на разных компьютерах и в разных сетях
+- [docs/VPS-DEPLOY.md](docs/VPS-DEPLOY.md) — сервер на VPS: systemd, TLS, обновления
+- [docs/WINDOWS-SERVICE.md](docs/WINDOWS-SERVICE.md) — служба Windows для сервера
 
 ## Тесты
 

@@ -3,6 +3,14 @@ function(add_messenger_test target source)
         ${CMAKE_SOURCE_DIR}/resources/resources.qrc)
 
     target_link_libraries(${target} PRIVATE messenger_core Qt5::Test)
+    target_compile_definitions(${target} PRIVATE TEST_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+
+    if(WIN32)
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${MESSENGER_OPENSSL_DLLS}
+                    $<TARGET_FILE_DIR:${target}>)
+    endif()
 
     add_test(NAME ${target} COMMAND ${target})
 
@@ -27,3 +35,4 @@ add_messenger_test(tst_ui_flow tst_ui_flow.cpp)
 add_messenger_test(tst_history tst_history.cpp)
 add_messenger_test(tst_media tst_media.cpp)
 add_messenger_test(tst_settings tst_settings.cpp)
+add_messenger_test(tst_tls tst_tls.cpp)

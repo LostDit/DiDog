@@ -43,6 +43,7 @@ set(MESSENGER_CORE_SOURCES
     server/HandlerResult.h
     server/ServerApp.h          server/ServerApp.cpp
     server/ServerCore.h         server/ServerCore.cpp
+    server/TlsServer.h          server/TlsServer.cpp
 
     ui/AvatarPainter.h          ui/AvatarPainter.cpp
     ui/AvatarWidget.h           ui/AvatarWidget.cpp
@@ -104,6 +105,23 @@ target_link_libraries(MessengerServer PRIVATE messenger_core)
 if(WIN32)
     target_sources(MessengerServer PRIVATE ${CMAKE_SOURCE_DIR}/resources/windows/app.rc)
 endif()
+
+# ── Runtime-зависимости ────────────────────────────────────────────────────
+if(WIN32)
+    foreach(exe MessengerClient MessengerServer)
+        add_custom_command(TARGET ${exe} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MESSENGER_OPENSSL_DLLS}
+                    $<TARGET_FILE_DIR:${exe}>)
+    endforeach()
+endif()
+
+# Демонстрационный сертификат рядом с сервером (можно заменить своим).
+add_custom_command(TARGET MessengerServer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:MessengerServer>/tls
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_SOURCE_DIR}/resources/tls/server.crt
+            ${CMAKE_SOURCE_DIR}/resources/tls/server.key
+            $<TARGET_FILE_DIR:MessengerServer>/tls)
 
 if(TARGET translations)
     add_dependencies(MessengerClient translations)

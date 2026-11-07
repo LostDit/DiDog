@@ -45,6 +45,13 @@ public:
     bool notificationsEnabled() const;
     void setNotificationsEnabled(bool enabled);
 
+    bool tlsEnabled() const;
+    void setTlsEnabled(bool enabled);
+
+    // Отпечаток сертификата сервера для конкретного адреса (TOFU-закрепление).
+    QString certificatePin(const QString &host, quint16 port) const;
+    void setCertificatePin(const QString &host, quint16 port, const QString &fingerprint);
+
     QString filePath() const;
 
 private:

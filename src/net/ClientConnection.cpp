@@ -5,9 +5,12 @@
 #include "core/Protocol.h"
 #include "net/RequestTracker.h"
 
+#include <QCryptographicHash>
 #include <QDebug>
 #include <QJsonObject>
 #include <QRandomGenerator>
+#include <QSslCertificate>
+#include <QSslSocket>
 #include <QTcpSocket>
 #include <QTimer>
 
@@ -17,23 +20,25 @@ namespace {
 constexpr int kReconnectBaseMs = 1000;
 constexpr int kReconnectMaxMs = 30000;
 
+QString fingerprintOf(const QSslCertificate &certificate)
+{
+    if (certificate.isNull())
+        return QString();
+
+    return QString::fromLatin1(certificate.digest(QCryptographicHash::Sha256).toHex());
+}
+
 } // namespace
 
 ClientConnection::ClientConnection(QObject *parent)
     : QObject(parent)
-    , m_socket(new QTcpSocket(this))
     , m_tracker(new RequestTracker(this))
     , m_reconnectTimer(new QTimer(this))
     , m_heartbeatTimer(new QTimer(this))
 {
     m_reconnectTimer->setSingleShot(true);
 
-    connect(m_socket, &QTcpSocket::connected, this, &ClientConnection::onConnected);
-    connect(m_socket, &QTcpSocket::disconnected, this, &ClientConnection::onDisconnected);
-    connect(m_socket, &QTcpSocket::readyRead, this, &ClientConnection::onReadyRead);
-    connect(m_socket, QOverload<QAbstractSocket::SocketError>::of(&QTcpSocket::error),
-            this, &ClientConnection::onSocketError);
-    connect(m_socket, &QTcpSocket::bytesWritten, this, &ClientConnection::bytesWritten);
+    rebuildSocket();
 
     connect(m_reconnectTimer, &QTimer::timeout, this, &ClientConnection::connectToServer);
 
@@ -46,6 +51,47 @@ ClientConnection::ClientConnection(QObject *parent)
 
 ClientConnection::~ClientConnection() = default;
 
+void ClientConnection::rebuildSocket()
+{
+    QTcpSocket *old = m_socket;
+
+    m_socket = m_tlsEnabled ? static_cast<QTcpSocket *>(new QSslSocket(this))
+                            : new QTcpSocket(this);
+
+    if (old) {
+        old->disconnect(this);
+        old->abort();
+        old->deleteLater();
+    }
+
+    wireSocket();
+}
+
+void ClientConnection::wireSocket()
+{
+    connect(m_socket, &QTcpSocket::connected, this, &ClientConnection::onConnected);
+    connect(m_socket, &QTcpSocket::disconnected, this, &ClientConnection::onDisconnected);
+    connect(m_socket, &QTcpSocket::readyRead, this, &ClientConnection::onReadyRead);
+    connect(m_socket, QOverload<QAbstractSocket::SocketError>::of(&QTcpSocket::error),
+            this, &ClientConnection::onSocketError);
+    connect(m_socket, &QTcpSocket::bytesWritten, this, &ClientConnection::bytesWritten);
+
+    if (auto *ssl = qobject_cast<QSslSocket *>(m_socket)) {
+        connect(ssl, &QSslSocket::encrypted, this, &ClientConnection::onEncrypted);
+        connect(ssl, QOverload<const QList<QSslError> &>::of(&QSslSocket::sslErrors),
+                this, &ClientConnection::onSslErrors);
+    }
+}
+
+void ClientConnection::setTlsEnabled(bool enabled)
+{
+    if (m_tlsEnabled == enabled || m_state != State::Disconnected)
+        return;
+
+    m_tlsEnabled = enabled;
+    rebuildSocket();
+}
+
 void ClientConnection::setEndpoint(const QString &host, quint16 port)
 {
     m_host = host;
@@ -54,7 +100,7 @@ void ClientConnection::setEndpoint(const QString &host, quint16 port)
 
 bool ClientConnection::isConnected() const
 {
-    return m_socket->state() == QAbstractSocket::ConnectedState;
+    return m_state == State::Connected;
 }
 
 void ClientConnection::connectToServer()
@@ -66,6 +112,17 @@ void ClientConnection::connectToServer()
 
     m_userDisconnect = false;
     setState(State::Connecting);
+
+    if (m_tlsEnabled) {
+        auto *ssl = qobject_cast<QSslSocket *>(m_socket);
+        if (!ssl) {
+            setState(State::Disconnected);
+            return;
+        }
+        ssl->connectToHostEncrypted(m_host, m_port);
+        return;
+    }
+
     m_socket->connectToHost(m_host, m_port);
 }
 
@@ -108,6 +165,32 @@ QString ClientConnection::request(const QString &type, const QJsonObject &data, 
 
 void ClientConnection::onConnected()
 {
+    // Для TLS соединение готово только после handshake.
+    if (m_tlsEnabled)
+        return;
+
+    finishConnect();
+}
+
+void ClientConnection::onEncrypted()
+{
+    auto *ssl = qobject_cast<QSslSocket *>(m_socket);
+    if (!ssl)
+        return;
+
+    const QString fingerprint = fingerprintOf(ssl->peerCertificate());
+    m_peerPin = fingerprint;
+
+    if (!fingerprint.isEmpty() && m_expectedPin.isEmpty()) {
+        // Первое подключение: запоминаем отпечаток (TOFU).
+        emit certificatePinned(fingerprint);
+    }
+
+    finishConnect();
+}
+
+void ClientConnection::finishConnect()
+{
     m_reconnectAttempt = 0;
     m_userDisconnect = false;
     setState(State::Connected);
@@ -146,6 +229,37 @@ void ClientConnection::onReadyRead()
 
         handleFrame(frame);
     }
+}
+
+void ClientConnection::onSslErrors(const QList<QSslError> &errors)
+{
+    Q_UNUSED(errors)
+
+    auto *ssl = qobject_cast<QSslSocket *>(m_socket);
+    if (!ssl)
+        return;
+
+    const QString fingerprint = fingerprintOf(ssl->peerCertificate());
+
+    if (fingerprint.isEmpty()) {
+        emit errorOccurred(tr("Сервер не предъявил сертификат."));
+        m_userDisconnect = true;
+        ssl->abort();
+        setState(State::Disconnected);
+        return;
+    }
+
+    if (!m_expectedPin.isEmpty() && m_expectedPin.compare(fingerprint, Qt::CaseInsensitive) != 0) {
+        emit errorOccurred(tr("Сертификат сервера не совпадает с сохранённым. "
+                              "Возможна подмена сервера."));
+        m_userDisconnect = true;
+        ssl->abort();
+        setState(State::Disconnected);
+        return;
+    }
+
+    // Сертификат самоподписанный: подлинность проверяется по отпечатку выше.
+    ssl->ignoreSslErrors();
 }
 
 void ClientConnection::onSocketError(QAbstractSocket::SocketError error)
@@ -203,21 +317,6 @@ void ClientConnection::handleFrame(const core::Frame &frame)
         m_tracker->complete(replyTo, object);
 }
 
-bool ClientConnection::sendChunk(quint32 transferId, quint32 sequence, const QByteArray &data)
-{
-    if (m_socket->state() != QAbstractSocket::ConnectedState)
-        return false;
-
-    const QByteArray chunk = core::encodeChunk(transferId, sequence, data);
-    const QByteArray frame = core::FrameCodec::encode(core::FrameType::Binary, chunk);
-    return m_socket->write(frame) == frame.size();
-}
-
-qint64 ClientConnection::bytesToWrite() const
-{
-    return m_socket->bytesToWrite();
-}
-
 void ClientConnection::setState(State state)
 {
     if (m_state == state)
@@ -229,13 +328,28 @@ void ClientConnection::setState(State state)
 
 bool ClientConnection::sendObject(const QJsonObject &object)
 {
-    if (m_socket->state() != QAbstractSocket::ConnectedState)
+    if (m_state != State::Connected)
         return false;
 
     const QByteArray payload = core::proto::encode(object);
     const QByteArray frame = core::FrameCodec::encode(core::FrameType::Json, payload);
 
     return m_socket->write(frame) == frame.size();
+}
+
+bool ClientConnection::sendChunk(quint32 transferId, quint32 sequence, const QByteArray &data)
+{
+    if (m_state != State::Connected)
+        return false;
+
+    const QByteArray chunk = core::encodeChunk(transferId, sequence, data);
+    const QByteArray frame = core::FrameCodec::encode(core::FrameType::Binary, chunk);
+    return m_socket->write(frame) == frame.size();
+}
+
+qint64 ClientConnection::bytesToWrite() const
+{
+    return m_socket->bytesToWrite();
 }
 
 void ClientConnection::scheduleReconnect()

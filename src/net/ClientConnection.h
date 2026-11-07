@@ -5,6 +5,7 @@
 #include <QAbstractSocket>
 #include <QJsonObject>
 #include <QObject>
+#include <QSslError>
 #include <QString>
 
 #include <functional>
@@ -39,6 +40,14 @@ public:
     QString host() const { return m_host; }
     quint16 port() const { return m_port; }
 
+    // TLS. Должно вызываться до connectToServer().
+    void setTlsEnabled(bool enabled);
+    bool tlsEnabled() const { return m_tlsEnabled; }
+
+    // Отпечаток сертификата (SHA-256, hex). Пустой — доверяем первому подключению.
+    void setExpectedCertificatePin(const QString &fingerprint) { m_expectedPin = fingerprint; }
+    QString peerCertificatePin() const { return m_peerPin; }
+
     State state() const { return m_state; }
     bool isConnected() const;
 
@@ -69,12 +78,15 @@ signals:
     void chunkReceived(quint32 transferId, quint32 sequence, const QByteArray &data);
     void transferFinished(quint32 transferId);
     void bytesWritten(qint64 bytes);
+    void certificatePinned(const QString &fingerprint);
 
 private slots:
     void onConnected();
+    void onEncrypted();
     void onDisconnected();
     void onReadyRead();
     void onSocketError(QAbstractSocket::SocketError error);
+    void onSslErrors(const QList<QSslError> &errors);
 
 private:
     void setState(State state);
@@ -82,6 +94,9 @@ private:
     void handleFrame(const core::Frame &frame);
     void scheduleReconnect();
     void cancelReconnect();
+    void rebuildSocket();
+    void wireSocket();
+    void finishConnect();
 
     QTcpSocket *m_socket = nullptr;
     RequestTracker *m_tracker = nullptr;
@@ -95,6 +110,10 @@ private:
     bool m_autoReconnect = true;
     bool m_userDisconnect = false;
     int m_reconnectAttempt = 0;
+
+    bool m_tlsEnabled = false;
+    QString m_expectedPin;
+    QString m_peerPin;
 };
 
 } // namespace net

@@ -7,12 +7,237 @@
 #include <QCoreApplication>
 #include <QDebug>
 #include <QDir>
+#include <QFileInfo>
+#include <QVector>
 
 #ifdef Q_OS_WIN
 #  include <windows.h>
 #endif
 
-int main(int argc, char *argv[])
+namespace {
+
+// Общая часть: разбор аргументов, инициализация и запуск сервера.
+int runServer(int argc, char *argv[]);
+
+#ifdef Q_OS_WIN
+
+SERVICE_STATUS_HANDLE g_serviceStatusHandle = nullptr;
+SERVICE_STATUS g_serviceStatus{};
+
+void reportServiceState(DWORD state, DWORD exitCode = 0)
+{
+    if (!g_serviceStatusHandle)
+        return;
+
+    g_serviceStatus.dwServiceType = SERVICE_WIN32_OWN_PROCESS;
+    g_serviceStatus.dwCurrentState = state;
+    g_serviceStatus.dwWin32ExitCode = exitCode;
+    g_serviceStatus.dwControlsAccepted = (state == SERVICE_RUNNING) ? SERVICE_ACCEPT_STOP : 0;
+    SetServiceStatus(g_serviceStatusHandle, &g_serviceStatus);
+}
+
+void WINAPI serviceControlHandler(DWORD control)
+{
+    if (control == SERVICE_CONTROL_STOP || control == SERVICE_CONTROL_SHUTDOWN) {
+        reportServiceState(SERVICE_STOP_PENDING);
+        QCoreApplication::quit();
+    }
+}
+
+void WINAPI serviceMain(DWORD argc, LPWSTR *argv)
+{
+    const wchar_t *serviceName = L"MessengerAppServer";
+
+    g_serviceStatusHandle = RegisterServiceCtrlHandlerW(serviceName, serviceControlHandler);
+    if (!g_serviceStatusHandle)
+        return;
+
+    reportServiceState(SERVICE_RUNNING);
+
+    // Аргументы сервиса приходят в UTF-16; переводим в привычный char** для runServer.
+    QVector<QByteArray> storage;
+    storage.reserve(static_cast<int>(argc));
+    for (DWORD i = 0; i < argc; ++i)
+        storage.append(QString::fromWCharArray(argv[i]).toUtf8());
+
+    QVector<char *> pointers;
+    pointers.reserve(storage.size());
+    for (QByteArray &value : storage)
+        pointers.append(value.data());
+
+    const int exitCode = runServer(pointers.size(), pointers.data());
+
+    reportServiceState(SERVICE_STOPPED, static_cast<DWORD>(exitCode));
+}
+
+bool hasArgument(int argc, char *argv[], const char *name)
+{
+    for (int i = 1; i < argc; ++i) {
+        if (qstrcmp(argv[i], name) == 0)
+            return true;
+    }
+    return false;
+}
+
+QString serviceExecutablePath()
+{
+    return QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
+}
+
+// Собирает командную строку сервиса: добавляет --service и каталог данных.
+QString serviceCommandLine(const QStringList &arguments, QString *error)
+{
+    QStringList filtered;
+    bool hasData = false;
+
+    for (int i = 0; i < arguments.size(); ++i) {
+        const QString &value = arguments.at(i);
+        if (value == QLatin1String("--install-service")
+            || value == QLatin1String("--uninstall-service")) {
+            continue;
+        }
+        if (value == QLatin1String("--data"))
+            hasData = true;
+        filtered.append(value);
+    }
+
+    if (!hasData) {
+        QString programData = qEnvironmentVariable("ProgramData");
+        if (programData.isEmpty()) {
+            if (error)
+                *error = QStringLiteral("Не удалось определить каталог ProgramData");
+            return QString();
+        }
+
+        const QString dataDir = QDir::toNativeSeparators(programData + QStringLiteral("/MessengerApp"));
+        if (!QDir().mkpath(dataDir)) {
+            if (error)
+                *error = QStringLiteral("Не удалось создать каталог данных: %1").arg(dataDir);
+            return QString();
+        }
+
+        filtered.append(QStringLiteral("--data"));
+        filtered.append(dataDir);
+    }
+
+    QStringList parts;
+    parts.append(QLatin1Char('"') + serviceExecutablePath() + QLatin1Char('"'));
+    parts.append(QStringLiteral("--service"));
+
+    for (const QString &argument : filtered) {
+        if (argument.contains(QLatin1Char(' ')))
+            parts.append(QLatin1Char('"') + argument + QLatin1Char('"'));
+        else
+            parts.append(argument);
+    }
+
+    return parts.join(QLatin1Char(' '));
+}
+
+bool installService(const QStringList &arguments, QString *error)
+{
+    const QString commandLine = serviceCommandLine(arguments, error);
+    if (commandLine.isEmpty())
+        return false;
+
+    SC_HANDLE manager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE);
+    if (!manager) {
+        const DWORD code = GetLastError();
+        if (error) {
+            *error = code == ERROR_ACCESS_DENIED
+                         ? QStringLiteral("Требуются права администратора.")
+                         : QStringLiteral("OpenSCManager: код %1").arg(code);
+        }
+        return false;
+    }
+
+    const std::wstring name = QStringLiteral("MessengerAppServer").toStdWString();
+    const std::wstring displayName = QStringLiteral("MessengerApp Server").toStdWString();
+    const std::wstring command = commandLine.toStdWString();
+
+    SC_HANDLE service = CreateServiceW(
+        manager, name.c_str(), displayName.c_str(), SERVICE_ALL_ACCESS,
+        SERVICE_WIN32_OWN_PROCESS, SERVICE_AUTO_START, SERVICE_ERROR_NORMAL,
+        command.c_str(), nullptr, nullptr, nullptr, nullptr, nullptr);
+
+    if (!service) {
+        const DWORD code = GetLastError();
+        CloseServiceHandle(manager);
+        if (error) {
+            *error = code == ERROR_ACCESS_DENIED
+                         ? QStringLiteral("Требуются права администратора.")
+                         : (code == ERROR_SERVICE_EXISTS
+                                ? QStringLiteral("Служба уже установлена.")
+                                : QStringLiteral("CreateService: код %1").arg(code));
+        }
+        return false;
+    }
+
+    const std::wstring description =
+        QStringLiteral("Сервер MessengerApp: обмен сообщениями и вложениями").toStdWString();
+    SERVICE_DESCRIPTIONW descriptionData{const_cast<wchar_t *>(description.c_str())};
+    ChangeServiceConfig2W(service, SERVICE_CONFIG_DESCRIPTION, &descriptionData);
+
+    const bool started = StartServiceW(service, 0, nullptr) != FALSE;
+    const DWORD startCode = started ? 0 : GetLastError();
+
+    CloseServiceHandle(service);
+    CloseServiceHandle(manager);
+
+    if (!started && startCode != ERROR_SERVICE_ALREADY_RUNNING) {
+        if (error)
+            *error = QStringLiteral("Служба установлена, но не запустилась: код %1").arg(startCode);
+        return false;
+    }
+
+    return true;
+}
+
+bool uninstallService(QString *error)
+{
+    SC_HANDLE manager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
+    if (!manager) {
+        if (error)
+            *error = QStringLiteral("Требуются права администратора.");
+        return false;
+    }
+
+    const std::wstring name = QStringLiteral("MessengerAppServer").toStdWString();
+    SC_HANDLE service = OpenServiceW(manager, name.c_str(),
+                                     SERVICE_STOP | DELETE | SERVICE_QUERY_STATUS);
+
+    if (!service) {
+        const DWORD code = GetLastError();
+        CloseServiceHandle(manager);
+        if (error) {
+            *error = code == ERROR_SERVICE_DOES_NOT_EXIST
+                         ? QStringLiteral("Служба не установлена.")
+                         : QStringLiteral("OpenService: код %1").arg(code);
+        }
+        return false;
+    }
+
+    SERVICE_STATUS status{};
+    ControlService(service, SERVICE_CONTROL_STOP, &status);
+
+    const bool deleted = DeleteService(service) != FALSE;
+    const DWORD deleteCode = GetLastError();
+
+    CloseServiceHandle(service);
+    CloseServiceHandle(manager);
+
+    if (!deleted) {
+        if (error)
+            *error = QStringLiteral("DeleteService: код %1").arg(deleteCode);
+        return false;
+    }
+
+    return true;
+}
+
+#endif // Q_OS_WIN
+
+int runServer(int argc, char *argv[])
 {
 #ifdef Q_OS_WIN
     // Консоль Windows по умолчанию не в UTF-8 — без этого русский текст превращается в «?????».
@@ -39,8 +264,23 @@ int main(int argc, char *argv[])
     const QCommandLineOption verboseOption(
         QStringLiteral("verbose"),
         QStringLiteral("Подробное логирование (включая DEBUG) в консоль."));
+    const QCommandLineOption tlsOption(
+        QStringLiteral("tls"),
+        QStringLiteral("Включить TLS (шифрование соединений)."));
+    const QCommandLineOption tlsCertOption(
+        QStringLiteral("tls-cert"),
+        QStringLiteral("Путь к сертификату сервера (PEM). По умолчанию tls/server.crt."),
+        QStringLiteral("path"));
+    const QCommandLineOption tlsKeyOption(
+        QStringLiteral("tls-key"),
+        QStringLiteral("Путь к приватному ключу сервера (PEM). По умолчанию tls/server.key."),
+        QStringLiteral("path"));
+    const QCommandLineOption serviceOption(
+        QStringLiteral("service"),
+        QStringLiteral("Внутренний режим: запуск под управлением службы Windows."));
 
-    parser.addOptions({portOption, dataOption, verboseOption});
+    parser.addOptions({portOption, dataOption, verboseOption, tlsOption, tlsCertOption,
+                       tlsKeyOption, serviceOption});
     parser.process(app);
 
     bool portOk = false;
@@ -71,6 +311,44 @@ int main(int argc, char *argv[])
 
     server::ServerApp server;
 
+    if (parser.isSet(tlsOption)) {
+        const auto findFile = [](const QString &explicitPath, const QString &relativeName) {
+            if (!explicitPath.isEmpty())
+                return QFileInfo::exists(explicitPath) ? explicitPath : QString();
+
+            const QStringList candidates = {
+                QCoreApplication::applicationDirPath() + QLatin1Char('/') + relativeName,
+                app::paths::dataDir() + QLatin1Char('/') + relativeName,
+            };
+
+            for (const QString &candidate : candidates) {
+                if (QFileInfo::exists(candidate))
+                    return candidate;
+            }
+            return QString();
+        };
+
+        const QString certificatePath = findFile(parser.value(tlsCertOption),
+                                                 QStringLiteral("tls/server.crt"));
+        const QString keyPath = findFile(parser.value(tlsKeyOption),
+                                         QStringLiteral("tls/server.key"));
+
+        if (certificatePath.isEmpty() || keyPath.isEmpty()) {
+            qCritical().noquote()
+                << QStringLiteral("TLS: не найден сертификат или ключ. Укажите --tls-cert "
+                                  "и --tls-key (см. scripts/make-cert.ps1).");
+            return 5;
+        }
+
+        QString tlsError;
+        if (!server.enableTls(certificatePath, keyPath, &tlsError)) {
+            qCritical().noquote() << QStringLiteral("TLS: %1").arg(tlsError);
+            return 5;
+        }
+
+        qInfo().noquote() << QStringLiteral("TLS включён, сертификат: %1").arg(certificatePath);
+    }
+
     QString serverError;
     if (!server.initialize(app::paths::serverDbPath(), app::paths::attachmentsDir(),
                            &serverError)) {
@@ -83,4 +361,58 @@ int main(int argc, char *argv[])
         return 4;
 
     return app.exec();
+}
+
+} // namespace
+
+int main(int argc, char *argv[])
+{
+#ifdef Q_OS_WIN
+    SetConsoleOutputCP(CP_UTF8);
+
+    const bool installRequested = hasArgument(argc, argv, "--install-service");
+    const bool uninstallRequested = hasArgument(argc, argv, "--uninstall-service");
+
+    if (installRequested || uninstallRequested) {
+        QCoreApplication app(argc, argv);
+        QCoreApplication::setApplicationName(QStringLiteral("MessengerApp"));
+
+        QStringList arguments;
+        for (int i = 1; i < argc; ++i)
+            arguments.append(QString::fromLocal8Bit(argv[i]));
+
+        QString error;
+        const bool ok = uninstallRequested ? uninstallService(&error)
+                                           : installService(arguments, &error);
+
+        if (ok) {
+            qInfo().noquote() << (uninstallRequested
+                                      ? QStringLiteral("Служба MessengerAppServer удалена.")
+                                      : QStringLiteral("Служба MessengerAppServer установлена "
+                                                       "и запущена."));
+            return 0;
+        }
+
+        qCritical().noquote() << QStringLiteral("Служба: %1").arg(error);
+        return 6;
+    }
+
+    if (hasArgument(argc, argv, "--service")) {
+        SERVICE_TABLE_ENTRYW table[] = {
+            {const_cast<LPWSTR>(L"MessengerAppServer"), serviceMain},
+            {nullptr, nullptr},
+        };
+
+        if (!StartServiceCtrlDispatcherW(table)) {
+            const DWORD code = GetLastError();
+            qCritical().noquote()
+                << QStringLiteral("Не удалось подключиться к диспетчеру служб (код %1)")
+                       .arg(code);
+            return 7;
+        }
+        return 0;
+    }
+#endif
+
+    return runServer(argc, argv);
 }

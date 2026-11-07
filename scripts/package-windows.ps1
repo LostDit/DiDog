@@ -51,6 +51,17 @@ Copy-Item (Join-Path $build 'MessengerClient.exe') $dist
 Copy-Item (Join-Path $build 'MessengerServer.exe') $dist
 Copy-Item (Join-Path $root 'README.md') $dist
 
+# OpenSSL 1.1.1 для TLS (Qt 5.14) и демонстрационный сертификат сервера.
+$openssl = Join-Path $root 'third_party\openssl\win64'
+if (Test-Path $openssl) {
+    Copy-Item (Join-Path $openssl '*.dll') $dist
+    Copy-Item (Join-Path $openssl 'LICENSE-openssl.txt') $dist
+}
+$tls = Join-Path $root 'resources\tls'
+if (Test-Path $tls) {
+    Copy-Item $tls (Join-Path $dist 'tls') -Recurse
+}
+
 foreach ($exe in 'MessengerClient.exe', 'MessengerServer.exe') {
     # Без --release/--debug: windeployqt сам определяет тип сборки.
     & $windeployqt --no-translations --dir $dist (Join-Path $dist $exe) | Out-Null

@@ -88,6 +88,20 @@ void ClientController::createConnection()
     m_connection = new net::ClientConnection(this);
     m_connection->setEndpoint(m_settings->serverHost(), m_settings->serverPort());
     m_connection->setAutoReconnect(true);
+    m_connection->setTlsEnabled(m_settings->tlsEnabled());
+    m_connection->setExpectedCertificatePin(
+        m_settings->certificatePin(m_settings->serverHost(), m_settings->serverPort()));
+
+    connect(m_connection, &net::ClientConnection::certificatePinned, this,
+            [this](const QString &fingerprint) {
+                if (!m_settings)
+                    return;
+                m_settings->setCertificatePin(m_connection->host(), m_connection->port(),
+                                              fingerprint);
+                m_settings->sync();
+                qInfo().noquote() << QStringLiteral("Сертификат сервера сохранён: %1")
+                                         .arg(fingerprint.left(16));
+            });
 
     m_session = new SessionService(m_connection, m_settings, this);
     m_attachments = new AttachmentService(m_connection, paths::attachmentsDir(), this);

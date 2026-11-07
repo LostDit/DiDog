@@ -177,6 +177,11 @@ void LoginWindow::buildUi()
     serverHint->setWordWrap(true);
     layout->addWidget(serverHint);
 
+    m_tls = new QCheckBox(tr("Защищённое соединение (TLS)"), card);
+    m_tls->setChecked(m_settings && m_settings->tlsEnabled());
+    m_tls->setToolTip(tr("Сервер должен быть запущен с флагом --tls"));
+    layout->addWidget(m_tls);
+
     m_error = makeLabel(QString(), "ErrorLabel", Qt::AlignCenter);
     m_error->setWordWrap(true);
     m_error->hide();
@@ -196,6 +201,14 @@ void LoginWindow::buildUi()
     connect(m_password, &QLineEdit::returnPressed, this, &LoginWindow::onSubmit);
     connect(m_username, &QLineEdit::returnPressed, this, &LoginWindow::onSubmit);
 
+    connect(m_tls, &QCheckBox::toggled, this, [this](bool enabled) {
+        if (m_settings) {
+            m_settings->setTlsEnabled(enabled);
+            m_settings->sync();
+        }
+        applyConnectionSettings();
+    });
+
     center->addWidget(card, 0, Qt::AlignCenter);
     center->addStretch(1);
     outer->addLayout(center);
@@ -205,9 +218,8 @@ void LoginWindow::buildUi()
 
 void LoginWindow::prepare()
 {
-    saveEndpoint();
-    m_connection->setEndpoint(m_host->text().trimmed(),
-                              static_cast<quint16>(m_port->text().toUShort()));
+    applyConnectionSettings();
+
     if (!m_connection->isConnected())
         m_connection->connectToServer();
 }
@@ -300,13 +312,26 @@ bool LoginWindow::ensureConnected()
     if (m_connection->isConnected())
         return true;
 
-    saveEndpoint();
-    m_connection->setEndpoint(m_host->text().trimmed(),
-                              static_cast<quint16>(m_port->text().toUShort()));
+    applyConnectionSettings();
     m_connection->connectToServer();
 
     showError(tr("Нет соединения с сервером. Проверьте адрес и запустите сервер."));
     return false;
+}
+
+void LoginWindow::applyConnectionSettings()
+{
+    saveEndpoint();
+
+    if (!m_connection || !m_settings)
+        return;
+
+    const QString host = m_host->text().trimmed();
+    const quint16 port = static_cast<quint16>(m_port->text().toUShort());
+
+    m_connection->setTlsEnabled(m_tls && m_tls->isChecked());
+    m_connection->setEndpoint(host, port);
+    m_connection->setExpectedCertificatePin(m_settings->certificatePin(host, port));
 }
 
 void LoginWindow::saveEndpoint()

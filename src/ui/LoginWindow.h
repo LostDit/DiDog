@@ -47,6 +47,7 @@ private:
     void hideError();
     bool ensureConnected();
     void saveEndpoint();
+    void applyConnectionSettings();
 
     net::ClientConnection *m_connection = nullptr;
     app::SessionService *m_session = nullptr;
@@ -61,6 +62,7 @@ private:
     QCheckBox *m_remember = nullptr;
     QLineEdit *m_host = nullptr;
     QLineEdit *m_port = nullptr;
+    QCheckBox *m_tls = nullptr;
     QLabel *m_error = nullptr;
     QLabel *m_status = nullptr;
     QPushButton *m_submit = nullptr;

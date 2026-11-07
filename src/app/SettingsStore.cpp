@@ -12,6 +12,7 @@ constexpr auto kAuthTokenKey = "auth/token";
 constexpr auto kLastUserKey = "auth/lastUser";
 constexpr auto kLanguageKey = "ui/language";
 constexpr auto kNotificationsKey = "ui/notifications";
+constexpr auto kTlsKey = "network/tls";
 
 constexpr quint16 kDefaultPort = 45000;
 
@@ -129,6 +130,32 @@ bool SettingsStore::notificationsEnabled() const
 void SettingsStore::setNotificationsEnabled(bool enabled)
 {
     m_settings.setValue(kNotificationsKey, enabled);
+}
+
+bool SettingsStore::tlsEnabled() const
+{
+    return m_settings.value(kTlsKey, false).toBool();
+}
+
+void SettingsStore::setTlsEnabled(bool enabled)
+{
+    m_settings.setValue(kTlsKey, enabled);
+}
+
+QString SettingsStore::certificatePin(const QString &host, quint16 port) const
+{
+    return m_settings.value(QStringLiteral("tls/pin/%1_%2").arg(host).arg(port)).toString();
+}
+
+void SettingsStore::setCertificatePin(const QString &host, quint16 port,
+                                      const QString &fingerprint)
+{
+    const QString key = QStringLiteral("tls/pin/%1_%2").arg(host).arg(port);
+
+    if (fingerprint.isEmpty())
+        m_settings.remove(key);
+    else
+        m_settings.setValue(key, fingerprint);
 }
 
 QString SettingsStore::filePath() const

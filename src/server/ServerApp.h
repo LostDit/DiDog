@@ -2,9 +2,11 @@
 
 #include <QObject>
 #include <QSet>
+#include <QSslConfiguration>
 #include <QString>
 
 class QTcpServer;
+class QSslSocket;
 
 namespace server {
 
@@ -22,6 +24,10 @@ public:
     explicit ServerApp(QObject *parent = nullptr);
     ~ServerApp() override;
 
+    // Включает TLS: сертификат и ключ в PEM.
+    bool enableTls(const QString &certificatePath, const QString &keyPath, QString *error);
+    bool tlsEnabled() const { return m_tlsEnabled; }
+
     bool initialize(const QString &databasePath, const QString &attachmentsRoot, QString *error);
     bool start(quint16 port);
     void stop();
@@ -36,10 +42,16 @@ private slots:
     void onNewConnection();
 
 private:
+    void createServer();
+    void attachSession(QSslSocket *socket);
+
     QTcpServer *m_server = nullptr;
     ServerCore *m_core = nullptr;
     QSet<ClientSession *> m_sessions;
     QString m_error;
+
+    bool m_tlsEnabled = false;
+    QSslConfiguration m_tlsConfiguration;
 };
 
 } // namespace server
