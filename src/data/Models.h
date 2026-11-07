@@ -71,6 +71,10 @@ struct Message {
     Attachment attachment;
     DeliveryState state = DeliveryState::Sent;
 
+    // Денормализация для UI: подтягивается JOIN'ом, чтобы лента не делала N+1 запросов.
+    QString senderDisplayName;
+    int senderHue = 210;
+
     bool hasAttachment() const { return attachment.isValid(); }
 };
 

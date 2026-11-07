@@ -10,9 +10,16 @@ set(MESSENGER_CORE_SOURCES
     core/Ids.h                  core/Ids.cpp
     core/Limits.h
 
+    data/AttachmentRepository.h data/AttachmentRepository.cpp
+    data/ChatRepository.h       data/ChatRepository.cpp
     data/Database.h             data/Database.cpp
+    data/MessageRepository.h    data/MessageRepository.cpp
     data/Migrations.h           data/Migrations.cpp
     data/Models.h               data/Models.cpp
+    data/OutboxRepository.h     data/OutboxRepository.cpp
+    data/ReceiptRepository.h    data/ReceiptRepository.cpp
+    data/SqlUtil.h
+    data/UserRepository.h       data/UserRepository.cpp
 
     security/PasswordHasher.h   security/PasswordHasher.cpp
     security/Validator.h        security/Validator.cpp
