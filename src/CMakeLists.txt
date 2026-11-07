@@ -3,6 +3,7 @@ set(MESSENGER_CORE_SOURCES
     app/AppPaths.h              app/AppPaths.cpp
     app/Logging.h               app/Logging.cpp
     app/SettingsStore.h         app/SettingsStore.cpp
+    app/SessionService.h        app/SessionService.cpp
     app/SingleInstance.h        app/SingleInstance.cpp
     app/ThemeManager.h          app/ThemeManager.cpp
 
@@ -26,6 +27,9 @@ set(MESSENGER_CORE_SOURCES
 
     security/PasswordHasher.h   security/PasswordHasher.cpp
     security/Validator.h        security/Validator.cpp
+
+    net/ClientConnection.h      net/ClientConnection.cpp
+    net/RequestTracker.h        net/RequestTracker.cpp
 
     server/ClientSession.h      server/ClientSession.cpp
     server/HandlerResult.h

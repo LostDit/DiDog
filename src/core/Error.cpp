@@ -20,6 +20,7 @@ QString errorCodeToString(ErrorCode code)
     case ErrorCode::RateLimited:        return QStringLiteral("RATE_LIMITED");
     case ErrorCode::Conflict:           return QStringLiteral("CONFLICT");
     case ErrorCode::Timeout:            return QStringLiteral("TIMEOUT");
+    case ErrorCode::Offline:            return QStringLiteral("OFFLINE");
     case ErrorCode::Internal:           return QStringLiteral("INTERNAL");
     }
     return QStringLiteral("INTERNAL");
@@ -41,6 +42,7 @@ ErrorCode errorCodeFromString(const QString &text)
         {"RATE_LIMITED",        ErrorCode::RateLimited},
         {"CONFLICT",            ErrorCode::Conflict},
         {"TIMEOUT",             ErrorCode::Timeout},
+        {"OFFLINE",             ErrorCode::Offline},
         {"INTERNAL",            ErrorCode::Internal},
     };
 
@@ -80,6 +82,8 @@ QString errorCodeUserMessage(ErrorCode code)
         return QCoreApplication::translate("core", "Конфликт данных.");
     case ErrorCode::Timeout:
         return QCoreApplication::translate("core", "Сервер не ответил вовремя.");
+    case ErrorCode::Offline:
+        return QCoreApplication::translate("core", "Нет соединения с сервером.");
     case ErrorCode::Internal:
         return QCoreApplication::translate("core", "Внутренняя ошибка сервера.");
     }

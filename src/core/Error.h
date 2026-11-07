@@ -20,6 +20,7 @@ enum class ErrorCode {
     RateLimited,
     Conflict,
     Timeout,
+    Offline, // клиентская ошибка: соединение отсутствует, запрос не отправлен
     Internal
 };
 

@@ -39,9 +39,10 @@
 
 ## M3. Клиентская сеть
 
-- [ ] `ClientConnection`, `RequestTracker` (id → callback, таймауты)
-- [ ] `ReconnectPolicy`, автопереподключение
-- [ ] `SessionService`: login/register/resume, токен в настройках
+- [x] `ClientConnection`, `RequestTracker` (id → callback, таймауты, офлайн-ошибка)
+- [x] Авто-переподключение 1→30 с с jitter, heartbeat `ping`
+- [x] `SessionService`: register/login/resume/logout, токен в настройках профиля
+- [x] `tst_client`, `tst_session`
 - [ ] `OutboxService`: офлайн-очередь, повторная отправка без дублей
 
 Критерий: падение сервера не теряет сообщения, после подъёма всё доезжает ровно один раз.
