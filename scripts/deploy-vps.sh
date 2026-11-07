@@ -9,6 +9,11 @@ DATA_DIR="${DATA_DIR:-/var/lib/messengerapp}"
 SERVICE_USER="${SERVICE_USER:-messengerapp}"
 PORT="${PORT:-45000}"
 
+# apt не должен задавать интерактивные вопросы (needrestart, debconf) при
+# обновлении библиотек — на свежей ВМ это только мешает автоматизации.
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+
 echo "== Зависимости"
 sudo apt-get update
 sudo apt-get install -y build-essential cmake qtbase5-dev qtmultimedia5-dev \
