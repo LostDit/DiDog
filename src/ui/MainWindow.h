@@ -72,6 +72,7 @@ private slots:
     void onTypingChanged(qint64 chatId, qint64 userId, bool typing);
     void onPresenceChanged(qint64 userId, bool online);
     void onError(const QString &message);
+    void openSettings();
 
 private:
     void buildUi();

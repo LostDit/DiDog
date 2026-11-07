@@ -11,6 +11,7 @@
 #include "ui/ImageViewerDialog.h"
 #include "ui/MessageView.h"
 #include "ui/SearchDialog.h"
+#include "ui/SettingsDialog.h"
 #include "ui/VideoPlayerDialog.h"
 
 #include <QAction>
@@ -172,6 +173,12 @@ QWidget *MainWindow::buildSidebar()
 
     auto *menuButton = makeIconButton(QStringLiteral(":/icons/more.svg"), tr("Меню"));
     auto *menu = new QMenu(menuButton);
+
+    QAction *settingsAction = menu->addAction(tr("Настройки…"));
+    connect(settingsAction, &QAction::triggered, this, &MainWindow::openSettings);
+
+    menu->addSeparator();
+
     QAction *logoutAction = menu->addAction(tr("Выйти"));
     connect(logoutAction, &QAction::triggered, this, [this]() {
         if (m_session)
@@ -582,6 +589,12 @@ void MainWindow::onPresenceChanged(qint64 userId, bool online)
 {
     m_online.insert(userId, online);
     updateHeader();
+}
+
+void MainWindow::openSettings()
+{
+    ui::SettingsDialog dialog(m_settings, m_theme, this);
+    dialog.exec();
 }
 
 void MainWindow::onError(const QString &message)

@@ -5,6 +5,7 @@ set(MESSENGER_CORE_SOURCES
     app/ChatService.h           app/ChatService.cpp
     app/ClientController.h      app/ClientController.cpp
     app/HistoryStore.h          app/HistoryStore.cpp
+    app/Localization.h          app/Localization.cpp
     app/Logging.h               app/Logging.cpp
     app/NotificationService.h   app/NotificationService.cpp
     app/SettingsStore.h         app/SettingsStore.cpp
@@ -55,6 +56,7 @@ set(MESSENGER_CORE_SOURCES
     ui/MessageBubble.h          ui/MessageBubble.cpp
     ui/MessageView.h            ui/MessageView.cpp
     ui/SearchDialog.h           ui/SearchDialog.cpp
+    ui/SettingsDialog.h         ui/SettingsDialog.cpp
     ui/VideoPlayerDialog.h      ui/VideoPlayerDialog.cpp
 )
 
@@ -97,6 +99,11 @@ add_executable(MessengerServer
 )
 
 target_link_libraries(MessengerServer PRIVATE messenger_core)
+
+if(TARGET translations)
+    add_dependencies(MessengerClient translations)
+    add_dependencies(MessengerServer translations)
+endif()
 
 set_target_properties(MessengerClient MessengerServer PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"

@@ -1,5 +1,7 @@
 #include "app/NotificationService.h"
 
+#include "app/SettingsStore.h"
+
 #include <QAction>
 #include <QApplication>
 #include <QDebug>
@@ -10,8 +12,9 @@
 
 namespace app {
 
-NotificationService::NotificationService(QObject *parent)
+NotificationService::NotificationService(SettingsStore *settings, QObject *parent)
     : QObject(parent)
+    , m_settings(settings)
 {
     m_available = QSystemTrayIcon::isSystemTrayAvailable();
 
@@ -62,6 +65,9 @@ void NotificationService::notify(const QString &title, const QString &body, qint
     m_lastChatId = chatId;
 
     if (!m_available || !m_tray)
+        return;
+
+    if (m_settings && !m_settings->notificationsEnabled())
         return;
 
     if (m_window && m_window->isActiveWindow() && !m_window->isMinimized())

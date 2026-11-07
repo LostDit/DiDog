@@ -568,3 +568,28 @@ QListWidget#SearchResults::item:hover {
 QListWidget#SearchResults::item:selected {
     background-color: {{selected}};
 }
+
+#SettingsDialog {
+    background-color: {{bg}};
+}
+
+QComboBox#SettingsCombo {
+    background-color: {{surface}};
+    border: 1px solid {{border}};
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: {{text}};
+    min-width: 140px;
+}
+
+QComboBox#SettingsCombo::drop-down {
+    border: none;
+    width: 22px;
+}
+
+QComboBox#SettingsCombo QAbstractItemView {
+    background-color: {{surface}};
+    color: {{text}};
+    selection-background-color: {{selected}};
+    border: 1px solid {{border}};
+}

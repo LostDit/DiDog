@@ -38,6 +38,13 @@ public:
     QString lastUserName() const;
     void setLastUserName(const QString &name);
 
+    // "auto" | "ru" | "en"
+    QString language() const;
+    void setLanguage(const QString &language);
+
+    bool notificationsEnabled() const;
+    void setNotificationsEnabled(bool enabled);
+
     QString filePath() const;
 
 private:

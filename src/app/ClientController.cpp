@@ -41,7 +41,7 @@ ClientController::ClientController(SettingsStore *settings, ThemeManager *theme,
 {
     createConnection();
 
-    m_notifications = new NotificationService(this);
+    m_notifications = new NotificationService(m_settings, this);
 
     connect(m_notifications, &NotificationService::showRequested, this, [this]() {
         if (m_mainWindow) {

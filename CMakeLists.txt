@@ -27,6 +27,24 @@ endif()
 find_package(Qt5 5.14 REQUIRED COMPONENTS
     Core Gui Widgets Network Sql Multimedia MultimediaWidgets Concurrent Svg)
 
+# Переводы: .ts → .qm рядом с исполняемым файлом.
+find_package(Qt5 5.14 QUIET COMPONENTS LinguistTools)
+if(Qt5LinguistTools_FOUND)
+    qt5_add_translation(MESSENGER_QM
+        ${CMAKE_CURRENT_SOURCE_DIR}/translations/messenger_en.ts)
+
+    add_custom_target(translations ALL DEPENDS ${MESSENGER_QM})
+    add_custom_command(TARGET translations POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/translations
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MESSENGER_QM}
+                ${CMAKE_BINARY_DIR}/translations
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/tests/translations
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MESSENGER_QM}
+                ${CMAKE_BINARY_DIR}/tests/translations)
+else()
+    message(STATUS "Qt LinguistTools не найдены: английский перевод не будет собран")
+endif()
+
 include(CTest)
 
 add_subdirectory(src)

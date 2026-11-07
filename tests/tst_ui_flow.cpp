@@ -1,5 +1,6 @@
 #include "app/AppPaths.h"
 #include "app/ClientController.h"
+#include "app/Localization.h"
 #include "app/SettingsStore.h"
 #include "app/ThemeManager.h"
 #include "server/ServerApp.h"
@@ -35,6 +36,7 @@ private slots:
     void historySurvivesRestart();
     void sendsImageAttachment();
     void searchesMessages();
+    void englishInterface();
 
 private:
     QLineEdit *editWithPlaceholder(QWidget *root, const QString &placeholder) const;
@@ -105,6 +107,7 @@ void TestUiFlow::cleanup()
     m_bobSettings.reset();
     m_server.reset();
     app::paths::setOverrideDataDir(QString());
+    app::i18n::install(QStringLiteral("ru"));
     m_dir.reset();
 }
 
@@ -438,6 +441,34 @@ void TestUiFlow::searchesMessages()
     QTest::keyClick(results, Qt::Key_Return);
 
     QTRY_VERIFY_WITH_TIMEOUT(!dialog->isVisible(), 2000);
+}
+
+void TestUiFlow::englishInterface()
+{
+    app::i18n::install(QStringLiteral("en"));
+    QCOMPARE(app::i18n::resolvedLanguage(), QStringLiteral("en"));
+    QCOMPARE(QCoreApplication::translate("ui::LoginWindow", "Вход"), QStringLiteral("Sign in"));
+
+    app::paths::setOverrideDataDir(m_dir->filePath(QStringLiteral("english-data")));
+    m_aliceSettings->setLanguage(QStringLiteral("en"));
+
+    auto *controller = new app::ClientController(m_aliceSettings.data(), m_theme.data(), this);
+    m_controllers.append(controller);
+    controller->start();
+
+    ui::LoginWindow *login = nullptr;
+    QTRY_VERIFY_WITH_TIMEOUT((login = findLoginWindow()) != nullptr, 5000);
+
+    auto *loginEdit = editWithPlaceholder(login, QStringLiteral("Login"));
+    QVERIFY2(loginEdit, "английский перевод не применился к форме входа");
+
+    const QString shotDir = QDir(QCoreApplication::applicationDirPath())
+                                .filePath(QStringLiteral("screenshots"));
+    QDir().mkpath(shotDir);
+    QTest::qWait(300);
+    login->grab().save(shotDir + QStringLiteral("/login-en.png"));
+
+    app::i18n::install(QStringLiteral("ru"));
 }
 
 QTEST_MAIN(TestUiFlow)

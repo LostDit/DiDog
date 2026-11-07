@@ -1,5 +1,6 @@
 #include "app/AppPaths.h"
 #include "app/ClientController.h"
+#include "app/Localization.h"
 #include "app/Logging.h"
 #include "app/SettingsStore.h"
 #include "app/SingleInstance.h"
@@ -108,6 +109,8 @@ int main(int argc, char *argv[])
     QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
 
     app::SettingsStore settings(app::paths::settingsFile());
+    app::i18n::install(settings.language());
+
     app::ThemeManager theme(&settings);
     theme.apply();
 

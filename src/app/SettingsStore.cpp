@@ -10,6 +10,8 @@ constexpr auto kServerHostKey = "network/host";
 constexpr auto kServerPortKey = "network/port";
 constexpr auto kAuthTokenKey = "auth/token";
 constexpr auto kLastUserKey = "auth/lastUser";
+constexpr auto kLanguageKey = "ui/language";
+constexpr auto kNotificationsKey = "ui/notifications";
 
 constexpr quint16 kDefaultPort = 45000;
 
@@ -107,6 +109,26 @@ QString SettingsStore::lastUserName() const
 void SettingsStore::setLastUserName(const QString &name)
 {
     m_settings.setValue(kLastUserKey, name);
+}
+
+QString SettingsStore::language() const
+{
+    return m_settings.value(kLanguageKey, QStringLiteral("auto")).toString();
+}
+
+void SettingsStore::setLanguage(const QString &language)
+{
+    m_settings.setValue(kLanguageKey, language);
+}
+
+bool SettingsStore::notificationsEnabled() const
+{
+    return m_settings.value(kNotificationsKey, true).toBool();
+}
+
+void SettingsStore::setNotificationsEnabled(bool enabled)
+{
+    m_settings.setValue(kNotificationsKey, enabled);
 }
 
 QString SettingsStore::filePath() const
