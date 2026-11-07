@@ -43,6 +43,12 @@ if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
 fi
 sudo install -d -o "$SERVICE_USER" -g "$SERVICE_USER" "$DATA_DIR"
 
+# Сертификат создавался от root; служба работает под $SERVICE_USER и должна
+# уметь читать ключ, иначе TLS не запускается.
+sudo chown -R "$SERVICE_USER:$SERVICE_USER" "$APP_DIR/tls"
+sudo chmod 600 "$APP_DIR/tls/server.key"
+sudo chmod 644 "$APP_DIR/tls/server.crt"
+
 echo "== systemd"
 sudo tee /etc/systemd/system/messengerapp.service >/dev/null <<EOF
 [Unit]
