@@ -172,6 +172,11 @@ void LoginWindow::buildUi()
     serverRow->addWidget(m_port);
     layout->addLayout(serverRow);
 
+    auto *serverHint = makeLabel(tr("На другом компьютере укажите его IP и порт"),
+                                 "EmptySubtitle", Qt::AlignLeft);
+    serverHint->setWordWrap(true);
+    layout->addWidget(serverHint);
+
     m_error = makeLabel(QString(), "ErrorLabel", Qt::AlignCenter);
     m_error->setWordWrap(true);
     m_error->hide();

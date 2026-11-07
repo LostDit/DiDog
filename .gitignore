@@ -57,3 +57,8 @@ thumbnails/
 moc_*.cpp
 qrc_*.cpp
 ui_*.h
+
+# Временные каталоги установки
+test-install*/
+installer/*.exe
+

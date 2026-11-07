@@ -5,10 +5,32 @@
 
 #include <QDebug>
 #include <QHostAddress>
+#include <QNetworkInterface>
 #include <QTcpServer>
 #include <QTcpSocket>
 
 namespace server {
+namespace {
+
+// IPv4-адреса машины в локальной сети — их вводят в клиенте на других компьютерах.
+QStringList lanAddresses()
+{
+    QStringList result;
+
+    const QList<QHostAddress> addresses = QNetworkInterface::allAddresses();
+    for (const QHostAddress &address : addresses) {
+        if (address.protocol() != QAbstractSocket::IPv4Protocol)
+            continue;
+        if (address.isLoopback())
+            continue;
+        result.append(address.toString());
+    }
+
+    result.removeDuplicates();
+    return result;
+}
+
+} // namespace
 
 ServerApp::ServerApp(QObject *parent)
     : QObject(parent)
@@ -45,6 +67,22 @@ bool ServerApp::start(quint16 port)
     qInfo().noquote() << QStringLiteral("Сервер слушает %1:%2")
                              .arg(m_server->serverAddress().toString())
                              .arg(m_server->serverPort());
+    qInfo().noquote() << QStringLiteral("Адрес на этом компьютере: 127.0.0.1:%1")
+                             .arg(m_server->serverPort());
+
+    const QStringList addresses = lanAddresses();
+    for (const QString &address : addresses) {
+        qInfo().noquote() << QStringLiteral("Адрес в локальной сети:   %1:%2")
+                                 .arg(address)
+                                 .arg(m_server->serverPort());
+    }
+
+    if (addresses.isEmpty()) {
+        qInfo().noquote()
+            << QStringLiteral("Сетевые адреса не найдены: другие компьютеры смогут "
+                              "подключиться только при наличии сети.");
+    }
+
     return true;
 }
 

@@ -90,6 +90,7 @@ target_link_libraries(MessengerClient PRIVATE messenger_core)
 
 if(WIN32)
     target_link_libraries(MessengerClient PRIVATE Qt5::WinMain)
+    target_sources(MessengerClient PRIVATE ${CMAKE_SOURCE_DIR}/resources/windows/app.rc)
 endif()
 
 # ── Сервер (консольное приложение) ─────────────────────────────────────────
@@ -99,6 +100,10 @@ add_executable(MessengerServer
 )
 
 target_link_libraries(MessengerServer PRIVATE messenger_core)
+
+if(WIN32)
+    target_sources(MessengerServer PRIVATE ${CMAKE_SOURCE_DIR}/resources/windows/app.rc)
+endif()
 
 if(TARGET translations)
     add_dependencies(MessengerClient translations)

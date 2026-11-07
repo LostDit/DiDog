@@ -90,6 +90,9 @@
 ## M7. Поставка
 
 - [x] `scripts/package-windows.ps1`: `windeployqt`, переводы, README → `dist/MessengerApp`
+- [x] Установщик Inno Setup (`installer/messengerapp.iss`, `scripts/build-installer.ps1`):
+      ярлыки, брандмауэр, удаление; проверен тихой установкой и запуском
+- [x] `docs/NETWORK-TESTING.md`: сценарии localhost / локальная сеть / интернет
 - [x] Проверка пакета запуском без Qt в `PATH`
 - [x] GitHub Actions: Windows (MSVC 2019) и Ubuntu 22.04 (GCC), сборка + ctest
 - [x] README: сборка, запуск, упаковка, CI, скриншоты

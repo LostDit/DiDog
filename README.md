@@ -71,6 +71,30 @@ sudo apt install build-essential cmake ninja-build \
 > На Windows Qt Multimedia 5.x использует DirectShow: H.264/MP4 обычно воспроизводится, HEVC/AV1 может
 > не проигрываться — клиент в этом случае предложит открыть файл внешним плеером.
 
+## Установка на Windows (готовый установщик)
+
+```powershell
+.\scripts\build-installer.ps1          # Release + windeployqt + Inno Setup
+```
+
+Результат: `dist\installer\MessengerApp-Setup-1.0.0.exe` (≈21 МБ). Что делает установщик:
+
+- ставит приложение в `Program Files\MessengerApp` (или в профиль при `/CURRENTUSER`);
+- добавляет ярлыки «MessengerApp» и «Сервер MessengerApp» в меню «Пуск» (и на рабочий стол по желанию);
+- по галочке создаёт правило брандмауэра для сервера (профили «частная сеть» и «домен»);
+- регистрирует штатное удаление, при деинсталляции правило брандмауэра удаляется.
+
+Тихая установка для проверки:
+
+```powershell
+MessengerApp-Setup-1.0.0.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
+```
+
+**Проверка на двух компьютерах и в разных сетях** — пошаговая инструкция:
+[docs/NETWORK-TESTING.md](docs/NETWORK-TESTING.md). Коротко: на сервере запускается
+«Сервер MessengerApp», он печатает свой адрес в локальной сети (`192.168.x.x:45000`),
+этот адрес вводится в клиенте на втором компьютере.
+
 ## Сборка
 
 Задайте путь к установленному Qt (каталог, где лежат `bin/`, `lib/`, `include/`), если он не в `PATH`:
@@ -176,6 +200,7 @@ docs/         ТЗ, протокол, архитектура, план
 - [docs/PROPOSAL.md](docs/PROPOSAL.md) — разбор исходного ТЗ и обоснование правок
 - [docs/ROADMAP.md](docs/ROADMAP.md) — этапы и текущий прогресс
 - [docs/CHECKLIST.md](docs/CHECKLIST.md) — прогон чек-листа готовности с ограничениями среды
+- [docs/NETWORK-TESTING.md](docs/NETWORK-TESTING.md) — проверка на разных компьютерах и в разных сетях
 
 ## Тесты
 
