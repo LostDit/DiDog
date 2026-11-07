@@ -59,6 +59,7 @@ QJsonObject messageAck(const data::Message &message)
 ServerCore::ServerCore(QObject *parent)
     : QObject(parent)
     , m_database(QStringLiteral("server_db"))
+    , m_attachmentStore(QString())
 {
 }
 
@@ -68,6 +69,7 @@ bool ServerCore::initialize(const QString &databasePath, const QString &attachme
                             QString *error)
 {
     m_attachmentsRoot = attachmentsRoot;
+    m_attachmentStore.setRoot(attachmentsRoot);
 
     if (!m_database.open(databasePath, error))
         return false;
@@ -86,8 +88,7 @@ bool ServerCore::initialize(const QString &databasePath, const QString &attachme
 HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
                                  ClientSession *session)
 {
-    const bool isPublic = (type == QLatin1String(core::proto::type::kHello)
-                           || type == QLatin1String(core::proto::type::kAuthRegister)
+    const bool isPublic = (type == QLatin1String(core::proto::type::kHello)                           || type == QLatin1String(core::proto::type::kAuthRegister)
                            || type == QLatin1String(core::proto::type::kAuthLogin)
                            || type == QLatin1String(core::proto::type::kAuthResume)
                            || type == QLatin1String(core::proto::type::kPing));
@@ -121,6 +122,13 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleReceiptDelivered(data, session);
     if (type == QLatin1String(core::proto::type::kTyping))
         return handleTyping(data, session);
+
+    if (type == QLatin1String(core::proto::type::kAttachBegin))
+        return handleAttachBegin(data, session);
+    if (type == QLatin1String(core::proto::type::kAttachFinish))
+        return handleAttachFinish(data, session);
+    if (type == QLatin1String(core::proto::type::kAttachGet))
+        return handleAttachGet(data, session);
 
     if (type == QLatin1String(core::proto::type::kPing)) {
         QJsonObject payload;
@@ -410,18 +418,27 @@ HandlerResult ServerCore::handleMessageSend(const QJsonObject &data, ClientSessi
         return HandlerResult::failure(core::ErrorCode::BadRequest,
                                       QStringLiteral("Неизвестный тип сообщения"));
 
+    const quint32 attachmentToken = static_cast<quint32>(attachmentId);
+
     if (kind == data::MessageKind::Text) {
+        if (attachmentToken != 0) {
+            return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                          QStringLiteral("Текстовое сообщение не содержит вложения"));
+        }
+
         const security::CheckResult textCheck = security::checkMessageText(body);
         if (!textCheck.ok)
             return HandlerResult::failure(core::ErrorCode::BadRequest, textCheck.message);
-    } else if (body.size() > core::limits::kMessageMaxChars) {
-        return HandlerResult::failure(core::ErrorCode::BadRequest,
-                                      QStringLiteral("Подпись слишком длинная"));
+    } else {
+        if (attachmentToken == 0) {
+            return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                          QStringLiteral("Не указано вложение"));
+        }
+        if (body.size() > core::limits::kMessageMaxChars) {
+            return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                          QStringLiteral("Подпись слишком длинная"));
+        }
     }
-
-    if (attachmentId > 0)
-        return HandlerResult::failure(core::ErrorCode::NotFound,
-                                      QStringLiteral("Вложение не найдено"));
 
     data::ChatRepository chats(m_database.handle());
     QString error;
@@ -443,6 +460,38 @@ HandlerResult ServerCore::handleMessageSend(const QJsonObject &data, ClientSessi
     data::Message stored;
     if (!messages.append(message, &stored, &error))
         return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    if (attachmentToken != 0) {
+        auto it = m_readyAttachments.find(attachmentToken);
+        if (it == m_readyAttachments.end() || it->userId != session->userId()
+            || it->consumed) {
+            return HandlerResult::failure(core::ErrorCode::NotFound,
+                                          QStringLiteral("Вложение не найдено"));
+        }
+
+        data::AttachmentRepository attachments(m_database.handle());
+        data::Attachment existing;
+        bool found = false;
+        if (!attachments.byMessageId(stored.id, &existing, &found, &error))
+            return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+        if (!found) {
+            data::Attachment attachment;
+            attachment.messageId = stored.id;
+            attachment.fileName = it->fileName;
+            attachment.mime = it->mime;
+            attachment.byteSize = it->byteSize;
+            attachment.sha256 = it->sha256;
+            attachment.relPath = it->relPath;
+
+            data::Attachment saved;
+            if (!attachments.insert(attachment, &saved, &error))
+                return HandlerResult::failure(core::ErrorCode::Internal, error);
+        }
+
+        it->consumed = true;
+        m_readyAttachments.erase(it);
+    }
 
     data::Message full;
     bool found = false;
@@ -518,6 +567,111 @@ HandlerResult ServerCore::handleTyping(const QJsonObject &data, ClientSession *s
     broadcastToChat(chatId, core::proto::event::kTyping, event, session);
 
     return HandlerResult::success();
+}
+
+HandlerResult ServerCore::handleAttachBegin(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+    const QString fileName = stringValue(data, "file_name");
+    const QString mime = stringValue(data, "mime");
+    const qint64 byteSize = int64Value(data, "byte_size");
+    const QString sha256 = stringValue(data, "sha256");
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    bool member = false;
+    if (!chats.isMember(chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    if (byteSize > core::limits::kAttachmentMaxBytes)
+        return HandlerResult::failure(core::ErrorCode::TooLarge);
+
+    int chunkSize = 0;
+    const quint32 transferId = m_attachmentStore.begin(
+        session->userId(), fileName, mime, byteSize, sha256, &chunkSize, &error);
+
+    if (transferId == 0)
+        return HandlerResult::failure(core::ErrorCode::BadRequest, error);
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("transfer_id"), static_cast<double>(transferId));
+    payload.insert(QStringLiteral("chunk_size"), chunkSize);
+    return HandlerResult::success(payload);
+}
+
+HandlerResult ServerCore::handleAttachFinish(const QJsonObject &data, ClientSession *session)
+{
+    const quint32 transferId = static_cast<quint32>(int64Value(data, "transfer_id"));
+
+    ReadyAttachment ready;
+    QString error;
+    if (!m_attachmentStore.finish(session->userId(), transferId, &ready, &error))
+        return HandlerResult::failure(core::ErrorCode::BadRequest, error);
+
+    m_readyAttachments.insert(transferId, ready);
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("attachment_id"), static_cast<double>(transferId));
+    payload.insert(QStringLiteral("byte_size"), static_cast<double>(ready.byteSize));
+    payload.insert(QStringLiteral("sha256"), ready.sha256);
+    return HandlerResult::success(payload);
+}
+
+HandlerResult ServerCore::handleAttachGet(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 attachmentId = int64Value(data, "attachment_id");
+
+    data::AttachmentRepository attachments(m_database.handle());
+    data::Attachment attachment;
+    bool found = false;
+    QString error;
+
+    if (!attachments.byId(attachmentId, &attachment, &found, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!found)
+        return HandlerResult::failure(core::ErrorCode::NotFound);
+
+    data::MessageRepository messages(m_database.handle());
+    data::Message message;
+    if (!messages.byId(attachment.messageId, &message, &found, &error) || !found)
+        return HandlerResult::failure(core::ErrorCode::NotFound);
+
+    data::ChatRepository chats(m_database.handle());
+    bool member = false;
+    if (!chats.isMember(message.chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    const QString path = m_attachmentStore.absolutePath(attachment.relPath);
+    if (!m_attachmentStore.contains(attachment.relPath))
+        return HandlerResult::failure(core::ErrorCode::NotFound,
+                                      QStringLiteral("Файл вложения отсутствует"));
+
+    const quint32 transferId = session->allocateDownloadId();
+    session->queueDownload(transferId, path, attachment.byteSize);
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("transfer_id"), static_cast<double>(transferId));
+    payload.insert(QStringLiteral("byte_size"), static_cast<double>(attachment.byteSize));
+    payload.insert(QStringLiteral("sha256"), attachment.sha256);
+    payload.insert(QStringLiteral("chunk_size"),
+                   static_cast<double>(core::limits::kChunkSizeBytes));
+    return HandlerResult::success(payload);
+}
+
+bool ServerCore::handleChunk(ClientSession *session, quint32 transferId, quint32 sequence,
+                             const QByteArray &data, QString *error)
+{
+    if (!session || !session->isAuthenticated()) {
+        if (error)
+            *error = QStringLiteral("Чанк получен до авторизации");
+        return false;
+    }
+
+    return m_attachmentStore.writeChunk(session->userId(), transferId, sequence, data, error);
 }
 
 QString ServerCore::issueToken(qint64 userId, QString *error)
@@ -606,8 +760,18 @@ void ServerCore::unregisterSession(ClientSession *session)
     const qint64 userId = session->userId();
     m_sessions.remove(userId, session);
 
-    if (userId > 0 && !m_sessions.contains(userId))
+    if (userId > 0 && !m_sessions.contains(userId)) {
+        // Незавершённые загрузки и непривязанные файлы убираем вместе с сессией.
+        m_attachmentStore.abortUser(userId);
+
+        const auto tokens = m_readyAttachments.keys();
+        for (quint32 token : tokens) {
+            if (m_readyAttachments.value(token).userId == userId)
+                m_readyAttachments.remove(token);
+        }
+
         broadcastPresence(userId, false);
+    }
 }
 
 void ServerCore::broadcastToChat(qint64 chatId, const QString &event, const QJsonObject &data,

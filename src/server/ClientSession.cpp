@@ -1,13 +1,20 @@
 #include "server/ClientSession.h"
 
+#include "core/Limits.h"
 #include "server/ServerCore.h"
 
 #include <QDebug>
+#include <QFile>
 #include <QHostAddress>
 #include <QJsonObject>
 #include <QTcpSocket>
 
 namespace server {
+namespace {
+
+constexpr qint64 kSocketHighWaterMark = 512 * 1024;
+
+} // namespace
 
 ClientSession::ClientSession(QTcpSocket *socket, ServerCore *core, QObject *parent)
     : QObject(parent)
@@ -17,10 +24,13 @@ ClientSession::ClientSession(QTcpSocket *socket, ServerCore *core, QObject *pare
     m_socket->setParent(this);
     connect(m_socket, &QTcpSocket::readyRead, this, &ClientSession::onReadyRead);
     connect(m_socket, &QTcpSocket::disconnected, this, &ClientSession::onDisconnected);
+    connect(m_socket, &QTcpSocket::bytesWritten, this, &ClientSession::onBytesWritten);
 }
 
 ClientSession::~ClientSession()
 {
+    closeDownloads();
+
     // Ядро может быть уничтожено раньше сессии (порядок удаления детей QObject),
     // поэтому указатель защищён QPointer.
     if (m_core && isAuthenticated())
@@ -86,10 +96,22 @@ void ClientSession::onReadyRead()
 
 void ClientSession::handleFrame(const core::Frame &frame)
 {
-    if (frame.type != core::FrameType::Json) {
-        qWarning().noquote() << QStringLiteral("Неожиданный бинарный кадр от %1")
-                                    .arg(peerAddress());
-        m_socket->disconnectFromHost();
+    if (frame.type == core::FrameType::Binary) {
+        quint32 transferId = 0;
+        quint32 sequence = 0;
+        QByteArray data;
+        if (!core::decodeChunk(frame.payload, &transferId, &sequence, &data)) {
+            qWarning().noquote() << QStringLiteral("Повреждённый чанк от %1").arg(peerAddress());
+            m_socket->disconnectFromHost();
+            return;
+        }
+
+        QString chunkError;
+        if (m_core && !m_core->handleChunk(this, transferId, sequence, data, &chunkError)) {
+            qWarning().noquote() << QStringLiteral("Чанк отклонён (%1): %2")
+                                        .arg(peerAddress(), chunkError);
+            m_socket->disconnectFromHost();
+        }
         return;
     }
 
@@ -122,10 +144,126 @@ void ClientSession::handleRequest(const QJsonObject &request)
         return;
     }
 
-    const HandlerResult result = m_core->handle(type, data, this);    if (result.ok())
+    const HandlerResult result = m_core->handle(type, data, this);
+    if (result.ok())
         sendJson(core::proto::successReply(requestId, result.data));
     else
         sendJson(core::proto::errorReply(requestId, result.code, result.message));
+
+    // Ответ отправлен — можно выдавать файл чанками.
+    startPendingDownloads();
+}
+
+void ClientSession::onBytesWritten(qint64 bytes)
+{
+    Q_UNUSED(bytes)
+    pumpDownloads();
+}
+
+quint32 ClientSession::allocateDownloadId()
+{
+    return m_nextDownloadId++;
+}
+
+void ClientSession::queueDownload(quint32 transferId, const QString &path, qint64 size)
+{
+    Download download;
+    download.id = transferId;
+    download.path = path;
+    download.size = size;
+    m_downloads.insert(transferId, download);
+}
+
+void ClientSession::startPendingDownloads()
+{
+    pumpDownloads();
+}
+
+void ClientSession::pumpDownloads()
+{
+    if (!m_socket || m_socket->state() != QAbstractSocket::ConnectedState)
+        return;
+
+    // write() может синхронно вызвать bytesWritten → повторный вход в цикл,
+    // который инвалидирует итератор QHash.
+    if (m_pumping)
+        return;
+
+    struct Guard {
+        bool &flag;
+        ~Guard() { flag = false; }
+    } guard{m_pumping};
+    m_pumping = true;
+
+    auto it = m_downloads.begin();
+    while (it != m_downloads.end()) {
+        Download &download = it.value();
+
+        if (!download.started) {
+            download.file = new QFile(download.path);
+            if (!download.file->open(QIODevice::ReadOnly)) {
+                qWarning().noquote() << QStringLiteral("Не удалось открыть вложение %1")
+                                            .arg(download.path);
+                delete download.file;
+                download.file = nullptr;
+                it = m_downloads.erase(it);
+                continue;
+            }
+            download.started = true;
+        }
+
+        while (download.sent < download.size
+               && m_socket->bytesToWrite() < kSocketHighWaterMark) {
+            const qint64 left = download.size - download.sent;
+            const QByteArray data = download.file->read(
+                static_cast<qint64>(core::limits::kChunkSizeBytes));
+
+            if (data.isEmpty())
+                break;
+
+            const qint64 payloadSize = qMin<qint64>(data.size(), left);
+            const QByteArray chunk = core::encodeChunk(download.id, download.sequence,
+                                                       data.left(static_cast<int>(payloadSize)));
+            m_socket->write(core::FrameCodec::encode(core::FrameType::Binary, chunk));
+            download.sent += payloadSize;
+            ++download.sequence;
+
+            if (payloadSize < data.size())
+                break;
+        }
+
+        if (download.sent >= download.size) {
+            QJsonObject payload;
+            payload.insert(QStringLiteral("transfer_id"), static_cast<double>(download.id));
+
+            QJsonObject end;
+            end.insert(QStringLiteral("v"), core::proto::kVersion);
+            end.insert(QStringLiteral("type"), QStringLiteral("attach.end"));
+            end.insert(QStringLiteral("data"), payload);
+            m_socket->write(
+                core::FrameCodec::encode(core::FrameType::Json, core::proto::encode(end)));
+
+            download.file->close();
+            delete download.file;
+            download.file = nullptr;
+            it = m_downloads.erase(it);
+            continue;
+        }
+
+        ++it;
+    }
+}
+
+void ClientSession::closeDownloads()
+{
+    for (Download &download : m_downloads) {
+        if (download.file) {
+            download.file->close();
+            delete download.file;
+            download.file = nullptr;
+        }
+    }
+    m_downloads.clear();
 }
 
 void ClientSession::onDisconnected()

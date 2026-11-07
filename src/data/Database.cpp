@@ -36,7 +36,11 @@ bool looksCorrupt(const QString &text)
 } // namespace
 
 Database::Database(const QString &connectionName)
-    : m_connectionName(connectionName)
+    // Имя соединения уникально для экземпляра: QSqlDatabase хранит соединения глобально
+    // по имени, и удаление одного объекта не должно задевать другой.
+    : m_connectionName(QStringLiteral("%1#%2")
+                           .arg(connectionName)
+                           .arg(reinterpret_cast<quintptr>(this), 0, 16))
 {
 }
 

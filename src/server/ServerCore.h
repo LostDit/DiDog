@@ -2,6 +2,7 @@
 
 #include "data/Database.h"
 #include "data/Models.h"
+#include "server/AttachmentStore.h"
 #include "server/HandlerResult.h"
 
 #include <QHash>
@@ -50,6 +51,17 @@ private:
     HandlerResult handleReceiptDelivered(const QJsonObject &data, ClientSession *session);
     HandlerResult handleTyping(const QJsonObject &data, ClientSession *session);
 
+    HandlerResult handleAttachBegin(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleAttachFinish(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleAttachGet(const QJsonObject &data, ClientSession *session);
+
+public:
+    // Бинарный кадр от клиента (чанк загрузки).
+    bool handleChunk(ClientSession *session, quint32 transferId, quint32 sequence,
+                     const QByteArray &data, QString *error);
+
+private:
+
     QString issueToken(qint64 userId, QString *error);
     bool resolveToken(const QString &token, qint64 *userId, QString *error);
     void dropToken(const QString &token);
@@ -63,6 +75,8 @@ private:
 
     data::Database m_database;
     QString m_attachmentsRoot;
+    AttachmentStore m_attachmentStore;
+    QHash<quint32, ReadyAttachment> m_readyAttachments;
     QMultiHash<qint64, ClientSession *> m_sessions;
 };
 

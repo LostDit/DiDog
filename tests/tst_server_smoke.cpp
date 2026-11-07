@@ -2,7 +2,9 @@
 #include "core/Protocol.h"
 #include "server/ServerApp.h"
 
+#include <QCryptographicHash>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QHostAddress>
 #include <QJsonArray>
 #include <QScopedPointer>
@@ -61,6 +63,15 @@ public:
     }
 
     QList<QJsonObject> events;
+    QHash<quint32, QByteArray> chunks;
+    QSet<quint32> finishedTransfers;
+
+    void sendChunk(quint32 transferId, quint32 sequence, const QByteArray &data)
+    {
+        const QByteArray chunk = core::encodeChunk(transferId, sequence, data);
+        socket.write(core::FrameCodec::encode(core::FrameType::Binary, chunk));
+        socket.flush();
+    }
 
 private:
     void drain()
@@ -76,9 +87,26 @@ private:
             if (status == core::FrameCodec::Status::Error)
                 return;
 
+            if (frame.type == core::FrameType::Binary) {
+                quint32 transferId = 0;
+                quint32 sequence = 0;
+                QByteArray data;
+                if (core::decodeChunk(frame.payload, &transferId, &sequence, &data))
+                    chunks[transferId].append(data);
+                continue;
+            }
+
             QJsonObject object;
             if (!core::proto::decode(frame.payload, &object, &error))
                 return;
+
+            if (object.value(QStringLiteral("type")).toString() == QLatin1String("attach.end")) {
+                const quint32 transferId = static_cast<quint32>(
+                    object.value(QStringLiteral("data")).toObject()
+                        .value(QStringLiteral("transfer_id")).toDouble());
+                finishedTransfers.insert(transferId);
+                continue;
+            }
 
             if (object.value(QStringLiteral("type")).toString() == QLatin1String("ev"))
                 events.append(object);
@@ -108,8 +136,27 @@ private:
                     return false;
 
                 QJsonObject object;
+                if (frame.type == core::FrameType::Binary) {
+                    quint32 transferId = 0;
+                    quint32 sequence = 0;
+                    QByteArray data;
+                    if (!core::decodeChunk(frame.payload, &transferId, &sequence, &data))
+                        return false;
+                    chunks[transferId].append(data);
+                    continue;
+                }
+
                 if (!core::proto::decode(frame.payload, &object, &error))
                     return false;
+
+                if (object.value(QStringLiteral("type")).toString()
+                    == QLatin1String("attach.end")) {
+                    const quint32 transferId = static_cast<quint32>(
+                        object.value(QStringLiteral("data")).toObject()
+                            .value(QStringLiteral("transfer_id")).toDouble());
+                    finishedTransfers.insert(transferId);
+                    continue;
+                }
 
                 if (object.value(QStringLiteral("type")).toString() == QLatin1String("ev")) {
                     events.append(object);
@@ -141,6 +188,7 @@ private slots:
     void registersAndRejectsDuplicates();
     void rejectsWrongPassword();
     void exchangesMessagesBetweenTwoClients();
+    void transfersAttachmentEndToEnd();
 
 private:
     QJsonObject registerUser(TestLink &link, const QString &username,
@@ -338,6 +386,110 @@ void TestServerSmoke::exchangesMessagesBetweenTwoClients()
         }
     }
     QVERIFY2(sawReceipt, "Алиса не получила ev.receipt");
+}
+
+void TestServerSmoke::transfersAttachmentEndToEnd()
+{
+    TestLink alice;
+    TestLink bob;
+    QVERIFY(alice.connectTo(m_server->port()));
+    QVERIFY(bob.connectTo(m_server->port()));
+
+    QVERIFY(registerUser(alice, QStringLiteral("alice"), QStringLiteral("Алиса"))
+                .value(QStringLiteral("ok")).toBool());
+    QVERIFY(registerUser(bob, QStringLiteral("bob"), QStringLiteral("Боб"))
+                .value(QStringLiteral("ok")).toBool());
+
+    bool ok = false;
+    QJsonObject directData;
+    directData.insert(QStringLiteral("username"), QStringLiteral("alice"));
+    const QJsonObject direct = bob.call(QStringLiteral("chat.direct"), directData, &ok);
+    QVERIFY2(ok, qPrintable(core::proto::errorMessageOf(direct)));
+    const qint64 chatId = static_cast<qint64>(direct.value(QStringLiteral("data")).toObject()
+                                                  .value(QStringLiteral("chat")).toObject()
+                                                  .value(QStringLiteral("id")).toDouble());
+
+    QByteArray payload(100 * 1024, Qt::Uninitialized);
+    for (int i = 0; i < payload.size(); ++i)
+        payload[i] = static_cast<char>((i * 7 + 13) % 251);
+
+    const QString sha = QString::fromLatin1(
+        QCryptographicHash::hash(payload, QCryptographicHash::Sha256).toHex());
+
+    QJsonObject begin;
+    begin.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    begin.insert(QStringLiteral("file_name"), QStringLiteral("photo.bin"));
+    begin.insert(QStringLiteral("mime"), QStringLiteral("application/octet-stream"));
+    begin.insert(QStringLiteral("byte_size"), static_cast<double>(payload.size()));
+    begin.insert(QStringLiteral("sha256"), sha);
+
+    const QJsonObject beginReply = alice.call(QStringLiteral("attach.begin"), begin, &ok);
+    QVERIFY2(ok, qPrintable(core::proto::errorMessageOf(beginReply)));
+
+    const quint32 transferId = static_cast<quint32>(
+        beginReply.value(QStringLiteral("data")).toObject()
+            .value(QStringLiteral("transfer_id")).toDouble());
+    QVERIFY(transferId > 0);
+
+    constexpr int chunkSize = 64 * 1024;
+    quint32 sequence = 0;
+    for (int offset = 0; offset < payload.size(); offset += chunkSize)
+        alice.sendChunk(transferId, sequence++, payload.mid(offset, chunkSize));
+    alice.pump(100);
+
+    QJsonObject finish;
+    finish.insert(QStringLiteral("transfer_id"), static_cast<double>(transferId));
+    const QJsonObject finishReply = alice.call(QStringLiteral("attach.finish"), finish, &ok);
+    QVERIFY2(ok, qPrintable(core::proto::errorMessageOf(finishReply)));
+
+    const qint64 attachmentId = static_cast<qint64>(
+        finishReply.value(QStringLiteral("data")).toObject()
+            .value(QStringLiteral("attachment_id")).toDouble());
+    QVERIFY(attachmentId > 0);
+
+    QJsonObject send;
+    send.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    send.insert(QStringLiteral("client_msg_id"), QStringLiteral("attach-1"));
+    send.insert(QStringLiteral("kind"), QStringLiteral("file"));
+    send.insert(QStringLiteral("body"), QString());
+    send.insert(QStringLiteral("attachment_id"), static_cast<double>(attachmentId));
+
+    const QJsonObject ack = alice.call(QStringLiteral("msg.send"), send, &ok);
+    QVERIFY2(ok, qPrintable(core::proto::errorMessageOf(ack)));
+
+    // Боб получает сообщение с метаданными вложения.
+    bob.pump(400);
+    qint64 receivedAttachmentId = 0;
+    for (const QJsonObject &event : qAsConst(bob.events)) {
+        if (event.value(QStringLiteral("event")).toString() != QLatin1String("ev.msg"))
+            continue;
+        const QJsonObject message = event.value(QStringLiteral("data")).toObject()
+                                        .value(QStringLiteral("message")).toObject();
+        const QJsonObject attachment = message.value(QStringLiteral("attachment")).toObject();
+        if (!attachment.isEmpty())
+            receivedAttachmentId = static_cast<qint64>(
+                attachment.value(QStringLiteral("id")).toDouble());
+    }
+    QVERIFY2(receivedAttachmentId > 0, "Боб не получил метаданные вложения");
+
+    // Скачивание.
+    QJsonObject get;
+    get.insert(QStringLiteral("attachment_id"), static_cast<double>(receivedAttachmentId));
+    const QJsonObject getReply = bob.call(QStringLiteral("attach.get"), get, &ok);
+    QVERIFY2(ok, qPrintable(core::proto::errorMessageOf(getReply)));
+
+    const quint32 downloadId = static_cast<quint32>(
+        getReply.value(QStringLiteral("data")).toObject()
+            .value(QStringLiteral("transfer_id")).toDouble());
+
+    bob.pump(600);
+    QCOMPARE(bob.chunks.value(downloadId).size(), payload.size());
+    QCOMPARE(bob.chunks.value(downloadId), payload);
+    QVERIFY(bob.finishedTransfers.contains(downloadId));
+
+    const QString downloadedSha = QString::fromLatin1(
+        QCryptographicHash::hash(bob.chunks.value(downloadId), QCryptographicHash::Sha256).toHex());
+    QCOMPARE(downloadedSha, sha);
 }
 
 QTEST_GUILESS_MAIN(TestServerSmoke)

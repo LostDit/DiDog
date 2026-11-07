@@ -35,6 +35,7 @@ set(MESSENGER_CORE_SOURCES
     net/ClientConnection.h      net/ClientConnection.cpp
     net/RequestTracker.h        net/RequestTracker.cpp
 
+    server/AttachmentStore.h    server/AttachmentStore.cpp
     server/ClientSession.h      server/ClientSession.cpp
     server/HandlerResult.h
     server/ServerApp.h          server/ServerApp.cpp

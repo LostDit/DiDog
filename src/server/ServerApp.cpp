@@ -50,18 +50,17 @@ bool ServerApp::start(quint16 port)
 
 void ServerApp::stop()
 {
-    if (!m_server->isListening())
+    if (!m_server->isListening() && m_sessions.isEmpty())
         return;
 
-    const auto sessions = m_sessions.values();
-    for (ClientSession *session : sessions) {
-        if (m_core)
-            m_core->unregisterSession(session);
-        session->deleteLater();
-    }
-
-    m_sessions.clear();
     m_server->close();
+
+    // Удаляем сессии явно: их деструкторы снимают регистрацию в ядре и рвут сокеты.
+    const QSet<ClientSession *> sessions = m_sessions;
+    m_sessions.clear();
+    for (ClientSession *session : sessions) {
+        delete session;
+    }
 }
 
 quint16 ServerApp::port() const
@@ -73,15 +72,16 @@ void ServerApp::onNewConnection()
 {
     while (QTcpSocket *socket = m_server->nextPendingConnection()) {
         auto *session = new ClientSession(socket, m_core, this);
-        m_sessions.insert(socket, session);
+        m_sessions.insert(session);
+
+        // Соединяем удаление из учёта с фактическим удалением объекта.
+        connect(session, &QObject::destroyed, this, [this, session]() {
+            m_sessions.remove(session);
+        });
 
         qInfo().noquote() << QStringLiteral("Подключение %1 (соединений: %2)")
                                  .arg(session->peerAddress())
                                  .arg(m_sessions.size());
-
-        connect(socket, &QTcpSocket::disconnected, this, [this, socket]() {
-            m_sessions.remove(socket);
-        });
     }
 }
 

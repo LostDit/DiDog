@@ -1,11 +1,10 @@
 #pragma once
 
-#include <QHash>
 #include <QObject>
+#include <QSet>
 #include <QString>
 
 class QTcpServer;
-class QTcpSocket;
 
 namespace server {
 
@@ -13,6 +12,8 @@ class ClientSession;
 class ServerCore;
 
 // Серверный процесс: слушает порт и создаёт сессию на каждое подключение.
+// Владение: сессии удаляются до ядра, иначе их деструкторы обращаются
+// к уже закрытой базе.
 class ServerApp : public QObject
 {
     Q_OBJECT
@@ -37,7 +38,7 @@ private slots:
 private:
     QTcpServer *m_server = nullptr;
     ServerCore *m_core = nullptr;
-    QHash<QTcpSocket *, ClientSession *> m_sessions;
+    QSet<ClientSession *> m_sessions;
     QString m_error;
 };
 
