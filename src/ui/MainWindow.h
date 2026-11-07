@@ -87,6 +87,7 @@ private:
     void updateThemeButton();
     void updateConnectionBanner();
     void restoreWindowState();
+    void showToast(const QString &text);
     QHash<qint64, QString> chatNames() const;
 
     app::ChatService *m_chats = nullptr;
@@ -111,7 +112,9 @@ private:
     MessageView *m_messageView = nullptr;
     ComposerWidget *m_composer = nullptr;
     QLabel *m_connectionBanner = nullptr;
+    QLabel *m_toast = nullptr;
     QTimer *m_typingTimer = nullptr;
+    QTimer *m_toastTimer = nullptr;
     QPointer<SearchDialog> m_searchDialog;
     qint64 m_pendingScrollMessageId = 0;
 

@@ -113,6 +113,17 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
         m_typingUserId = 0;
         updateHeader();
     });
+
+    m_toastTimer = new QTimer(this);
+    m_toastTimer->setSingleShot(true);
+    m_toastTimer->setInterval(4000);
+    connect(m_toastTimer, &QTimer::timeout, this, [this]() {
+        if (m_toast)
+            m_toast->hide();
+    });
+
+    auto *newChatShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+N")), this);
+    connect(newChatShortcut, &QShortcut::activated, this, &MainWindow::onNewChatClicked);
 }
 
 MainWindow::~MainWindow() = default;
@@ -207,6 +218,7 @@ QWidget *MainWindow::buildSidebar()
     m_searchField->addAction(QIcon(QStringLiteral(":/icons/search.svg")),
                              QLineEdit::LeadingPosition);
     m_searchField->setFixedHeight(38);
+    m_searchField->setAccessibleName(tr("Поиск по чатам"));
     layout->addWidget(m_searchField);
 
     m_chatModel = new ChatListModel(this);
@@ -227,6 +239,7 @@ QWidget *MainWindow::buildSidebar()
     m_chatList->setUniformItemSizes(true);
     m_chatList->setMouseTracking(true);
     m_chatList->viewport()->setMouseTracking(true);
+    m_chatList->setAccessibleName(tr("Список чатов"));
     layout->addWidget(m_chatList, 1);
 
     connect(m_searchField, &QLineEdit::textChanged, this, [this](const QString &text) {
@@ -299,6 +312,11 @@ QWidget *MainWindow::buildConversationPane()
     m_connectionBanner->hide();
     layout->addWidget(m_connectionBanner);
 
+    m_toast = makeLabel(QString(), "Toast", Qt::AlignCenter);
+    m_toast->setWordWrap(true);
+    m_toast->hide();
+    layout->addWidget(m_toast);
+
     // Шапка чата.
     auto *header = new QFrame;
     header->setObjectName(QStringLiteral("ChatHeader"));
@@ -323,6 +341,7 @@ QWidget *MainWindow::buildConversationPane()
     layout->addWidget(header);
 
     m_messageView = new MessageView;
+    m_messageView->setAccessibleName(tr("Лента сообщений"));
     layout->addWidget(m_messageView, 1);
 
     m_composer = new ComposerWidget;
@@ -429,6 +448,7 @@ void MainWindow::openChat(qint64 chatId)
 
     m_messageView->setCurrentUserId(m_chats->currentUserId());
     m_messageView->setHasMore(m_chats->hasMore(chatId));
+    m_messageView->setLoading(!m_chats->isLoaded(chatId));
     m_messageView->setMessages(m_chats->messages(chatId));
 
     m_chats->openChat(chatId);
@@ -599,7 +619,19 @@ void MainWindow::openSettings()
 
 void MainWindow::onError(const QString &message)
 {
-    statusBar()->showMessage(message, 6000);
+    showToast(message);
+}
+
+void MainWindow::showToast(const QString &text)
+{
+    if (!m_toast)
+        return;
+
+    m_toast->setText(text);
+    m_toast->show();
+
+    if (m_toastTimer)
+        m_toastTimer->start();
 }
 
 void MainWindow::updateConnectionBanner()

@@ -59,6 +59,7 @@ ComposerWidget::ComposerWidget(QWidget *parent)
     layout->addWidget(m_attachButton, 0, Qt::AlignBottom);
 
     m_edit = new ComposerEdit(this);
+    m_edit->setAccessibleName(tr("Поле ввода сообщения"));
     m_edit->setFixedHeight(kMinHeight);
     layout->addWidget(m_edit, 1);
 

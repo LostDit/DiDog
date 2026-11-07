@@ -33,6 +33,13 @@ MessageView::MessageView(QWidget *parent)
     m_layout = new QVBoxLayout(m_content);
     m_layout->setContentsMargins(0, 12, 0, 12);
     m_layout->setSpacing(0);
+
+    m_loading = new QLabel(tr("Загрузка истории…"), m_content);
+    m_loading->setObjectName(QStringLiteral("DayChip"));
+    m_loading->setAlignment(Qt::AlignCenter);
+    m_loading->hide();
+    m_layout->addWidget(m_loading, 0, Qt::AlignHCenter);
+
     m_layout->addStretch(1);
 
     setWidget(m_content);
@@ -68,8 +75,17 @@ bool MessageView::scrollToMessage(qint64 messageId)
     return false;
 }
 
+void MessageView::setLoading(bool loading)
+{
+    if (!m_loading)
+        return;
+
+    m_loading->setVisible(loading);
+}
+
 void MessageView::setMessages(const QList<data::Message> &messages)
 {
+    setLoading(false);
     const bool wasAtBottom = isAtBottom();
     const int oldMaximum = verticalScrollBar()->maximum();
     const int oldValue = verticalScrollBar()->value();
@@ -142,12 +158,17 @@ void MessageView::clearContent()
 
     while (m_layout->count() > 0) {
         QLayoutItem *item = m_layout->takeAt(0);
-        if (QWidget *widget = item->widget()) {
+        QWidget *widget = item->widget();
+        // Плашку загрузки не удаляем: она переиспользуется при следующем чате.
+        if (widget && widget != m_loading) {
             widget->hide();
             widget->deleteLater();
         }
         delete item;
     }
+
+    if (m_loading)
+        m_layout->addWidget(m_loading, 0, Qt::AlignHCenter);
 }
 
 void MessageView::addDaySeparator(qint64 unixMs)

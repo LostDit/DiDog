@@ -593,3 +593,10 @@ QComboBox#SettingsCombo QAbstractItemView {
     selection-background-color: {{selected}};
     border: 1px solid {{border}};
 }
+
+#Toast {
+    background-color: {{danger}};
+    color: #FFFFFF;
+    padding: 8px 14px;
+    font-size: 9pt;
+}

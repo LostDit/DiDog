@@ -1,0 +1,51 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    name: Linux (Qt 5.15, GCC)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Установить зависимости
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake \
+            qtbase5-dev qtmultimedia5-dev libqt5svg5-dev qttools5-dev-tools
+
+      - name: Конфигурация
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Сборка
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Тесты
+        run: ctest --test-dir build --output-on-failure
+
+  windows:
+    name: Windows (Qt 5.15, MSVC)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Установить Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '5.15.2'
+          arch: 'win64_msvc2019_64'
+          cache: true
+
+      - name: Конфигурация
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+
+      - name: Сборка
+        run: cmake --build build --config Release
+
+      - name: Тесты
+        run: ctest --test-dir build -C Release --output-on-failure

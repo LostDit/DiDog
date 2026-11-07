@@ -7,13 +7,17 @@
 
 ## Скриншоты
 
-| Вход | Переписка (светлая) |
+| Вход | Переписка |
 |---|---|
 | ![Вход](docs/screenshots/login-light.png) | ![Светлая тема](docs/screenshots/chat-light.png) |
 
-Тёмная тема:
+| Тёмная тема | Фото в чате |
+|---|---|
+| ![Тёмная тема](docs/screenshots/chat-dark.png) | ![Фото](docs/screenshots/chat-image.png) |
 
-![Тёмная тема](docs/screenshots/chat-dark.png)
+| Поиск | Настройки |
+|---|---|
+| ![Поиск](docs/screenshots/search-results.png) | ![Настройки](docs/screenshots/settings.png) |
 
 ## Возможности
 
@@ -32,9 +36,10 @@
 | ✅ | Системный трей с уведомлениями и счётчиком непрочитанных в заголовке |
 | ✅ | Поиск по истории сообщений (Ctrl+F) с переходом в чат |
 | ✅ | Интерфейс RU/EN, диалог настроек (тема, язык, уведомления, сервер, данные) |
+| ✅ | Заглушка загрузки, тосты ошибок, горячие клавиши (Ctrl+F, Ctrl+N) |
 | ✅ | Светлая и тёмная темы с переключением на лету, fallback-аватары, анимация появления |
 | ✅ | Логирование в файл, профили (`--profile`), защита от второго экземпляра |
-| ⏳ | Скелетоны загрузки, тосты ошибок, доступность |
+| ✅ | Портативный пакет Windows и CI для Windows/Ubuntu |
 
 ## Стек
 
@@ -103,6 +108,22 @@ cmake --build --preset windows-mingw
 ```
 
 Presets читают переменную окружения `QT_PREFIX`; при её отсутствии используется `CMAKE_PREFIX_PATH`/`PATH`.
+
+### Портативный пакет (Windows)
+
+```powershell
+$env:QT_PREFIX = "C:\Qt\Qt5.14.2\5.14.2\mingw73_64"
+.\scripts\package-windows.ps1 -BuildDir build-release
+```
+
+Скрипт раскладывает `dist/MessengerApp` с зависимостями Qt, переводами и README —
+папку можно переносить на машину без установленного Qt. Проверено запуском
+без Qt в `PATH`.
+
+### Непрерывная интеграция
+
+[`.github/workflows/build.yml`](.github/workflows/build.yml) собирает и тестирует проект
+на Ubuntu 22.04 (Qt 5.15, GCC) и Windows (Qt 5.15, MSVC 2019).
 
 ## Запуск
 

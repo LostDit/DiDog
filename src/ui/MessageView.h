@@ -5,6 +5,7 @@
 #include <QList>
 #include <QScrollArea>
 
+class QLabel;
 class QVBoxLayout;
 class QWidget;
 
@@ -26,6 +27,9 @@ public:
     // Полная перестройка ленты. При добавлении нового сообщения в конец —
     // анимирует его появление, если пользователь у нижней границы.
     void setMessages(const QList<data::Message> &messages);
+
+    // Показывает заглушку на время загрузки истории.
+    void setLoading(bool loading);
 
     void scrollToBottom();
     bool isAtBottom() const;
@@ -51,6 +55,7 @@ private:
 
     QWidget *m_content = nullptr;
     QVBoxLayout *m_layout = nullptr;
+    QLabel *m_loading = nullptr;
     QList<MessageBubble *> m_bubbles;
     qint64 m_currentUserId = 0;
     bool m_hasMore = false;
