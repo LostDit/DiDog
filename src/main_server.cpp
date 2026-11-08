@@ -286,9 +286,14 @@ int runServer(int argc, char *argv[])
         QStringLiteral("voice-port"),
         QStringLiteral("UDP-порт голосового релея (по умолчанию 45001)."),
         QStringLiteral("port"), QStringLiteral("45001"));
+    const QCommandLineOption updatesOption(
+        QStringLiteral("updates-dir"),
+        QStringLiteral("Каталог обновлений с manifest.json."),
+        QStringLiteral("dir"));
 
     parser.addOptions({portOption, dataOption, verboseOption, tlsOption, tlsCertOption,
-                       tlsKeyOption, serviceOption, addPromoOption, voicePortOption});
+                       tlsKeyOption, serviceOption, addPromoOption, voicePortOption,
+                       updatesOption});
     parser.process(app);
 
     bool portOk = false;
@@ -323,6 +328,9 @@ int runServer(int argc, char *argv[])
     const uint voicePort = parser.value(voicePortOption).toUInt(&voicePortOk);
     if (voicePortOk && voicePort > 0 && voicePort <= 65535)
         server.setVoicePort(static_cast<quint16>(voicePort));
+
+    if (parser.isSet(updatesOption))
+        server.setUpdatesRoot(parser.value(updatesOption));
 
     if (parser.isSet(tlsOption)) {
         const auto findFile = [](const QString &explicitPath, const QString &relativeName) {

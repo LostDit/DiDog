@@ -8,6 +8,7 @@
 #include <QHash>
 #include <QHostAddress>
 #include <QJsonObject>
+#include <QList>
 #include <QObject>
 #include <QSet>
 #include <QString>
@@ -39,6 +40,10 @@ public:
     QString attachmentsRoot() const { return m_attachmentsRoot; }
     int onlineUsers() const { return m_sessions.size(); }
 
+    // Каталог обновлений (manifest.json + файлы). По умолчанию — рядом с attachments.
+    void setUpdatesRoot(const QString &root) { m_updatesRoot = root; }
+    QString updatesRoot() const { return m_updatesRoot; }
+
 private:
     HandlerResult handleHello(const QJsonObject &data);
     HandlerResult handleRegister(const QJsonObject &data, ClientSession *session);
@@ -66,6 +71,8 @@ private:
     HandlerResult handleVoiceDecline(const QJsonObject &data, ClientSession *session);
     HandlerResult handleVoiceCancel(const QJsonObject &data, ClientSession *session);
     HandlerResult handleVoiceSpeaking(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleUpdateManifest(ClientSession *session);
+    HandlerResult handleUpdateDownload(const QJsonObject &data, ClientSession *session);
 
     void leaveVoiceRoom(ClientSession *session);
 
@@ -112,6 +119,15 @@ private:
 
     data::Database m_database;
     QString m_attachmentsRoot;
+
+    // Каталог обновлений: manifest.json + файлы новой версии.
+    struct UpdateFile {
+        QString path;
+        qint64 size = 0;
+        QString sha256;
+    };
+    QString m_updatesRoot;
+    bool loadUpdateManifest(QString *version, QList<UpdateFile> *files, QString *error) const;
     AttachmentStore m_attachmentStore;
     QHash<quint32, ReadyAttachment> m_readyAttachments;
     QMultiHash<qint64, ClientSession *> m_sessions;

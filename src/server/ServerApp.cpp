@@ -96,6 +96,9 @@ bool ServerApp::enableTls(const QString &certificatePath, const QString &keyPath
 bool ServerApp::initialize(const QString &databasePath, const QString &attachmentsRoot,
                            QString *error)
 {
+    if (!m_updatesRoot.isEmpty())
+        m_core->setUpdatesRoot(m_updatesRoot);
+
     return m_core->initialize(databasePath, attachmentsRoot, error);
 }
 

@@ -17,8 +17,12 @@
 
 #include <QDateTime>
 #include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QNetworkDatagram>
 #include <QRandomGenerator>
 #include <QSqlError>
@@ -134,6 +138,11 @@ bool ServerCore::initialize(const QString &databasePath, const QString &attachme
     m_attachmentsRoot = attachmentsRoot;
     m_attachmentStore.setRoot(attachmentsRoot);
 
+    if (m_updatesRoot.isEmpty()) {
+        m_updatesRoot = QFileInfo(attachmentsRoot).absolutePath()
+                        + QStringLiteral("/updates");
+    }
+
     if (!m_database.open(databasePath, error))
         return false;
 
@@ -210,6 +219,10 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleVoiceCancel(data, session);
     if (type == QLatin1String(core::proto::type::kVoiceSpeaking))
         return handleVoiceSpeaking(data, session);
+    if (type == QLatin1String(core::proto::type::kUpdateManifest))
+        return handleUpdateManifest(session);
+    if (type == QLatin1String(core::proto::type::kUpdateDownload))
+        return handleUpdateDownload(data, session);
 
     if (type == QLatin1String(core::proto::type::kMsgSend))
         return handleMessageSend(data, session);
@@ -973,6 +986,132 @@ HandlerResult ServerCore::handleVoiceSpeaking(const QJsonObject &data, ClientSes
     broadcastToChat(chatId, core::proto::event::kVoiceSpeaking, event, session);
 
     return HandlerResult::success();
+}
+
+bool ServerCore::loadUpdateManifest(QString *version, QList<UpdateFile> *files,
+                                    QString *error) const
+{
+    if (m_updatesRoot.isEmpty()) {
+        if (error)
+            *error = QStringLiteral("Каталог обновлений не задан");
+        return false;
+    }
+
+    QFile manifest(m_updatesRoot + QStringLiteral("/manifest.json"));
+    if (!manifest.open(QIODevice::ReadOnly)) {
+        if (error)
+            *error = QStringLiteral("Манифест обновлений не найден");
+        return false;
+    }
+
+    const QJsonObject object = QJsonDocument::fromJson(manifest.readAll()).object();
+    const QString manifestVersion = object.value(QStringLiteral("version")).toString();
+    if (manifestVersion.isEmpty()) {
+        if (error)
+            *error = QStringLiteral("В манифесте нет поля version");
+        return false;
+    }
+
+    QList<UpdateFile> parsed;
+    const QJsonArray array = object.value(QStringLiteral("files")).toArray();
+    for (const QJsonValue &value : array) {
+        const QJsonObject item = value.toObject();
+        const QString path = item.value(QStringLiteral("path")).toString();
+
+        if (path.isEmpty() || QDir::isAbsolutePath(path) || path.contains(QLatin1String(".."))
+            || path.contains(QLatin1Char(':')) || path.contains(QLatin1Char('\\'))) {
+            if (error)
+                *error = QStringLiteral("Недопустимый путь в манифесте: %1").arg(path);
+            return false;
+        }
+
+        UpdateFile file;
+        file.path = path;
+        file.size = static_cast<qint64>(item.value(QStringLiteral("size")).toDouble());
+        file.sha256 = item.value(QStringLiteral("sha256")).toString();
+        if (file.size <= 0 || file.sha256.isEmpty()) {
+            if (error)
+                *error = QStringLiteral("Некорректная запись манифеста: %1").arg(path);
+            return false;
+        }
+        parsed.append(file);
+    }
+
+    if (version)
+        *version = manifestVersion;
+    if (files)
+        *files = parsed;
+    return true;
+}
+
+HandlerResult ServerCore::handleUpdateManifest(ClientSession *session)
+{
+    Q_UNUSED(session)
+
+    QString version;
+    QList<UpdateFile> files;
+    QString error;
+    if (!loadUpdateManifest(&version, &files, &error))
+        return HandlerResult::failure(core::ErrorCode::NotFound, error);
+
+    QJsonArray array;
+    for (const UpdateFile &file : files) {
+        QJsonObject item;
+        item.insert(QStringLiteral("path"), file.path);
+        item.insert(QStringLiteral("size"), static_cast<double>(file.size));
+        item.insert(QStringLiteral("sha256"), file.sha256);
+        array.append(item);
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("version"), version);
+    payload.insert(QStringLiteral("files"), array);
+    return HandlerResult::success(payload);
+}
+
+HandlerResult ServerCore::handleUpdateDownload(const QJsonObject &data, ClientSession *session)
+{
+    const QString path = stringValue(data, "path");
+    const qint64 offset = qMax<qint64>(0, int64Value(data, "offset"));
+
+    QString version;
+    QList<UpdateFile> files;
+    QString error;
+    if (!loadUpdateManifest(&version, &files, &error))
+        return HandlerResult::failure(core::ErrorCode::NotFound, error);
+
+    UpdateFile target;
+    bool found = false;
+    for (const UpdateFile &file : files) {
+        if (file.path == path) {
+            target = file;
+            found = true;
+            break;
+        }
+    }
+
+    if (!found)
+        return HandlerResult::failure(core::ErrorCode::NotFound,
+                                      QStringLiteral("Файл отсутствует в манифесте"));
+    if (offset > target.size)
+        return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                      QStringLiteral("Смещение больше размера файла"));
+
+    const QString absolute = m_updatesRoot + QLatin1Char('/') + target.path;
+    const QFileInfo info(absolute);
+    if (!info.exists() || info.size() != target.size)
+        return HandlerResult::failure(core::ErrorCode::NotFound,
+                                      QStringLiteral("Файл обновления недоступен"));
+
+    const quint32 transferId = session->allocateDownloadId();
+    session->queueDownload(transferId, absolute, target.size, offset);
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("transfer_id"), static_cast<double>(transferId));
+    payload.insert(QStringLiteral("size"), static_cast<double>(target.size));
+    payload.insert(QStringLiteral("sha256"), target.sha256);
+    payload.insert(QStringLiteral("offset"), static_cast<double>(offset));
+    return HandlerResult::success(payload);
 }
 
 HandlerResult ServerCore::handleVoiceJoin(const QJsonObject &data, ClientSession *session)

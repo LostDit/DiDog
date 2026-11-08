@@ -41,7 +41,7 @@ public:
 
     // Выдача файла клиенту: сервер сам режет файл на чанки и шлёт attach.end.
     quint32 allocateDownloadId();
-    void queueDownload(quint32 transferId, const QString &path, qint64 size);
+    void queueDownload(quint32 transferId, const QString &path, qint64 size, qint64 offset = 0);
     void startPendingDownloads();
 
     QString peerAddress() const;
@@ -57,6 +57,7 @@ private:
         QString path;
         qint64 size = 0;
         qint64 sent = 0;
+        qint64 offset = 0;
         quint32 sequence = 0;
         QFile *file = nullptr;
         bool started = false;

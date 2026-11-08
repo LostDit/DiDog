@@ -191,12 +191,14 @@ quint32 ClientSession::allocateDownloadId()
     return m_nextDownloadId++;
 }
 
-void ClientSession::queueDownload(quint32 transferId, const QString &path, qint64 size)
+void ClientSession::queueDownload(quint32 transferId, const QString &path, qint64 size,
+                                  qint64 offset)
 {
     Download download;
     download.id = transferId;
     download.path = path;
     download.size = size;
+    download.offset = qBound<qint64>(0, offset, size);
     m_downloads.insert(transferId, download);
 }
 
@@ -235,6 +237,15 @@ void ClientSession::pumpDownloads()
                 it = m_downloads.erase(it);
                 continue;
             }
+            if (download.offset > 0 && !download.file->seek(download.offset)) {
+                qWarning().noquote() << QStringLiteral("Не удалось перейти к смещению %1")
+                                            .arg(download.offset);
+                delete download.file;
+                download.file = nullptr;
+                it = m_downloads.erase(it);
+                continue;
+            }
+            download.sent = download.offset;
             download.started = true;
         }
 
