@@ -165,6 +165,21 @@ server → client : auth.ok {token, user} | error
 ### `user.search`
 `{query, limit?}` → `{users: […]}`; поиск по логину и имени, без текущего пользователя.
 
+### `billing.status`
+`{}` → `{plan, expires_at, entitlements: ["themes.premium"]}`; `plan = free | plus | pro`.
+Для free `expires_at = 0`, список прав пуст.
+
+### `billing.redeem`
+`{code}` → `{plan, expires_at}`; ошибки `BAD_REQUEST` («Промокод не найден», «уже использован»,
+«срок истёк», «лимит исчерпан»). Подписка продлевается от текущего срока, если он ещё не истёк.
+
+### `theme.list`
+`{}` → `{themes: [{id, name, premium, accent}]}` — доступные пакеты оформления.
+
+### `theme.get`
+`{id}` → `{theme: {id, name, premium, tokens: {bg, surface, accent, …}}}`;
+премиальный пакет без подписки → `BAD_REQUEST` «Требуется подписка».
+
 ### `attach.begin`
 `{chat_id, file_name, mime, byte_size, sha256}` →
 `{transfer_id, chunk_size}`; ошибки `TOO_LARGE`, `RATE_LIMITED`.

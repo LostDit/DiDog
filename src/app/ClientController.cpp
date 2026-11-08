@@ -2,6 +2,7 @@
 
 #include "app/AppPaths.h"
 #include "app/AttachmentService.h"
+#include "app/BillingService.h"
 #include "app/ChatService.h"
 #include "app/HistoryStore.h"
 #include "app/NotificationService.h"
@@ -104,6 +105,7 @@ void ClientController::createConnection()
             });
 
     m_session = new SessionService(m_connection, m_settings, this);
+    m_billing = new BillingService(m_connection, m_settings, this);
     m_attachments = new AttachmentService(m_connection, paths::attachmentsDir(), this);
 
     connect(m_session, &SessionService::authenticated, this, &ClientController::onAuthenticated);
@@ -149,9 +151,14 @@ void ClientController::onAuthenticated(const data::User &user)
     m_chats->setCurrentUser(user);
     m_chats->loadChats();
 
+    if (m_billing) {
+        m_billing->refresh();
+        m_billing->loadThemes();
+    }
+
     if (!m_mainWindow) {
         m_mainWindow.reset(new ui::MainWindow(m_chats, m_session, m_connection,
-                                              m_settings, m_theme));
+                                              m_settings, m_theme, m_billing));
         m_mainWindow->setUser(user);
         m_mainWindow->show();
 

@@ -130,6 +130,31 @@ const char *const kSchemaV4[] = {
     "ALTER TABLE chat_members ADD COLUMN role TEXT NOT NULL DEFAULT 'member'",
 };
 
+// Схема v5: подписки и промокоды.
+const char *const kSchemaV5[] = {
+    "CREATE TABLE IF NOT EXISTS subscriptions ("
+    "  user_id    INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,"
+    "  plan       TEXT    NOT NULL,"
+    "  expires_at INTEGER NOT NULL"
+    ")",
+
+    "CREATE TABLE IF NOT EXISTS promo_codes ("
+    "  code       TEXT PRIMARY KEY COLLATE NOCASE,"
+    "  plan       TEXT    NOT NULL,"
+    "  days       INTEGER NOT NULL,"
+    "  max_uses   INTEGER NOT NULL DEFAULT 0,"
+    "  used       INTEGER NOT NULL DEFAULT 0,"
+    "  expires_at INTEGER NOT NULL DEFAULT 0"
+    ")",
+
+    "CREATE TABLE IF NOT EXISTS promo_redemptions ("
+    "  code        TEXT    NOT NULL,"
+    "  user_id     INTEGER NOT NULL,"
+    "  redeemed_at INTEGER NOT NULL,"
+    "  PRIMARY KEY (code, user_id)"
+    ")",
+};
+
 bool exec(QSqlDatabase &db, const QString &sql, QString *error)
 {
     QSqlQuery query(db);
@@ -224,6 +249,30 @@ bool applyV4(QSqlDatabase &db, QString *error)
     }
     return true;
 }
+bool applyV5(QSqlDatabase &db, QString *error)
+{
+    if (!db.transaction()) {
+        if (error)
+            *error = QStringLiteral("Не удалось начать транзакцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+
+    for (const char *statement : kSchemaV5) {
+        if (!exec(db, QString::fromLatin1(statement), error)) {
+            db.rollback();
+            return false;
+        }
+    }
+
+    if (!db.commit()) {
+        if (error)
+            *error = QStringLiteral("Не удалось зафиксировать миграцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+    return true;
+}
 } // namespace
 
 bool applyV3(QSqlDatabase &db, QString *error)
@@ -293,6 +342,9 @@ bool apply(QSqlDatabase &db, QString *error)
         return false;
 
     if (current < 4 && !applyV4(db, error))
+        return false;
+
+    if (current < 5 && !applyV5(db, error))
         return false;
 
     if (!exec(db, QStringLiteral("PRAGMA user_version = %1").arg(kCurrentVersion), error))

@@ -32,6 +32,10 @@ public:
     bool start(quint16 port);
     void stop();
 
+    // Администрирование: создание промокода (CLI --add-promo).
+    bool createPromo(const QString &code, const QString &plan, int days, int maxUses,
+                     QString *error);
+
     quint16 port() const;
     int connectionCount() const { return m_sessions.size(); }
     QString errorString() const { return m_error; }

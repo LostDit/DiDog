@@ -6,6 +6,7 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDateTime>
 #include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QFormLayout>
@@ -30,10 +31,11 @@ QLabel *sectionTitle(const QString &text, QWidget *parent)
 } // namespace
 
 SettingsDialog::SettingsDialog(app::SettingsStore *settings, app::ThemeManager *theme,
-                               QWidget *parent)
+                               app::BillingService *billing, QWidget *parent)
     : QDialog(parent)
     , m_settings(settings)
     , m_theme(theme)
+    , m_billing(billing)
 {
     setObjectName(QStringLiteral("SettingsDialog"));
     setWindowTitle(tr("Настройки"));
@@ -87,6 +89,31 @@ void SettingsDialog::buildUi()
     m_notifications = new QCheckBox(tr("Показывать уведомления о новых сообщениях"), this);
     m_notifications->setChecked(!m_settings || m_settings->notificationsEnabled());
     layout->addWidget(m_notifications);
+
+    layout->addWidget(sectionTitle(tr("Подписка"), this));
+
+    m_planLabel = new QLabel(this);
+    m_planLabel->setObjectName(QStringLiteral("EmptySubtitle"));
+    m_planLabel->setWordWrap(true);
+    layout->addWidget(m_planLabel);
+
+    auto *promoRow = new QHBoxLayout;
+    promoRow->setSpacing(8);
+    m_promo = new QLineEdit(this);
+    m_promo->setObjectName(QStringLiteral("LoginInput"));
+    m_promo->setPlaceholderText(tr("Промокод"));
+    auto *promoButton = new QPushButton(tr("Активировать"), this);
+    promoButton->setObjectName(QStringLiteral("GhostButton"));
+    promoButton->setCursor(Qt::PointingHandCursor);
+    promoRow->addWidget(m_promo, 1);
+    promoRow->addWidget(promoButton);
+    layout->addLayout(promoRow);
+
+    m_promoStatus = new QLabel(this);
+    m_promoStatus->setObjectName(QStringLiteral("EmptySubtitle"));
+    m_promoStatus->setWordWrap(true);
+    m_promoStatus->setVisible(false);
+    layout->addWidget(m_promoStatus);
 
     layout->addWidget(sectionTitle(tr("Сервер"), this));
 
@@ -147,15 +174,141 @@ void SettingsDialog::buildUi()
     connect(m_host, &QLineEdit::editingFinished, this, &SettingsDialog::onServerEdited);
     connect(m_port, &QLineEdit::editingFinished, this, &SettingsDialog::onServerEdited);
     connect(openButton, &QPushButton::clicked, this, &SettingsDialog::openDataFolder);
+    connect(promoButton, &QPushButton::clicked, this, &SettingsDialog::onPromoClicked);
+
+    if (m_billing) {
+        connect(m_billing, &app::BillingService::statusChanged,
+                this, &SettingsDialog::updatePlanLabel);
+        connect(m_billing, &app::BillingService::themesLoaded,
+                this, &SettingsDialog::onThemesLoaded);
+        connect(m_billing, &app::BillingService::themeReady,
+                this, &SettingsDialog::onThemeReady);
+        connect(m_billing, &app::BillingService::themeFailed,
+                this, &SettingsDialog::onThemeFailed);
+        connect(m_billing, &app::BillingService::promoActivated, this, [this]() {
+            if (m_promoStatus) {
+                m_promoStatus->setText(tr("Подписка активирована."));
+                m_promoStatus->setVisible(true);
+            }
+            if (m_promo)
+                m_promo->clear();
+            updatePlanLabel();
+            m_billing->loadThemes();
+        });
+        connect(m_billing, &app::BillingService::promoFailed, this,
+                [this](const QString &message) {
+                    if (m_promoStatus) {
+                        m_promoStatus->setText(message);
+                        m_promoStatus->setVisible(true);
+                    }
+                });
+
+        updatePlanLabel();
+        m_billing->refresh();
+        m_billing->loadThemes();
+    }
 }
 
-void SettingsDialog::onThemeChanged(int index)
+void SettingsDialog::updatePlanLabel()
+{
+    if (!m_planLabel)
+        return;
+
+    const QString plan = m_billing ? m_billing->plan() : QStringLiteral("free");
+    const qint64 expiresAt = m_billing ? m_billing->expiresAt() : 0;
+
+    if (plan == QLatin1String("free")) {
+        m_planLabel->setText(tr("Бесплатный план: базовые темы. Промокод даёт подписку."));
+        return;
+    }
+
+    const QString date = QDateTime::fromMSecsSinceEpoch(expiresAt)
+                             .toString(QStringLiteral("dd.MM.yyyy"));
+    m_planLabel->setText(tr("Подписка %1 действует до %2.").arg(plan, date));
+}
+
+void SettingsDialog::onPromoClicked()
+{
+    if (!m_billing || !m_promo)
+        return;
+
+    if (m_promoStatus) {
+        m_promoStatus->setText(tr("Проверяем…"));
+        m_promoStatus->setVisible(true);
+    }
+
+    m_billing->redeem(m_promo->text());
+}
+
+void SettingsDialog::onThemesLoaded(const QList<app::ThemeInfo> &themes)
+{
+    if (!m_themeBox)
+        return;
+
+    const QSignalBlocker blocker(m_themeBox);
+
+    while (m_themeBox->count() > 2)
+        m_themeBox->removeItem(m_themeBox->count() - 1);
+
+    for (const app::ThemeInfo &info : themes) {
+        const QString label = info.premium
+                                  ? tr("%1 — по подписке").arg(info.name)
+                                  : info.name;
+        m_themeBox->addItem(label, QStringLiteral("pack:") + info.id);
+
+        const int index = m_themeBox->count() - 1;
+        const bool allowed = !info.premium || (m_billing && m_billing->hasPremium());
+        if (!allowed) {
+            m_themeBox->setItemData(index, QVariant(Qt::NoItemFlags), Qt::UserRole - 1);
+            m_themeBox->setItemData(index, tr("Нужна подписка"), Qt::ToolTipRole);
+        }
+    }
+
+    if (m_theme && !m_theme->customThemeId().isEmpty()) {
+        const int index = m_themeBox->findData(QStringLiteral("pack:")
+                                               + m_theme->customThemeId());
+        if (index >= 0)
+            m_themeBox->setCurrentIndex(index);
+    }
+}
+
+void SettingsDialog::onThemeReady(const QString &id, const QHash<QString, QString> &tokens)
 {
     if (!m_theme)
         return;
 
-    m_theme->setTheme(index == 1 ? app::ThemeManager::Theme::Dark
-                                 : app::ThemeManager::Theme::Light);
+    m_theme->applyCustom(id, tokens);
+
+    if (m_promoStatus) {
+        m_promoStatus->setText(tr("Тема применена."));
+        m_promoStatus->setVisible(true);
+    }
+}
+
+void SettingsDialog::onThemeFailed(const QString &message)
+{
+    if (!m_promoStatus)
+        return;
+
+    m_promoStatus->setText(message);
+    m_promoStatus->setVisible(true);
+}
+
+void SettingsDialog::onThemeChanged(int index)
+{
+    if (!m_theme || index < 0)
+        return;
+
+    const QVariant data = m_themeBox->itemData(index);
+    if (data.type() == QVariant::String) {
+        const QString value = data.toString();
+        if (value.startsWith(QLatin1String("pack:")) && m_billing)
+            m_billing->requestTheme(value.mid(5));
+        return;
+    }
+
+    m_theme->setTheme(data.toInt() == 1 ? app::ThemeManager::Theme::Dark
+                                        : app::ThemeManager::Theme::Light);
 }
 
 void SettingsDialog::onLanguageChanged(int index)

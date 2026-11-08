@@ -51,6 +51,10 @@ private:
     HandlerResult handleChatAdd(const QJsonObject &data, ClientSession *session);
     HandlerResult handleChatLeave(const QJsonObject &data, ClientSession *session);
     HandlerResult handleUserSearch(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleBillingStatus(ClientSession *session);
+    HandlerResult handleBillingRedeem(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleThemeList(ClientSession *session);
+    HandlerResult handleThemeGet(const QJsonObject &data, ClientSession *session);
 
     HandlerResult handleMessageSend(const QJsonObject &data, ClientSession *session);
     HandlerResult handleMessageEdit(const QJsonObject &data, ClientSession *session);
@@ -66,6 +70,10 @@ public:
     // Бинарный кадр от клиента (чанк загрузки).
     bool handleChunk(ClientSession *session, quint32 transferId, quint32 sequence,
                      const QByteArray &data, QString *error);
+
+    // Создание промокода (CLI администратора).
+    bool createPromo(const QString &code, const QString &plan, int days, int maxUses,
+                     QString *error);
 
 private:
 

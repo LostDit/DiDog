@@ -99,6 +99,12 @@ bool ServerApp::initialize(const QString &databasePath, const QString &attachmen
     return m_core->initialize(databasePath, attachmentsRoot, error);
 }
 
+bool ServerApp::createPromo(const QString &code, const QString &plan, int days, int maxUses,
+                            QString *error)
+{
+    return m_core->createPromo(code, plan, days, maxUses, error);
+}
+
 void ServerApp::createServer()
 {
     if (m_server)

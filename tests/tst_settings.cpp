@@ -22,6 +22,7 @@ private slots:
     void languageIsPersisted();
     void notificationsToggleIsPersisted();
     void hiddenChatsArePersisted();
+    void customThemeIsPersistedAndApplied();
 
 private:
     QComboBox *themeBox(ui::SettingsDialog &dialog) const;
@@ -143,6 +144,25 @@ void TestSettings::hiddenChatsArePersisted()
 
     m_settings->setHiddenChats(QSet<qint64>());
     QVERIFY(m_settings->hiddenChats().isEmpty());
+}
+
+void TestSettings::customThemeIsPersistedAndApplied()
+{
+    QHash<QString, QString> tokens;
+    tokens.insert(QStringLiteral("bg"), QStringLiteral("#0B1220"));
+    tokens.insert(QStringLiteral("accent"), QStringLiteral("#6C8CFF"));
+
+    m_theme->applyCustom(QStringLiteral("midnight"), tokens);
+
+    QCOMPARE(m_settings->customThemeId(), QStringLiteral("midnight"));
+    QVERIFY(m_settings->customThemeTokens().contains(QStringLiteral("#0B1220")));
+    QCOMPARE(m_theme->color(QStringLiteral("bg")), QColor(QStringLiteral("#0B1220")));
+    QCOMPARE(m_theme->color(QStringLiteral("accent")), QColor(QStringLiteral("#6C8CFF")));
+
+    // Выбор встроенной темы сбрасывает пакет.
+    m_theme->setTheme(app::ThemeManager::Theme::Dark);
+    QVERIFY(m_settings->customThemeId().isEmpty());
+    QVERIFY(m_settings->customThemeTokens().isEmpty());
 }
 
 QTEST_MAIN(TestSettings)

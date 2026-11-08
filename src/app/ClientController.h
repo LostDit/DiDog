@@ -17,6 +17,7 @@ class ClientConnection;
 namespace app {
 
 class AttachmentService;
+class BillingService;
 class ChatService;
 class HistoryStore;
 class NotificationService;
@@ -50,6 +51,7 @@ private:
     NotificationService *m_notifications = nullptr;
     ChatService *m_chats = nullptr;
     SessionService *m_session = nullptr;
+    BillingService *m_billing = nullptr;
     QScopedPointer<ui::LoginWindow> m_loginWindow;
     QScopedPointer<ui::MainWindow> m_mainWindow;
 };

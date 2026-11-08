@@ -79,7 +79,7 @@ sudo apt install build-essential cmake ninja-build \
 .\scripts\build-installer.ps1          # Release + windeployqt + Inno Setup
 ```
 
-Результат: `dist\installer\MessengerApp-Setup-1.4.0.exe` (≈21 МБ). Что делает установщик:
+Результат: `dist\installer\MessengerApp-Setup-1.5.0.exe` (≈21 МБ). Что делает установщик:
 
 - ставит приложение в `Program Files\MessengerApp` (или в профиль при `/CURRENTUSER`);
 - добавляет ярлыки «MessengerApp» и «Сервер MessengerApp» в меню «Пуск» (и на рабочий стол по желанию);
@@ -89,7 +89,7 @@ sudo apt install build-essential cmake ninja-build \
 Тихая установка для проверки:
 
 ```powershell
-MessengerApp-Setup-1.4.0.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
+MessengerApp-Setup-1.5.0.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
 ```
 
 **Проверка на двух компьютерах и в разных сетях** — пошаговая инструкция:
@@ -173,6 +173,18 @@ tls=true
 - **Удалить чат** — чат исчезает из списка, локальная история и вложения удаляются;
   у собеседника сообщения остаются. Новое сообщение вернёт чат в список.
 - **Очистить историю** — удаляются только локальные сообщения, чат остаётся.
+
+## Подписка и оформление
+
+Промокод активируется в **Настройках → Подписка**. Код создаётся на сервере:
+
+```powershell
+.\MessengerServer.exe --add-promo WELCOME30:30:100
+```
+
+`CODE:DAYS[:MAX]` — срок подписки и лимит активаций (без лимита — не указывать).
+После активации становятся доступны премиальные пакеты тем («Полночь», «Песок»)
+в списке «Тема»; выбор сохраняется в профиле.
 
 ## Групповые чаты
 

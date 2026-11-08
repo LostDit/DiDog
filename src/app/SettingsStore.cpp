@@ -266,6 +266,45 @@ void SettingsStore::setHiddenMessages(const QSet<qint64> &messageIds)
         m_settings.setValue(QStringLiteral("chats/hiddenMessages"), parts.join(QLatin1Char(',')));
 }
 
+QString SettingsStore::customThemeId() const
+{
+    return m_settings.value(QStringLiteral("ui/customTheme")).toString();
+}
+
+QString SettingsStore::customThemeTokens() const
+{
+    return m_settings.value(QStringLiteral("ui/customThemeTokens")).toString();
+}
+
+void SettingsStore::setCustomTheme(const QString &id, const QString &tokensJson)
+{
+    if (id.isEmpty())
+        m_settings.remove(QStringLiteral("ui/customTheme"));
+    else
+        m_settings.setValue(QStringLiteral("ui/customTheme"), id);
+
+    if (tokensJson.isEmpty())
+        m_settings.remove(QStringLiteral("ui/customThemeTokens"));
+    else
+        m_settings.setValue(QStringLiteral("ui/customThemeTokens"), tokensJson);
+}
+
+QString SettingsStore::subscriptionPlan() const
+{
+    return m_settings.value(QStringLiteral("billing/plan"), QStringLiteral("free")).toString();
+}
+
+qint64 SettingsStore::subscriptionExpiresAt() const
+{
+    return m_settings.value(QStringLiteral("billing/expires")).toLongLong();
+}
+
+void SettingsStore::setSubscription(const QString &plan, qint64 expiresAt)
+{
+    m_settings.setValue(QStringLiteral("billing/plan"), plan);
+    m_settings.setValue(QStringLiteral("billing/expires"), expiresAt);
+}
+
 QString SettingsStore::filePath() const
 {
     return m_settings.fileName();

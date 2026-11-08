@@ -278,9 +278,13 @@ int runServer(int argc, char *argv[])
     const QCommandLineOption serviceOption(
         QStringLiteral("service"),
         QStringLiteral("Внутренний режим: запуск под управлением службы Windows."));
+    const QCommandLineOption addPromoOption(
+        QStringLiteral("add-promo"),
+        QStringLiteral("Создать промокод CODE:DAYS[:MAX] и выйти (администрирование)."),
+        QStringLiteral("spec"));
 
     parser.addOptions({portOption, dataOption, verboseOption, tlsOption, tlsCertOption,
-                       tlsKeyOption, serviceOption});
+                       tlsKeyOption, serviceOption, addPromoOption});
     parser.process(app);
 
     bool portOk = false;
@@ -355,6 +359,32 @@ int runServer(int argc, char *argv[])
         qCritical().noquote() << QStringLiteral("Не удалось инициализировать сервер: %1")
                                      .arg(serverError);
         return 3;
+    }
+
+    if (parser.isSet(addPromoOption)) {
+        const QStringList parts = parser.value(addPromoOption).split(QLatin1Char(':'));
+        bool daysOk = false;
+        const int days = parts.size() > 1 ? parts.at(1).toInt(&daysOk) : 0;
+        const QString code = parts.value(0).trimmed().toUpper();
+
+        if (code.isEmpty() || !daysOk || days <= 0) {
+            qCritical().noquote() << QStringLiteral("Формат: --add-promo CODE:DAYS[:MAX]");
+            return 8;
+        }
+
+        const int maxUses = parts.size() > 2 ? parts.at(2).toInt() : 0;
+        QString promoError;
+        if (!server.createPromo(code, QStringLiteral("plus"), days, maxUses, &promoError)) {
+            qCritical().noquote() << QStringLiteral("Промокод: %1").arg(promoError);
+            return 8;
+        }
+
+        qInfo().noquote() << QStringLiteral("Промокод %1 создан: %2 дней, лимит %3")
+                                 .arg(code)
+                                 .arg(days)
+                                 .arg(maxUses > 0 ? QString::number(maxUses)
+                                                  : QStringLiteral("без ограничения"));
+        return 0;
     }
 
     if (!server.start(static_cast<quint16>(port)))

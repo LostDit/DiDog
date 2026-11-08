@@ -6,6 +6,8 @@
 #include <QColor>
 #include <QDebug>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QPalette>
 #include <QPointer>
 #include <QTextStream>
@@ -49,7 +51,10 @@ const TokenPair kTokens[] = {
 
 QColor ThemeManager::color(const QString &token) const
 {
-    const QHash<QString, QString> tokens = tokensFor(m_theme);
+    QHash<QString, QString> tokens = tokensFor(m_theme);
+    for (auto it = m_customTokens.constBegin(); it != m_customTokens.constEnd(); ++it)
+        tokens.insert(it.key(), it.value());
+
     const QString value = tokens.value(token);
     return value.isEmpty() ? QColor() : QColor(value);
 }
@@ -72,6 +77,14 @@ ThemeManager::ThemeManager(SettingsStore *settings, QObject *parent)
     if (m_settings) {
         const int stored = m_settings->theme();
         m_theme = (stored == static_cast<int>(Theme::Dark)) ? Theme::Dark : Theme::Light;
+
+        m_customId = m_settings->customThemeId();
+        if (!m_customId.isEmpty()) {
+            const QJsonObject object =
+                QJsonDocument::fromJson(m_settings->customThemeTokens().toUtf8()).object();
+            for (auto it = object.constBegin(); it != object.constEnd(); ++it)
+                m_customTokens.insert(it.key(), it.value().toString());
+        }
     }
 }
 
@@ -83,13 +96,16 @@ ThemeManager::~ThemeManager()
 
 void ThemeManager::setTheme(Theme theme)
 {
-    if (m_theme == theme)
+    if (m_theme == theme && m_customId.isEmpty())
         return;
 
     m_theme = theme;
+    m_customId.clear();
+    m_customTokens.clear();
 
     if (m_settings) {
         m_settings->setTheme(static_cast<int>(theme));
+        m_settings->setCustomTheme(QString(), QString());
         m_settings->sync();
     }
 
@@ -102,15 +118,56 @@ void ThemeManager::toggle()
     setTheme(m_theme == Theme::Light ? Theme::Dark : Theme::Light);
 }
 
+void ThemeManager::applyCustom(const QString &id, const QHash<QString, QString> &tokens)
+{
+    m_customId = id;
+    m_customTokens = tokens;
+
+    if (m_settings) {
+        QJsonObject object;
+        for (auto it = tokens.constBegin(); it != tokens.constEnd(); ++it)
+            object.insert(it.key(), it.value());
+        m_settings->setCustomTheme(
+            id, QString::fromUtf8(QJsonDocument(object).toJson(QJsonDocument::Compact)));
+        m_settings->sync();
+    }
+
+    apply();
+    emit themeChanged(m_theme);
+}
+
+void ThemeManager::clearCustom()
+{
+    m_customId.clear();
+    m_customTokens.clear();
+
+    if (m_settings) {
+        m_settings->setCustomTheme(QString(), QString());
+        m_settings->sync();
+    }
+
+    apply();
+    emit themeChanged(m_theme);
+}
+
 void ThemeManager::apply()
 {
-    applyPalette(m_theme);
+    QHash<QString, QString> tokens = tokensFor(m_theme);
+    for (auto it = m_customTokens.constBegin(); it != m_customTokens.constEnd(); ++it)
+        tokens.insert(it.key(), it.value());
+
+    applyPaletteForTokens(tokens);
 
     if (auto *application = qobject_cast<QApplication *>(QCoreApplication::instance()))
-        application->setStyleSheet(styleSheetFor(m_theme));
+        application->setStyleSheet(styleSheetFromTokens(tokens));
 }
 
 QString ThemeManager::styleSheetFor(Theme theme)
+{
+    return styleSheetFromTokens(tokensFor(theme));
+}
+
+QString ThemeManager::styleSheetFromTokens(const QHash<QString, QString> &tokens)
 {
     QFile file(QString::fromLatin1(kStyleSheetPath));
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -119,8 +176,6 @@ QString ThemeManager::styleSheetFor(Theme theme)
     }
 
     QString styleSheet = QString::fromUtf8(file.readAll());
-    const QHash<QString, QString> tokens = tokensFor(theme);
-
     for (auto it = tokens.constBegin(); it != tokens.constEnd(); ++it)
         styleSheet.replace(QLatin1String("{{") + it.key() + QLatin1String("}}"), it.value());
 
@@ -140,18 +195,21 @@ QHash<QString, QString> ThemeManager::tokensFor(Theme theme)
     return tokens;
 }
 
-void ThemeManager::applyPalette(Theme theme)
+void ThemeManager::applyPaletteForTokens(const QHash<QString, QString> &tokens)
 {
-    const bool dark = (theme == Theme::Dark);
+    const auto colorOf = [&tokens](const char *name, const char *fallback) {
+        const QString value = tokens.value(QString::fromLatin1(name));
+        return QColor(value.isEmpty() ? QString::fromLatin1(fallback) : value);
+    };
+
+    const QColor window = colorOf("bg", "#F5F6F8");
+    const QColor base = colorOf("surface", "#FFFFFF");
+    const QColor text = colorOf("text", "#191C21");
+    const QColor muted = colorOf("text-muted", "#6B7280");
+    const QColor accent = colorOf("accent", "#3B7DF6");
+    const QColor button = colorOf("surface-2", "#EEF0F3");
 
     QPalette palette;
-    const QColor window = dark ? QColor("#14161A") : QColor("#F5F6F8");
-    const QColor base = dark ? QColor("#1C1F24") : QColor("#FFFFFF");
-    const QColor text = dark ? QColor("#E8EAED") : QColor("#191C21");
-    const QColor muted = dark ? QColor("#9AA0A6") : QColor("#6B7280");
-    const QColor accent = dark ? QColor("#5B8CFF") : QColor("#3B7DF6");
-    const QColor button = dark ? QColor("#24272E") : QColor("#EEF0F3");
-
     palette.setColor(QPalette::Window, window);
     palette.setColor(QPalette::WindowText, text);
     palette.setColor(QPalette::Base, base);

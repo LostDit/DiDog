@@ -67,12 +67,13 @@ QToolButton *makeIconButton(const QString &iconPath, const QString &toolTip)
 
 MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
                        net::ClientConnection *connection, app::SettingsStore *settings,
-                       app::ThemeManager *theme, QWidget *parent)
+                       app::ThemeManager *theme, app::BillingService *billing, QWidget *parent)
     : QMainWindow(parent)
     , m_chats(chats)
     , m_session(session)
     , m_settings(settings)
     , m_theme(theme)
+    , m_billing(billing)
 {
     setObjectName(QStringLiteral("Root"));
     setWindowTitle(QStringLiteral("MessengerApp"));
@@ -790,7 +791,7 @@ void MainWindow::onPresenceChanged(qint64 userId, bool online)
 
 void MainWindow::openSettings()
 {
-    ui::SettingsDialog dialog(m_settings, m_theme, this);
+    ui::SettingsDialog dialog(m_settings, m_theme, m_billing, this);
     dialog.exec();
 }
 

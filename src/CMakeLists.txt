@@ -2,6 +2,7 @@
 set(MESSENGER_CORE_SOURCES
     app/AppPaths.h              app/AppPaths.cpp
     app/AttachmentService.h     app/AttachmentService.cpp
+    app/BillingService.h        app/BillingService.cpp
     app/ChatService.h           app/ChatService.cpp
     app/ClientController.h      app/ClientController.cpp
     app/HistoryStore.h          app/HistoryStore.cpp
@@ -28,6 +29,8 @@ set(MESSENGER_CORE_SOURCES
     data/Migrations.h           data/Migrations.cpp
     data/Models.h               data/Models.cpp
     data/OutboxRepository.h     data/OutboxRepository.cpp
+    data/PromoRepository.h      data/PromoRepository.cpp
+    data/SubscriptionRepository.h data/SubscriptionRepository.cpp
     data/ReceiptRepository.h    data/ReceiptRepository.cpp
     data/SqlUtil.h
     data/UserRepository.h       data/UserRepository.cpp

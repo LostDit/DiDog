@@ -7,7 +7,9 @@
 #include "data/ChatRepository.h"
 #include "data/JsonMapping.h"
 #include "data/MessageRepository.h"
+#include "data/PromoRepository.h"
 #include "data/ReceiptRepository.h"
+#include "data/SubscriptionRepository.h"
 #include "data/UserRepository.h"
 #include "security/PasswordHasher.h"
 #include "security/Validator.h"
@@ -15,14 +17,73 @@
 
 #include <QDateTime>
 #include <QDebug>
+#include <QHash>
 #include <QJsonArray>
 #include <QRandomGenerator>
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QVariant>
+#include <QVector>
 
 namespace server {
 namespace {
+
+// Пакеты оформления. Базовые токены совпадают с ThemeManager клиента,
+// поэтому пакет может переопределять только нужные.
+struct ThemePack {
+    QString id;
+    QString name;
+    bool premium = false;
+    QString accent;
+    QHash<QString, QString> tokens;
+};
+
+const QVector<ThemePack> &themePacks()
+{
+    static const QVector<ThemePack> packs = {
+        {QStringLiteral("midnight"), QStringLiteral("Полночь"), true, QStringLiteral("#6C8CFF"),
+         {
+             {QStringLiteral("bg"), QStringLiteral("#0B1220")},
+             {QStringLiteral("surface"), QStringLiteral("#121B2E")},
+             {QStringLiteral("surface-2"), QStringLiteral("#18243B")},
+             {QStringLiteral("surface-3"), QStringLiteral("#1F2D47")},
+             {QStringLiteral("border"), QStringLiteral("#24324D")},
+             {QStringLiteral("border-strong"), QStringLiteral("#2E3F5E")},
+             {QStringLiteral("text"), QStringLiteral("#E6EDF7")},
+             {QStringLiteral("text-muted"), QStringLiteral("#93A4BF")},
+             {QStringLiteral("text-faint"), QStringLiteral("#6B7C99")},
+             {QStringLiteral("hover"), QStringLiteral("#17233A")},
+             {QStringLiteral("selected"), QStringLiteral("#1E2E4F")},
+             {QStringLiteral("accent"), QStringLiteral("#6C8CFF")},
+             {QStringLiteral("accent-hover"), QStringLiteral("#8AA4FF")},
+             {QStringLiteral("accent-pressed"), QStringLiteral("#5B78DB")},
+             {QStringLiteral("accent-soft"), QStringLiteral("#1B2A45")},
+             {QStringLiteral("scroll"), QStringLiteral("#2A3B58")},
+             {QStringLiteral("scroll-hover"), QStringLiteral("#3A4E70")},
+         }},
+        {QStringLiteral("sand"), QStringLiteral("Песок"), true, QStringLiteral("#B7791F"),
+         {
+             {QStringLiteral("bg"), QStringLiteral("#F7F2E8")},
+             {QStringLiteral("surface"), QStringLiteral("#FFFDF8")},
+             {QStringLiteral("surface-2"), QStringLiteral("#EFE7D8")},
+             {QStringLiteral("surface-3"), QStringLiteral("#E5DAC7")},
+             {QStringLiteral("border"), QStringLiteral("#DED2BE")},
+             {QStringLiteral("border-strong"), QStringLiteral("#CDBEA4")},
+             {QStringLiteral("text"), QStringLiteral("#2B2620")},
+             {QStringLiteral("text-muted"), QStringLiteral("#7A6E5C")},
+             {QStringLiteral("text-faint"), QStringLiteral("#9C8E78")},
+             {QStringLiteral("hover"), QStringLiteral("#F0E8DA")},
+             {QStringLiteral("selected"), QStringLiteral("#F3E4C8")},
+             {QStringLiteral("accent"), QStringLiteral("#B7791F")},
+             {QStringLiteral("accent-hover"), QStringLiteral("#D08A2A")},
+             {QStringLiteral("accent-pressed"), QStringLiteral("#96620F")},
+             {QStringLiteral("accent-soft"), QStringLiteral("#F6E7CB")},
+             {QStringLiteral("scroll"), QStringLiteral("#D8C8AE")},
+             {QStringLiteral("scroll-hover"), QStringLiteral("#C4B08F")},
+         }},
+    };
+    return packs;
+}
 
 constexpr int kTokenTtlDays = 30;
 
@@ -125,6 +186,14 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleChatLeave(data, session);
     if (type == QLatin1String(core::proto::type::kUserSearch))
         return handleUserSearch(data, session);
+    if (type == QLatin1String(core::proto::type::kBillingStatus))
+        return handleBillingStatus(session);
+    if (type == QLatin1String(core::proto::type::kBillingRedeem))
+        return handleBillingRedeem(data, session);
+    if (type == QLatin1String(core::proto::type::kThemeList))
+        return handleThemeList(session);
+    if (type == QLatin1String(core::proto::type::kThemeGet))
+        return handleThemeGet(data, session);
 
     if (type == QLatin1String(core::proto::type::kMsgSend))
         return handleMessageSend(data, session);
@@ -598,6 +667,124 @@ HandlerResult ServerCore::handleUserSearch(const QJsonObject &data, ClientSessio
 bool ServerCore::isUserOnline(qint64 userId) const
 {
     return m_sessions.contains(userId);
+}
+
+bool ServerCore::createPromo(const QString &code, const QString &plan, int days, int maxUses,
+                             QString *error)
+{
+    data::PromoRepository promos(m_database.handle());
+    return promos.create(code, plan, days, maxUses, 0, error);
+}
+
+HandlerResult ServerCore::handleBillingStatus(ClientSession *session)
+{
+    data::SubscriptionRepository subscriptions(m_database.handle());
+    QString plan;
+    qint64 expiresAt = 0;
+    QString error;
+
+    if (!subscriptions.current(session->userId(), &plan, &expiresAt, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    QJsonArray entitlements;
+    if (plan != QLatin1String("free"))
+        entitlements.append(QStringLiteral("themes.premium"));
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("plan"), plan);
+    payload.insert(QStringLiteral("expires_at"), static_cast<double>(expiresAt));
+    payload.insert(QStringLiteral("entitlements"), entitlements);
+    return HandlerResult::success(payload);
+}
+
+HandlerResult ServerCore::handleBillingRedeem(const QJsonObject &data, ClientSession *session)
+{
+    const QString code = stringValue(data, "code");
+
+    data::PromoRepository promos(m_database.handle());
+    QString plan;
+    int days = 0;
+    QString error;
+
+    if (!promos.redeem(code, session->userId(), &plan, &days, &error))
+        return HandlerResult::failure(core::ErrorCode::BadRequest, error);
+
+    data::SubscriptionRepository subscriptions(m_database.handle());
+    qint64 expiresAt = 0;
+    if (!subscriptions.activate(session->userId(), plan, days, &expiresAt, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    qInfo().noquote() << QStringLiteral("Промокод %1 активирован для #%2 до %3")
+                             .arg(code, QString::number(session->userId()),
+                                  QDateTime::fromMSecsSinceEpoch(expiresAt).toString(
+                                      QStringLiteral("yyyy-MM-dd")));
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("plan"), plan);
+    payload.insert(QStringLiteral("expires_at"), static_cast<double>(expiresAt));
+    return HandlerResult::success(payload);
+}
+
+HandlerResult ServerCore::handleThemeList(ClientSession *session)
+{
+    Q_UNUSED(session)
+
+    QJsonArray array;
+    for (const ThemePack &pack : themePacks()) {
+        QJsonObject item;
+        item.insert(QStringLiteral("id"), pack.id);
+        item.insert(QStringLiteral("name"), pack.name);
+        item.insert(QStringLiteral("premium"), pack.premium);
+        item.insert(QStringLiteral("accent"), pack.accent);
+        array.append(item);
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("themes"), array);
+    return HandlerResult::success(payload);
+}
+
+HandlerResult ServerCore::handleThemeGet(const QJsonObject &data, ClientSession *session)
+{
+    const QString id = stringValue(data, "id");
+
+    const ThemePack *found = nullptr;
+    for (const ThemePack &pack : themePacks()) {
+        if (pack.id == id) {
+            found = &pack;
+            break;
+        }
+    }
+
+    if (!found)
+        return HandlerResult::failure(core::ErrorCode::NotFound,
+                                      QStringLiteral("Тема не найдена"));
+
+    if (found->premium) {
+        data::SubscriptionRepository subscriptions(m_database.handle());
+        QString plan;
+        qint64 expiresAt = 0;
+        QString error;
+        if (!subscriptions.current(session->userId(), &plan, &expiresAt, &error))
+            return HandlerResult::failure(core::ErrorCode::Internal, error);
+        if (plan == QLatin1String("free"))
+            return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                          QStringLiteral("Требуется подписка"));
+    }
+
+    QJsonObject tokens;
+    for (auto it = found->tokens.constBegin(); it != found->tokens.constEnd(); ++it)
+        tokens.insert(it.key(), it.value());
+
+    QJsonObject theme;
+    theme.insert(QStringLiteral("id"), found->id);
+    theme.insert(QStringLiteral("name"), found->name);
+    theme.insert(QStringLiteral("premium"), found->premium);
+    theme.insert(QStringLiteral("tokens"), tokens);
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("theme"), theme);
+    return HandlerResult::success(payload);
 }
 
 HandlerResult ServerCore::handleChatRead(const QJsonObject &data, ClientSession *session)

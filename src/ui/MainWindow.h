@@ -17,6 +17,7 @@ class QTimer;
 class QToolButton;
 
 namespace app {
+class BillingService;
 class SessionService;
 class SettingsStore;
 class ThemeManager;
@@ -42,7 +43,8 @@ class MainWindow : public QMainWindow
 public:
     MainWindow(app::ChatService *chats, app::SessionService *session,
                net::ClientConnection *connection, app::SettingsStore *settings,
-               app::ThemeManager *theme, QWidget *parent = nullptr);
+               app::ThemeManager *theme, app::BillingService *billing = nullptr,
+               QWidget *parent = nullptr);
     ~MainWindow() override;
 
     void setUser(const data::User &user);
@@ -101,6 +103,7 @@ private:
     app::SessionService *m_session = nullptr;
     app::SettingsStore *m_settings = nullptr;
     app::ThemeManager *m_theme = nullptr;
+    app::BillingService *m_billing = nullptr;
     data::User m_user;
 
     AvatarWidget *m_profileAvatar = nullptr;

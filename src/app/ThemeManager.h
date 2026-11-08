@@ -28,6 +28,11 @@ public:
     void toggle();
     void apply();
 
+    // Пакет оформления с сервера: токены накладываются поверх базовой темы.
+    void applyCustom(const QString &id, const QHash<QString, QString> &tokens);
+    void clearCustom();
+    QString customThemeId() const { return m_customId; }
+
     // QSS с подставленными токенами; пустая строка, если ресурс недоступен.
     static QString styleSheetFor(Theme theme);
 
@@ -42,10 +47,13 @@ signals:
 
 private:
     static QHash<QString, QString> tokensFor(Theme theme);
-    static void applyPalette(Theme theme);
+    static QString styleSheetFromTokens(const QHash<QString, QString> &tokens);
+    static void applyPaletteForTokens(const QHash<QString, QString> &tokens);
 
     SettingsStore *m_settings = nullptr;
     Theme m_theme = Theme::Light;
+    QString m_customId;
+    QHash<QString, QString> m_customTokens;
 };
 
 } // namespace app

@@ -61,6 +61,15 @@ public:
     QSet<qint64> hiddenMessages() const;
     void setHiddenMessages(const QSet<qint64> &messageIds);
 
+    // Подписка и выбранный пакет оформления.
+    QString subscriptionPlan() const;
+    qint64 subscriptionExpiresAt() const;
+    void setSubscription(const QString &plan, qint64 expiresAt);
+
+    QString customThemeId() const;
+    QString customThemeTokens() const;
+    void setCustomTheme(const QString &id, const QString &tokensJson);
+
     QString filePath() const;
 
 private:
