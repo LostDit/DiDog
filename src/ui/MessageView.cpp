@@ -120,6 +120,8 @@ void MessageView::setMessages(const QList<data::Message> &messages)
         auto *bubble = new MessageBubble(message, own, showAvatar, m_content);
         connect(bubble, &MessageBubble::retryRequested,
                 this, &MessageView::retryRequested);
+        connect(bubble, &MessageBubble::attachmentRetryRequested,
+                this, &MessageView::attachmentRetryRequested);
         connect(bubble, &MessageBubble::imageActivated, this, &MessageView::imageActivated);
         connect(bubble, &MessageBubble::videoActivated, this, &MessageView::videoActivated);
         connect(bubble, &MessageBubble::fileActivated, this, &MessageView::fileActivated);

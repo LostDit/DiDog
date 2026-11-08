@@ -7,6 +7,7 @@
 #include <QString>
 
 class QFile;
+class QTimer;
 
 namespace net {
 class ClientConnection;
@@ -36,7 +37,7 @@ public:
 
 signals:
     void uploadProgress(qint64 chatId, const QString &filePath, int percent);
-    void uploaded(qint64 chatId, const QString &filePath, quint32 token);
+    void uploaded(qint64 chatId, const QString &filePath, const data::Attachment &attachment);
     void uploadFailed(qint64 chatId, const QString &filePath, const QString &message);
     void downloaded(qint64 attachmentId, const QString &localPath);
     void downloadFailed(qint64 attachmentId, const QString &message);
@@ -73,6 +74,9 @@ private:
     void onChunk(quint32 transferId, quint32 sequence, const QByteArray &data);
     void onTransferFinished(quint32 transferId);
 
+    void failDownload(quint32 transferId, const QString &message);
+    void cancelDownloads();
+
     QString cachePathFor(const QString &sha256) const;
 
     net::ClientConnection *m_connection = nullptr;
@@ -81,6 +85,7 @@ private:
     QHash<QString, Upload> m_uploads;      // ключ — путь к файлу
     QHash<quint32, QString> m_tokenToPath; // token → путь (для прогресса)
     QHash<quint32, Download> m_downloads;  // transferId → приём
+    QHash<quint32, QTimer *> m_downloadTimers; // transferId → сторожевой таймер
 };
 
 } // namespace app

@@ -359,6 +359,8 @@ QWidget *MainWindow::buildConversationPane()
         if (m_currentChatId > 0)
             m_chats->retryFailed(m_currentChatId, clientMsgId);
     });
+    connect(m_messageView, &MessageView::attachmentRetryRequested, this,
+            [this](qint64 attachmentId) { m_chats->retryAttachment(attachmentId); });
 
     connect(m_messageView, &MessageView::imageActivated, this, [this](const QString &filePath) {
         ui::ImageViewerDialog viewer(filePath, this);

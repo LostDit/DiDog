@@ -11,11 +11,13 @@
 #include <QFileInfo>
 #include <QJsonObject>
 #include <QMimeDatabase>
+#include <QTimer>
 
 namespace app {
 namespace {
 
 constexpr qint64 kPaceBytes = 1024 * 1024;
+constexpr int kDownloadTimeoutMs = 90000;
 
 QString sha256OfFile(const QString &path)
 {
@@ -47,6 +49,8 @@ AttachmentService::AttachmentService(net::ClientConnection *connection, const QS
             this, &AttachmentService::onTransferFinished);
     connect(m_connection, &net::ClientConnection::bytesWritten, this,
             [this](qint64) { pumpUpload(); });
+    connect(m_connection, &net::ClientConnection::socketDisconnected,
+            this, &AttachmentService::cancelDownloads);
 }
 
 AttachmentService::~AttachmentService()
@@ -69,6 +73,9 @@ AttachmentService::~AttachmentService()
         QFile::remove(download.tempPath);
     }
     m_downloads.clear();
+
+    qDeleteAll(m_downloadTimers);
+    m_downloadTimers.clear();
 }
 
 data::MessageKind AttachmentService::kindForFile(const QString &filePath)
@@ -229,9 +236,17 @@ void AttachmentService::finishUpload(Upload &upload)
                               }
 
                               m_tokenToPath.remove(finishedToken);
+                              const Upload finished = *it;
                               m_uploads.erase(it);
 
-                              emit uploaded(chatId, filePath, finishedToken);
+                              data::Attachment attachment;
+                              attachment.id = static_cast<qint64>(finishedToken);
+                              attachment.fileName = finished.fileName;
+                              attachment.mime = finished.mime;
+                              attachment.byteSize = finished.size;
+                              attachment.sha256 = finished.sha256;
+
+                              emit uploaded(chatId, filePath, attachment);
                           },
                           60000);
 }
@@ -306,6 +321,18 @@ void AttachmentService::download(const data::Attachment &attachment)
                               }
 
                               m_downloads.insert(transferId, download);
+
+                              // Если сервер замолчал (обрыв, зависший handshake),
+                              // вложение не должно висеть в «Загрузке…» вечно.
+                              auto *watchdog = new QTimer(this);
+                              watchdog->setSingleShot(true);
+                              connect(watchdog, &QTimer::timeout, this,
+                                      [this, transferId]() {
+                                          failDownload(transferId,
+                                                       tr("Превышено время ожидания."));
+                                      });
+                              watchdog->start(kDownloadTimeoutMs);
+                              m_downloadTimers.insert(transferId, watchdog);
                           },
                           30000);
 }
@@ -328,6 +355,11 @@ void AttachmentService::onChunk(quint32 transferId, quint32 sequence, const QByt
 
 void AttachmentService::onTransferFinished(quint32 transferId)
 {
+    if (QTimer *watchdog = m_downloadTimers.take(transferId)) {
+        watchdog->stop();
+        watchdog->deleteLater();
+    }
+
     auto it = m_downloads.find(transferId);
     if (it == m_downloads.end())
         return;
@@ -362,6 +394,42 @@ void AttachmentService::onTransferFinished(quint32 transferId)
     }
 
     emit downloaded(download.attachmentId, finalPath);
+}
+
+void AttachmentService::failDownload(quint32 transferId, const QString &message)
+{
+    auto it = m_downloads.find(transferId);
+    if (it == m_downloads.end())
+        return;
+
+    const qint64 attachmentId = it.value().attachmentId;
+    const QString tempPath = it.value().tempPath;
+
+    if (it.value().file) {
+        it.value().file->close();
+        delete it.value().file;
+    }
+    m_downloads.erase(it);
+
+    if (QTimer *watchdog = m_downloadTimers.take(transferId)) {
+        watchdog->stop();
+        watchdog->deleteLater();
+    }
+
+    if (!tempPath.isEmpty())
+        QFile::remove(tempPath);
+
+    emit downloadFailed(attachmentId, message);
+}
+
+void AttachmentService::cancelDownloads()
+{
+    if (m_downloads.isEmpty())
+        return;
+
+    const QList<quint32> transfers = m_downloads.keys();
+    for (const quint32 transferId : transfers)
+        failDownload(transferId, tr("Соединение прервано."));
 }
 
 QString AttachmentService::cachePathFor(const QString &sha256) const

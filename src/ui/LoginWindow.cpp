@@ -220,8 +220,14 @@ void LoginWindow::prepare()
 {
     applyConnectionSettings();
 
-    if (!m_connection->isConnected())
-        m_connection->connectToServer();
+    if (m_connection->isConnected()) {
+        // Соединение уже установлено (повторный показ окна) — пробуем сохранённую сессию.
+        if (m_session)
+            m_session->resumeIfPossible();
+        return;
+    }
+
+    m_connection->connectToServer();
 }
 
 void LoginWindow::onModeChanged()

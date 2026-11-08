@@ -28,6 +28,7 @@ public:
 
 signals:
     void retryRequested(const QString &clientMsgId);
+    void attachmentRetryRequested(qint64 attachmentId);
     void imageActivated(const QString &filePath);
     void videoActivated(const QString &filePath);
     void fileActivated(const QString &fileName, const QString &filePath);

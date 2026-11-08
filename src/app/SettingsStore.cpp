@@ -1,6 +1,41 @@
 #include "app/SettingsStore.h"
 
+#include <QCoreApplication>
+#include <QFileInfo>
+#include <QSettings>
+
 namespace app {
+namespace {
+
+// Сервер по умолчанию: messenger.ini рядом с исполняемым файлом.
+// Позволяет собрать клиент, который сам подключается к нужному серверу.
+QVariant defaultNetworkValue(const QString &key, const QVariant &fallback = QVariant())
+{
+    QSettings ini(QCoreApplication::applicationDirPath()
+                      + QStringLiteral("/messenger.ini"),
+                  QSettings::IniFormat);
+    ini.setIniCodec("UTF-8");
+    return ini.value(key, fallback);
+}
+
+QString defaultServerHost()
+{
+    return defaultNetworkValue(QStringLiteral("network/host")).toString();
+}
+
+quint16 defaultServerPort()
+{
+    return static_cast<quint16>(
+        defaultNetworkValue(QStringLiteral("network/port"), 45000).toUInt());
+}
+
+bool defaultTlsEnabled()
+{
+    return defaultNetworkValue(QStringLiteral("network/tls"), false).toBool();
+}
+
+} // namespace
+
 namespace {
 
 constexpr auto kThemeKey = "ui/theme";
@@ -13,8 +48,6 @@ constexpr auto kLastUserKey = "auth/lastUser";
 constexpr auto kLanguageKey = "ui/language";
 constexpr auto kNotificationsKey = "ui/notifications";
 constexpr auto kTlsKey = "network/tls";
-
-constexpr quint16 kDefaultPort = 45000;
 
 } // namespace
 
@@ -71,7 +104,12 @@ void SettingsStore::setWindowState(const QByteArray &state)
 
 QString SettingsStore::serverHost() const
 {
-    return m_settings.value(kServerHostKey, QStringLiteral("127.0.0.1")).toString();
+    const QString saved = m_settings.value(kServerHostKey).toString();
+    if (!saved.isEmpty())
+        return saved;
+
+    const QString fallback = defaultServerHost();
+    return fallback.isEmpty() ? QStringLiteral("127.0.0.1") : fallback;
 }
 
 void SettingsStore::setServerHost(const QString &host)
@@ -81,7 +119,10 @@ void SettingsStore::setServerHost(const QString &host)
 
 quint16 SettingsStore::serverPort() const
 {
-    return static_cast<quint16>(m_settings.value(kServerPortKey, kDefaultPort).toUInt());
+    if (m_settings.contains(kServerPortKey))
+        return static_cast<quint16>(m_settings.value(kServerPortKey).toUInt());
+
+    return defaultServerPort();
 }
 
 void SettingsStore::setServerPort(quint16 port)
@@ -134,7 +175,10 @@ void SettingsStore::setNotificationsEnabled(bool enabled)
 
 bool SettingsStore::tlsEnabled() const
 {
-    return m_settings.value(kTlsKey, false).toBool();
+    if (m_settings.contains(kTlsKey))
+        return m_settings.value(kTlsKey).toBool();
+
+    return defaultTlsEnabled();
 }
 
 void SettingsStore::setTlsEnabled(bool enabled)

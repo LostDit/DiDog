@@ -44,6 +44,9 @@ public:
     void markRead(qint64 chatId);
     void createDirect(const QString &username);
     void retryFailed(qint64 chatId, const QString &clientMsgId);
+
+    // Повторное скачивание вложения (клик по «Не удалось загрузить»).
+    void retryAttachment(qint64 attachmentId);
     void searchMessages(const QString &query);
     int totalUnread() const;
 
@@ -81,7 +84,7 @@ private:
     void sendPending(const data::Message &message);
     void persistChats();
     void persistOutbox(qint64 chatId, const QString &clientMsgId);
-    void hydrateLocalPaths(qint64 chatId);
+    void hydrateAttachments(qint64 chatId);
 
     net::ClientConnection *m_connection = nullptr;
     HistoryStore *m_history = nullptr;
@@ -91,6 +94,7 @@ private:
 
     QList<data::ChatSummary> m_chats;
     QHash<qint64, ChatState> m_states;
+    QHash<qint64, int> m_downloadAttempts;
     qint64 m_activeChatId = 0;
 };
 

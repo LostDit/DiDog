@@ -78,6 +78,9 @@ struct Message {
     QString localPath;
     int uploadProgress = -1;
 
+    // Скачивание вложения не удалось: UI показывает кнопку повтора.
+    bool attachmentFailed = false;
+
     // Денормализация для UI: подтягивается JOIN'ом, чтобы лента не делала N+1 запросов.
     QString senderDisplayName;
     int senderHue = 210;

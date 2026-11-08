@@ -11,6 +11,7 @@
 #include <QDebug>
 #include <QFileInfo>
 #include <QJsonArray>
+#include <QTimer>
 
 namespace app {
 namespace {
@@ -73,7 +74,7 @@ ChatService::ChatService(net::ClientConnection *connection, HistoryStore *histor
                 });
 
         connect(m_attachments, &AttachmentService::uploaded, this,
-                [this](qint64 chatId, const QString &path, quint32 token) {
+                [this](qint64 chatId, const QString &path, const data::Attachment &attachment) {
                     ChatState &state = m_states[chatId];
 
                     data::Message pending;
@@ -87,9 +88,13 @@ ChatService::ChatService(net::ClientConnection *connection, HistoryStore *histor
                     if (pending.clientMsgId.isEmpty())
                         return;
 
+                    const quint32 token = static_cast<quint32>(attachment.id);
+
                     for (data::Message &stored : state.messages) {
-                        if (stored.clientMsgId == pending.clientMsgId)
+                        if (stored.clientMsgId == pending.clientMsgId) {
                             stored.uploadProgress = -1;
+                            stored.attachment = attachment;
+                        }
                     }
 
                     const QString clientMsgId = pending.clientMsgId;
@@ -137,12 +142,15 @@ ChatService::ChatService(net::ClientConnection *connection, HistoryStore *histor
 
         connect(m_attachments, &AttachmentService::downloaded, this,
                 [this](qint64 attachmentId, const QString &path) {
+                    m_downloadAttempts.remove(attachmentId);
+
                     for (auto it = m_states.begin(); it != m_states.end(); ++it) {
                         bool changed = false;
                         for (data::Message &message : it.value().messages) {
                             if (message.hasAttachment() && message.attachment.id == attachmentId
-                                && message.localPath != path) {
+                                && (message.localPath != path || message.attachmentFailed)) {
                                 message.localPath = path;
+                                message.attachmentFailed = false;
                                 changed = true;
                             }
                         }
@@ -152,9 +160,50 @@ ChatService::ChatService(net::ClientConnection *connection, HistoryStore *histor
                 });
 
         connect(m_attachments, &AttachmentService::downloadFailed, this,
-                [this](qint64 attachmentId, const QString &message) {
-                    Q_UNUSED(attachmentId)
-                    emit errorOccurred(message);
+                [this](qint64 attachmentId, const QString &text) {
+                    data::Attachment failed;
+                    bool found = false;
+
+                    for (auto it = m_states.begin(); it != m_states.end(); ++it) {
+                        bool changed = false;
+                        for (data::Message &message : it.value().messages) {
+                            if (message.hasAttachment() && message.attachment.id == attachmentId) {
+                                message.attachmentFailed = true;
+                                failed = message.attachment;
+                                found = true;
+                                changed = true;
+                            }
+                        }
+                        if (changed)
+                            emit messagesChanged(it.key());
+                    }
+
+                    if (!found)
+                        return;
+
+                    // Несколько автоматических повторов, затем — ручной по клику.
+                    const int attempt = m_downloadAttempts.value(attachmentId) + 1;
+                    m_downloadAttempts.insert(attachmentId, attempt);
+
+                    if (attempt > 3) {
+                        emit errorOccurred(text);
+                        return;
+                    }
+
+                    QTimer::singleShot(3000 * attempt, this, [this, attachmentId, failed]() {
+                        if (!m_attachments)
+                            return;
+                        for (auto it = m_states.begin(); it != m_states.end(); ++it) {
+                            for (const data::Message &message : it.value().messages) {
+                                if (message.hasAttachment()
+                                    && message.attachment.id == attachmentId
+                                    && message.localPath.isEmpty()) {
+                                    m_attachments->download(failed);
+                                    return;
+                                }
+                            }
+                        }
+                    });
                 });
     }
 
@@ -181,7 +230,7 @@ ChatService::ChatService(net::ClientConnection *connection, HistoryStore *histor
                 state.messages = messages;
                 state.loaded = true;
                 state.hasMore = messages.size() >= core::limits::kHistoryPageSize;
-                hydrateLocalPaths(chatId);
+                hydrateAttachments(chatId);
                 emit messagesChanged(chatId);
             });
 
@@ -327,7 +376,7 @@ void ChatService::openChat(qint64 chatId)
                               current.loaded = true;
                               current.hasMore = data.value(QStringLiteral("has_more")).toBool();
 
-                              hydrateLocalPaths(chatId);
+                              hydrateAttachments(chatId);
                               emit messagesChanged(chatId);
                           });
 }
@@ -450,16 +499,24 @@ void ChatService::sendFile(qint64 chatId, const QString &filePath)
     m_attachments->upload(chatId, filePath);
 }
 
-void ChatService::hydrateLocalPaths(qint64 chatId)
+void ChatService::hydrateAttachments(qint64 chatId)
 {
     if (!m_attachments)
         return;
 
     for (data::Message &message : m_states[chatId].messages) {
-        if (message.hasAttachment() && message.localPath.isEmpty()
-            && m_attachments->hasLocalCopy(message.attachment)) {
+        if (!message.hasAttachment() || !message.localPath.isEmpty())
+            continue;
+
+        if (m_attachments->hasLocalCopy(message.attachment)) {
             message.localPath = m_attachments->localPath(message.attachment);
+            message.attachmentFailed = false;
+            continue;
         }
+
+        // История приходит с сервера без локальных файлов — качаем недостающие.
+        if (!message.attachmentFailed)
+            m_attachments->download(message.attachment);
     }
 }
 
@@ -575,6 +632,34 @@ void ChatService::retryFailed(qint64 chatId, const QString &clientMsgId)
         sendText(chatId, message.body);
         return;
     }
+}
+
+void ChatService::retryAttachment(qint64 attachmentId)
+{
+    if (!m_attachments)
+        return;
+
+    m_downloadAttempts.remove(attachmentId);
+
+    data::Attachment attachment;
+    bool found = false;
+
+    for (auto it = m_states.begin(); it != m_states.end(); ++it) {
+        bool changed = false;
+        for (data::Message &message : it.value().messages) {
+            if (!message.hasAttachment() || message.attachment.id != attachmentId)
+                continue;
+            message.attachmentFailed = false;
+            attachment = message.attachment;
+            found = true;
+            changed = true;
+        }
+        if (changed)
+            emit messagesChanged(it.key());
+    }
+
+    if (found)
+        m_attachments->download(attachment);
 }
 
 void ChatService::markRead(qint64 chatId)

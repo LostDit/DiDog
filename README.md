@@ -79,7 +79,7 @@ sudo apt install build-essential cmake ninja-build \
 .\scripts\build-installer.ps1          # Release + windeployqt + Inno Setup
 ```
 
-Результат: `dist\installer\MessengerApp-Setup-1.1.0.exe` (≈21 МБ). Что делает установщик:
+Результат: `dist\installer\MessengerApp-Setup-1.1.1.exe` (≈21 МБ). Что делает установщик:
 
 - ставит приложение в `Program Files\MessengerApp` (или в профиль при `/CURRENTUSER`);
 - добавляет ярлыки «MessengerApp» и «Сервер MessengerApp» в меню «Пуск» (и на рабочий стол по желанию);
@@ -89,7 +89,7 @@ sudo apt install build-essential cmake ninja-build \
 Тихая установка для проверки:
 
 ```powershell
-MessengerApp-Setup-1.1.0.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
+MessengerApp-Setup-1.1.1.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
 ```
 
 **Проверка на двух компьютерах и в разных сетях** — пошаговая инструкция:
@@ -140,6 +140,31 @@ sudo ./scripts/deploy-vps.sh
 Скрипт собирает сервер, ставит его в `/opt/messengerapp`, генерирует сертификат,
 создаёт systemd-службу с TLS и открывает порт. Пошагово и с диагностикой —
 [docs/VPS-DEPLOY.md](docs/VPS-DEPLOY.md).
+
+## Сервер по умолчанию и автоподключение
+
+Клиент сам подключается к серверу при запуске и автоматически входит, если ранее
+была отмечена галочка «Запомнить меня» (токен сессии хранится в профиле).
+
+Адрес по умолчанию можно задать файлом `messenger.ini` рядом с `MessengerClient.exe`:
+
+```ini
+[network]
+host=51.250.76.250
+port=45000
+tls=true
+```
+
+Файл используется, пока пользователь не сохранил свой адрес на экране входа.
+Если сервер переехал, достаточно поправить `messenger.ini` или один раз ввести
+новый адрес в клиенте.
+
+## Вложения в истории
+
+Вложения докачиваются при открытии чата, в том числе после перезапуска клиента
+или на другом компьютере. Если загрузка не удалась (обрыв, таймаут), в пузыре
+появляется «Не удалось загрузить. Нажмите, чтобы повторить» — клиент также
+делает несколько автоматических повторов. Скачанные файлы кэшируются по sha256.
 
 ## Сборка
 

@@ -51,6 +51,12 @@ Copy-Item (Join-Path $build 'MessengerClient.exe') $dist
 Copy-Item (Join-Path $build 'MessengerServer.exe') $dist
 Copy-Item (Join-Path $root 'README.md') $dist
 
+# Адрес сервера по умолчанию: клиент прочитает его при первом запуске.
+$defaults = Join-Path $root 'messenger.ini'
+if (Test-Path $defaults) {
+    Copy-Item $defaults $dist
+}
+
 # OpenSSL 1.1.1 для TLS (Qt 5.14) и демонстрационный сертификат сервера.
 $openssl = Join-Path $root 'third_party\openssl\win64'
 if (Test-Path $openssl) {

@@ -194,11 +194,23 @@ void MessageBubble::buildAttachment()
         return;
 
     const bool hasFile = !m_message.localPath.isEmpty() && QFileInfo::exists(m_message.localPath);
+    const bool failed = m_message.hasAttachment() && !hasFile && m_message.attachmentFailed;
 
     auto *label = new QLabel(m_bubble);
     label->setAlignment(Qt::AlignCenter);
     label->setWordWrap(true);
     label->setMaximumWidth(340);
+
+    if (failed) {
+        label->setObjectName(QStringLiteral("AttachmentFile"));
+        label->setText(tr("Не удалось загрузить. Нажмите, чтобы повторить"));
+        label->setMinimumWidth(220);
+        label->setCursor(Qt::PointingHandCursor);
+        label->setToolTip(tr("Повторить загрузку"));
+        layout->insertWidget(0, label, 0, Qt::AlignLeft);
+        m_attachment = label;
+        return;
+    }
 
     if (m_message.kind == data::MessageKind::Image
         || m_message.kind == data::MessageKind::Gif) {
@@ -271,8 +283,17 @@ void MessageBubble::buildAttachment()
 
 void MessageBubble::mousePressEvent(QMouseEvent *event)
 {
-    if (event->button() != Qt::LeftButton || !m_attachment
-        || m_message.localPath.isEmpty() || !m_attachment->geometry().contains(event->pos())) {
+    const bool onAttachment = m_attachment && m_attachment->geometry().contains(event->pos());
+
+    if (event->button() == Qt::LeftButton && onAttachment && m_message.hasAttachment()
+        && m_message.localPath.isEmpty() && m_message.attachmentFailed) {
+        emit attachmentRetryRequested(m_message.attachment.id);
+        event->accept();
+        return;
+    }
+
+    if (event->button() != Qt::LeftButton || !onAttachment
+        || m_message.localPath.isEmpty()) {
         QWidget::mousePressEvent(event);
         return;
     }
