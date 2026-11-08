@@ -18,6 +18,7 @@
 #include <QLineEdit>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QTabWidget>
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -45,16 +46,63 @@ SettingsDialog::SettingsDialog(app::SettingsStore *settings, app::ThemeManager *
     setObjectName(QStringLiteral("SettingsDialog"));
     setWindowTitle(tr("Настройки"));
     setModal(true);
-    setMinimumWidth(460);
+    setMinimumSize(640, 560);
 
     buildUi();
 }
 
 void SettingsDialog::buildUi()
 {
-    auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(20, 18, 20, 18);
-    layout->setSpacing(12);
+    auto *root = new QVBoxLayout(this);
+    root->setContentsMargins(20, 16, 20, 16);
+    root->setSpacing(10);
+
+    m_settingsSearch = new QLineEdit(this);
+    m_settingsSearch->setObjectName(QStringLiteral("SettingsSearch"));
+    m_settingsSearch->setPlaceholderText(tr("Поиск настроек"));
+    m_settingsSearch->setClearButtonEnabled(true);
+    root->addWidget(m_settingsSearch);
+
+    m_tabs = new QTabWidget(this);
+    m_tabs->setObjectName(QStringLiteral("SettingsTabs"));
+    root->addWidget(m_tabs, 1);
+
+    const auto makePage = [this](const QString &title) {
+        auto *page = new QWidget(this);
+        auto *pageLayout = new QVBoxLayout(page);
+        pageLayout->setContentsMargins(14, 12, 14, 12);
+        pageLayout->setSpacing(10);
+        m_tabs->addTab(page, title);
+        return pageLayout;
+    };
+
+    connect(m_settingsSearch, &QLineEdit::textChanged, this, [this](const QString &text) {
+        if (!m_tabs || text.trimmed().isEmpty())
+            return;
+
+        const QString query = text.toLower();
+        const QList<QStringList> keywords = {
+            {QStringLiteral("тема"), QStringLiteral("язык"), QStringLiteral("уведом")}, // Основные
+            {QStringLiteral("подписк"), QStringLiteral("промокод")},
+            {QStringLiteral("голос"), QStringLiteral("микрофон"), QStringLiteral("push"),
+             QStringLiteral("динамик")},
+            {QStringLiteral("окно"), QStringLiteral("трей"), QStringLiteral("анимац")},
+            {QStringLiteral("обновлен")},
+            {QStringLiteral("сервер"), QStringLiteral("адрес"), QStringLiteral("данные"),
+             QStringLiteral("папк")},
+        };
+
+        for (int i = 0; i < keywords.size() && i < m_tabs->count(); ++i) {
+            for (const QString &word : keywords.at(i)) {
+                if (word.contains(query) || query.contains(word)) {
+                    m_tabs->setCurrentIndex(i);
+                    return;
+                }
+            }
+        }
+    });
+
+    auto *layout = makePage(tr("Основные"));
 
     layout->addWidget(sectionTitle(tr("Внешний вид"), this));
 
@@ -95,6 +143,9 @@ void SettingsDialog::buildUi()
     m_notifications->setChecked(!m_settings || m_settings->notificationsEnabled());
     layout->addWidget(m_notifications);
 
+    layout->addStretch(1);
+    layout = makePage(tr("Подписка"));
+
     layout->addWidget(sectionTitle(tr("Подписка"), this));
 
     m_planLabel = new QLabel(this);
@@ -119,6 +170,9 @@ void SettingsDialog::buildUi()
     m_promoStatus->setWordWrap(true);
     m_promoStatus->setVisible(false);
     layout->addWidget(m_promoStatus);
+
+    layout->addStretch(1);
+    layout = makePage(tr("Голос"));
 
     layout->addWidget(sectionTitle(tr("Голос"), this));
 
@@ -160,6 +214,9 @@ void SettingsDialog::buildUi()
     connect(m_outputCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, saveDevices);
 
+    layout->addStretch(1);
+    layout = makePage(tr("Окно"));
+
     layout->addWidget(sectionTitle(tr("Окно"), this));
 
     m_trayCheck = new QCheckBox(tr("Сворачивать в трей при закрытии"), this);
@@ -173,6 +230,9 @@ void SettingsDialog::buildUi()
     connect(m_animationsCheck, &QCheckBox::toggled, this,
             [this](bool enabled) { m_settings->setAnimationsEnabled(enabled); });
     layout->addWidget(m_animationsCheck);
+
+    layout->addStretch(1);
+    layout = makePage(tr("Обновления"));
 
     layout->addWidget(sectionTitle(tr("Обновления"), this));
 
@@ -190,6 +250,9 @@ void SettingsDialog::buildUi()
     m_updateProgress->setRange(0, 100);
     m_updateProgress->setVisible(false);
     layout->addWidget(m_updateProgress);
+
+    layout->addStretch(1);
+    layout = makePage(tr("Данные"));
 
     layout->addWidget(sectionTitle(tr("Сервер"), this));
 
@@ -239,7 +302,7 @@ void SettingsDialog::buildUi()
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     buttons->button(QDialogButtonBox::Close)->setText(tr("Закрыть"));
-    layout->addWidget(buttons);
+    root->addWidget(buttons);
 
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::accept);
     connect(m_themeBox, QOverload<int>::of(&QComboBox::currentIndexChanged),

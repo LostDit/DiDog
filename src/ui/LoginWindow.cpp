@@ -37,7 +37,7 @@ LoginWindow::LoginWindow(net::ClientConnection *connection, app::SessionService 
     , m_theme(theme)
 {
     setObjectName(QStringLiteral("Root"));
-    setMinimumSize(760, 560);
+    setMinimumSize(920, 600);
     setWindowTitle(QStringLiteral("MessengerApp"));
 
     buildUi();
@@ -83,6 +83,36 @@ void LoginWindow::buildUi()
 
     auto *center = new QHBoxLayout;
     center->addStretch(1);
+
+    // Левая панель: бренд и краткое описание.
+    auto *brand = new QFrame(this);
+    brand->setObjectName(QStringLiteral("LoginBrand"));
+    brand->setFixedWidth(340);
+
+    auto *brandLayout = new QVBoxLayout(brand);
+    brandLayout->setContentsMargins(28, 32, 28, 32);
+    brandLayout->setSpacing(14);
+
+    auto *brandLogo = new QLabel(brand);
+    brandLogo->setPixmap(QIcon(QStringLiteral(":/icons/logo.svg")).pixmap(72, 72));
+    brandLayout->addWidget(brandLogo);
+
+    brandLayout->addWidget(makeLabel(QStringLiteral("MessengerApp"), "LoginBrandTitle",
+                                     Qt::AlignLeft));
+
+    auto *brandText = makeLabel(
+        tr("Общайтесь, делитесь файлами и говорите голосом.\n"
+           "История хранится на вашем устройстве."),
+        "EmptySubtitle", Qt::AlignLeft);
+    brandText->setWordWrap(true);
+    brandLayout->addWidget(brandText);
+
+    brandLayout->addStretch(1);
+    brandLayout->addWidget(makeLabel(QStringLiteral("v%1").arg(QStringLiteral(MESSENGER_VERSION)),
+                                     "LoginBrandVersion", Qt::AlignLeft));
+
+    center->addWidget(brand, 0, Qt::AlignVCenter);
+    center->addSpacing(28);
 
     auto *card = new QFrame(this);
     card->setObjectName(QStringLiteral("LoginCard"));
