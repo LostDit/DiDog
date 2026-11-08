@@ -17,11 +17,21 @@ export NEEDRESTART_MODE=a
 echo "== Зависимости"
 sudo apt-get update
 sudo apt-get install -y build-essential cmake qtbase5-dev qtmultimedia5-dev \
-    libqt5svg5-dev openssl
+    libqt5svg5-dev qttools5-dev-tools openssl
 
 echo "== Сборка сервера"
-cmake -S "$ROOT" -B "$ROOT/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
-cmake --build "$ROOT/build" -j"$(nproc)"
+# Собираем от имени обычного пользователя, иначе build/ окажется root-овым
+# и следующие сборки упрутся в Permission denied.
+BUILD_USER="${SUDO_USER:-$(id -un)}"
+if [ "$(id -u)" -eq 0 ] && [ "$BUILD_USER" != "root" ]; then
+    sudo -u "$BUILD_USER" cmake -S "$ROOT" -B "$ROOT/build" \
+        -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+    sudo -u "$BUILD_USER" cmake --build "$ROOT/build" -j"$(nproc)"
+else
+    cmake -S "$ROOT" -B "$ROOT/build" -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF
+    cmake --build "$ROOT/build" -j"$(nproc)"
+fi
+[ -n "${SUDO_USER:-}" ] && chown -R "$SUDO_USER":"$SUDO_USER" "$ROOT/build" 2>/dev/null || true
 
 echo "== Установка в $APP_DIR"
 sudo install -d "$APP_DIR" "$APP_DIR/tls"
