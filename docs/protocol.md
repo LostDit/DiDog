@@ -338,3 +338,14 @@ C: attach.ack {transfer_id: 12}      // только после проверки
 {"v":1,"id":"6","reply_to":"5","ok":true,"data":{"messages":[],"has_more":false}}
 {"v":1,"type":"ev","event":"ev.msg","data":{"message":{"id":1,"chat_id":1,"seq":1,"sender":{"id":2,"username":"anya","display_name":"Аня","avatar_hue":120},"kind":"text","body":"Привет!","created_at":1699360001000,"attachment":null,"status":"sent"}}}
 ```
+
+## 11. Ответы и прочтение (2.1.0)
+
+`msg.send` принимает необязательное поле `reply_to` — id сообщения в том же чате.
+Сервер проверяет принадлежность чату и возвращает `Bad Request` при нарушении.
+В JSON сообщения появилось `reply_to_id`; превью цитаты клиент строит локально.
+
+Прочтение: клиент отправляет `chat.read {chat_id, up_to_seq}`, сервер рассылает
+`ev.read {chat_id, user_id, up_to_seq}`; свои сообщения с `seq <= up_to_seq`
+помечаются прочитанными. Схема БД: v6, `messages.reply_to_id`,
+`outbox.reply_to_id`.
