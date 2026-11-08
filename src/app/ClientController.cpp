@@ -121,6 +121,7 @@ void ClientController::onAuthenticated(const data::User &user)
 {
     if (!m_chats) {
         m_chats = new ChatService(m_connection, m_history, m_attachments, this);
+        m_chats->setSettingsStore(m_settings);
 
         connect(m_chats, &ChatService::messageArrived, this,
                 [this](qint64 chatId, const data::Message &message) {

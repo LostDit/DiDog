@@ -34,6 +34,9 @@ public:
     // Поиск по тексту сообщений (LIKE, регистронезависимо для ASCII).
     bool search(const QString &query, int limit, QList<Message> *out, QString *error) const;
 
+    // Удаление локальной истории чата (вложения удаляются вместе с сообщениями).
+    bool removeChat(qint64 chatId, QString *error);
+
 private:
     QSqlDatabase m_db;
 };

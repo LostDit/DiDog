@@ -4,60 +4,70 @@
 <context>
     <name>app::AttachmentService</name>
     <message>
-        <location filename="../src/app/AttachmentService.cpp" line="98"/>
+        <location filename="../src/app/AttachmentService.cpp" line="105"/>
         <source>Файл не найден.</source>
         <translation>File not found.</translation>
     </message>
     <message>
-        <location filename="../src/app/AttachmentService.cpp" line="103"/>
+        <location filename="../src/app/AttachmentService.cpp" line="110"/>
         <source>Файл пустой.</source>
         <translation>File is empty.</translation>
     </message>
     <message>
-        <location filename="../src/app/AttachmentService.cpp" line="108"/>
+        <location filename="../src/app/AttachmentService.cpp" line="115"/>
         <source>Файл больше 25 МБ.</source>
         <translation>File is larger than 25 MB.</translation>
     </message>
     <message>
-        <location filename="../src/app/AttachmentService.cpp" line="126"/>
+        <location filename="../src/app/AttachmentService.cpp" line="133"/>
         <source>Не удалось прочитать файл.</source>
         <translation>Could not read the file.</translation>
     </message>
     <message>
-        <location filename="../src/app/AttachmentService.cpp" line="304"/>
+        <location filename="../src/app/AttachmentService.cpp" line="319"/>
         <source>Не удалось создать файл в кэше.</source>
         <translation>Could not create a file in the cache.</translation>
     </message>
     <message>
-        <location filename="../src/app/AttachmentService.cpp" line="349"/>
+        <location filename="../src/app/AttachmentService.cpp" line="332"/>
+        <source>Превышено время ожидания.</source>
+        <translation>Timed out.</translation>
+    </message>
+    <message>
+        <location filename="../src/app/AttachmentService.cpp" line="381"/>
         <source>Файл повреждён при передаче.</source>
         <translation>The file was corrupted during transfer.</translation>
     </message>
     <message>
-        <location filename="../src/app/AttachmentService.cpp" line="360"/>
+        <location filename="../src/app/AttachmentService.cpp" line="392"/>
         <source>Не удалось сохранить файл.</source>
         <translation>Could not save the file.</translation>
+    </message>
+    <message>
+        <location filename="../src/app/AttachmentService.cpp" line="432"/>
+        <source>Соединение прервано.</source>
+        <translation>Connection interrupted.</translation>
     </message>
 </context>
 <context>
     <name>app::ChatService</name>
     <message>
-        <location filename="../src/app/ChatService.cpp" line="414"/>
+        <location filename="../src/app/ChatService.cpp" line="477"/>
         <source>Отправка вложений недоступна.</source>
         <translation>Sending attachments is unavailable.</translation>
     </message>
     <message>
-        <location filename="../src/app/ChatService.cpp" line="420"/>
+        <location filename="../src/app/ChatService.cpp" line="483"/>
         <source>Файл не найден.</source>
         <translation>File not found.</translation>
     </message>
     <message>
-        <location filename="../src/app/ChatService.cpp" line="425"/>
+        <location filename="../src/app/ChatService.cpp" line="488"/>
         <source>Файл больше 25 МБ.</source>
         <translation>File is larger than 25 MB.</translation>
     </message>
     <message>
-        <location filename="../src/app/ChatService.cpp" line="430"/>
+        <location filename="../src/app/ChatService.cpp" line="493"/>
         <source>Нет соединения с сервером.</source>
         <translation>No connection to the server.</translation>
     </message>
@@ -65,7 +75,7 @@
 <context>
     <name>app::ClientController</name>
     <message>
-        <location filename="../src/app/ClientController.cpp" line="137"/>
+        <location filename="../src/app/ClientController.cpp" line="138"/>
         <source>Новое сообщение</source>
         <translation>New message</translation>
     </message>
@@ -164,12 +174,12 @@
 <context>
     <name>net::ClientConnection</name>
     <message>
-        <location filename="../src/net/ClientConnection.cpp" line="245"/>
+        <location filename="../src/net/ClientConnection.cpp" line="251"/>
         <source>Сервер не предъявил сертификат.</source>
         <translation>The server did not present a certificate.</translation>
     </message>
     <message>
-        <location filename="../src/net/ClientConnection.cpp" line="253"/>
+        <location filename="../src/net/ClientConnection.cpp" line="259"/>
         <source>Сертификат сервера не совпадает с сохранённым. Возможна подмена сервера.</source>
         <translation>The server certificate does not match the saved one. The server may be impersonated.</translation>
     </message>
@@ -258,7 +268,7 @@
     </message>
     <message>
         <location filename="../src/ui/LoginWindow.cpp" line="148"/>
-        <location filename="../src/ui/LoginWindow.cpp" line="240"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="246"/>
         <source>Пароль</source>
         <translation>Password</translation>
     </message>
@@ -299,51 +309,51 @@
     </message>
     <message>
         <location filename="../src/ui/LoginWindow.cpp" line="190"/>
-        <location filename="../src/ui/LoginWindow.cpp" line="239"/>
-        <location filename="../src/ui/LoginWindow.cpp" line="300"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="245"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="306"/>
         <source>Войти</source>
         <translation>Sign in</translation>
     </message>
     <message>
         <location filename="../src/ui/LoginWindow.cpp" line="197"/>
-        <location filename="../src/ui/LoginWindow.cpp" line="286"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="292"/>
         <source>Подключение…</source>
         <translation>Connecting…</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="239"/>
-        <location filename="../src/ui/LoginWindow.cpp" line="300"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="245"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="306"/>
         <source>Создать аккаунт</source>
         <translation>Create account</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="240"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="246"/>
         <source>Пароль (от 8 символов)</source>
         <translation>Password (min. 8 characters)</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="254"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="260"/>
         <source>Введите логин и пароль.</source>
         <translation>Enter your login and password.</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="260"/>
-        <location filename="../src/ui/LoginWindow.cpp" line="299"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="266"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="305"/>
         <source>Подождите…</source>
         <translation>Please wait…</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="283"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="289"/>
         <source>Нет соединения с сервером…</source>
         <translation>No connection to the server…</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="289"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="295"/>
         <source>Сервер доступен</source>
         <translation>Server available</translation>
     </message>
     <message>
-        <location filename="../src/ui/LoginWindow.cpp" line="318"/>
+        <location filename="../src/ui/LoginWindow.cpp" line="324"/>
         <source>Нет соединения с сервером. Проверьте адрес и запустите сервер.</source>
         <translation>No connection to the server. Check the address and start the server.</translation>
     </message>
@@ -377,7 +387,7 @@
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="209"/>
-        <location filename="../src/ui/MainWindow.cpp" line="584"/>
+        <location filename="../src/ui/MainWindow.cpp" line="647"/>
         <source>Новый чат</source>
         <translation>New chat</translation>
     </message>
@@ -397,75 +407,102 @@
         <translation>Chat list</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="290"/>
+        <location filename="../src/ui/MainWindow.cpp" line="294"/>
         <source>Выберите чат</source>
         <translation>Select a chat</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="291"/>
+        <location filename="../src/ui/MainWindow.cpp" line="295"/>
         <source>Слева — список переписок.
 История сохраняется на этом устройстве.</source>
         <translation>Chats are listed on the left.
 History is stored on this device.</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="310"/>
+        <location filename="../src/ui/MainWindow.cpp" line="314"/>
         <source>Нет соединения. Переподключение…</source>
         <translation>No connection. Reconnecting…</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="344"/>
+        <location filename="../src/ui/MainWindow.cpp" line="348"/>
         <source>Лента сообщений</source>
         <translation>Message feed</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="376"/>
+        <location filename="../src/ui/MainWindow.cpp" line="382"/>
         <source>Сохранить файл</source>
         <translation>Save file</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="383"/>
         <location filename="../src/ui/MainWindow.cpp" line="389"/>
+        <location filename="../src/ui/MainWindow.cpp" line="395"/>
         <source>Не удалось сохранить файл</source>
         <translation>Could not save the file</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="384"/>
+        <location filename="../src/ui/MainWindow.cpp" line="390"/>
         <source>Файл занят или недоступен для записи.</source>
         <translation>The file is in use or read-only.</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="390"/>
+        <location filename="../src/ui/MainWindow.cpp" line="396"/>
         <source>Не удалось скопировать файл в выбранное место.</source>
         <translation>Could not copy the file to the selected location.</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="490"/>
+        <location filename="../src/ui/MainWindow.cpp" line="417"/>
+        <source>Открыть</source>
+        <translation>Open</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindow.cpp" line="419"/>
+        <location filename="../src/ui/MainWindow.cpp" line="433"/>
+        <source>Очистить историю</source>
+        <translation>Clear history</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindow.cpp" line="420"/>
+        <location filename="../src/ui/MainWindow.cpp" line="445"/>
+        <source>Удалить чат</source>
+        <translation>Delete chat</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindow.cpp" line="434"/>
+        <source>Удалить все сообщения этого чата на этом компьютере? У собеседника они останутся.</source>
+        <translation>Delete all messages of this chat on this computer? The other person keeps them.</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindow.cpp" line="446"/>
+        <source>Чат исчезнет из списка, локальная история будет удалена. У собеседника сообщения останутся. Новое сообщение вернёт чат.</source>
+        <translation>The chat disappears from the list and local history is deleted. The other person keeps the messages. A new message brings the chat back.</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindow.cpp" line="553"/>
         <source>печатает…</source>
         <translation>typing…</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="492"/>
+        <location filename="../src/ui/MainWindow.cpp" line="555"/>
         <source>в сети</source>
         <translation>online</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="492"/>
+        <location filename="../src/ui/MainWindow.cpp" line="555"/>
         <source>не в сети</source>
         <translation>offline</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="578"/>
+        <location filename="../src/ui/MainWindow.cpp" line="641"/>
         <source>Светлая тема</source>
         <translation>Light theme</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="578"/>
+        <location filename="../src/ui/MainWindow.cpp" line="641"/>
         <source>Тёмная тема</source>
         <translation>Dark theme</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="585"/>
+        <location filename="../src/ui/MainWindow.cpp" line="648"/>
         <source>Логин собеседника:</source>
         <translation>Contact&apos;s login:</translation>
     </message>
@@ -478,42 +515,52 @@ History is stored on this device.</translation>
         <translation>Retry</translation>
     </message>
     <message>
-        <location filename="../src/ui/MessageBubble.cpp" line="208"/>
+        <location filename="../src/ui/MessageBubble.cpp" line="206"/>
+        <source>Не удалось загрузить. Нажмите, чтобы повторить</source>
+        <translation>Could not load. Click to retry</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MessageBubble.cpp" line="209"/>
+        <source>Повторить загрузку</source>
+        <translation>Retry download</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MessageBubble.cpp" line="220"/>
         <source>Загрузка…</source>
         <translation>Loading…</translation>
     </message>
     <message>
-        <location filename="../src/ui/MessageBubble.cpp" line="224"/>
+        <location filename="../src/ui/MessageBubble.cpp" line="236"/>
         <source>GIF недоступен</source>
         <translation>GIF unavailable</translation>
     </message>
     <message>
-        <location filename="../src/ui/MessageBubble.cpp" line="239"/>
+        <location filename="../src/ui/MessageBubble.cpp" line="251"/>
         <source>Не удалось открыть изображение</source>
         <translation>Could not open the image</translation>
     </message>
     <message>
-        <location filename="../src/ui/MessageBubble.cpp" line="245"/>
+        <location filename="../src/ui/MessageBubble.cpp" line="257"/>
         <source>Видео</source>
         <translation>Video</translation>
     </message>
     <message>
-        <location filename="../src/ui/MessageBubble.cpp" line="265"/>
+        <location filename="../src/ui/MessageBubble.cpp" line="277"/>
         <source>Открыть видео</source>
         <translation>Open video</translation>
     </message>
     <message>
-        <location filename="../src/ui/MessageBubble.cpp" line="267"/>
+        <location filename="../src/ui/MessageBubble.cpp" line="279"/>
         <source>Сохранить файл</source>
         <translation>Save file</translation>
     </message>
     <message>
-        <location filename="../src/ui/MessageBubble.cpp" line="268"/>
+        <location filename="../src/ui/MessageBubble.cpp" line="280"/>
         <source>Открыть изображение</source>
         <translation>Open image</translation>
     </message>
     <message>
-        <location filename="../src/ui/MessageBubble.cpp" line="327"/>
+        <location filename="../src/ui/MessageBubble.cpp" line="348"/>
         <source>Сообщение не отправлено</source>
         <translation>Message not sent</translation>
     </message>

@@ -21,6 +21,7 @@ private slots:
     void themeSwitchAppliesImmediately();
     void languageIsPersisted();
     void notificationsToggleIsPersisted();
+    void hiddenChatsArePersisted();
 
 private:
     QComboBox *themeBox(ui::SettingsDialog &dialog) const;
@@ -126,6 +127,22 @@ void TestSettings::notificationsToggleIsPersisted()
 
     checkbox->setChecked(true);
     QVERIFY(m_settings->notificationsEnabled());
+}
+
+void TestSettings::hiddenChatsArePersisted()
+{
+    QVERIFY(m_settings->hiddenChats().isEmpty());
+
+    m_settings->setHiddenChats(QSet<qint64>{7, 42});
+    m_settings->sync();
+
+    const QSet<qint64> restored = m_settings->hiddenChats();
+    QCOMPARE(restored.size(), 2);
+    QVERIFY(restored.contains(7));
+    QVERIFY(restored.contains(42));
+
+    m_settings->setHiddenChats(QSet<qint64>());
+    QVERIFY(m_settings->hiddenChats().isEmpty());
 }
 
 QTEST_MAIN(TestSettings)

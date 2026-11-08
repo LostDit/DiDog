@@ -10,6 +10,7 @@
 class QLabel;
 class QLineEdit;
 class QListView;
+class QPoint;
 class QSortFilterProxyModel;
 class QStackedWidget;
 class QTimer;
@@ -66,6 +67,7 @@ private slots:
     void onChatsChanged();
     void onMessagesChanged(qint64 chatId);
     void onChatSelectionChanged();
+    void onChatListMenu(const QPoint &position);
     void onSendRequested(const QString &text);
     void onThemeToggleClicked();
     void onNewChatClicked();

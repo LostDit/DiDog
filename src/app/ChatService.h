@@ -7,12 +7,14 @@
 #include <QJsonObject>
 #include <QList>
 #include <QObject>
+#include <QSet>
 #include <QString>
 
 namespace app {
 
 class AttachmentService;
 class HistoryStore;
+class SettingsStore;
 
 // Состояние переписки на клиенте: список чатов, ленты сообщений, отправка.
 // Живёт в GUI-потоке; сетевые запросы асинхронны, история — в рабочем потоке.
@@ -26,6 +28,13 @@ public:
 
     void setCurrentUser(const data::User &user);
     qint64 currentUserId() const { return m_currentUserId; }
+
+    void setSettingsStore(SettingsStore *settings);
+
+    // Удаление чата у себя: скрывает его и стирает локальную историю.
+    void deleteChat(qint64 chatId);
+    // Очистка локальной истории, чат остаётся в списке.
+    void clearHistory(qint64 chatId);
 
     QList<data::ChatSummary> chats() const { return m_chats; }
     data::ChatSummary chat(qint64 chatId) const;
@@ -85,16 +94,20 @@ private:
     void persistChats();
     void persistOutbox(qint64 chatId, const QString &clientMsgId);
     void hydrateAttachments(qint64 chatId);
+    void unhideChat(qint64 chatId);
+    void saveHiddenChats();
 
     net::ClientConnection *m_connection = nullptr;
     HistoryStore *m_history = nullptr;
     AttachmentService *m_attachments = nullptr;
+    SettingsStore *m_settings = nullptr;
     qint64 m_currentUserId = 0;
     data::User m_currentUser;
 
     QList<data::ChatSummary> m_chats;
     QHash<qint64, ChatState> m_states;
     QHash<qint64, int> m_downloadAttempts;
+    QSet<qint64> m_hiddenChats;
     qint64 m_activeChatId = 0;
 };
 

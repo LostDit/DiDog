@@ -248,6 +248,10 @@ QWidget *MainWindow::buildSidebar()
     connect(m_chatList->selectionModel(), &QItemSelectionModel::currentChanged, this,
             [this](const QModelIndex &, const QModelIndex &) { onChatSelectionChanged(); });
 
+    m_chatList->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_chatList, &QWidget::customContextMenuRequested,
+            this, &MainWindow::onChatListMenu);
+
     layout->addWidget(makeLabel(QStringLiteral("v%1").arg(QStringLiteral(MESSENGER_VERSION)),
                                 "EmptySubtitle", Qt::AlignLeft));
 
@@ -394,6 +398,63 @@ QWidget *MainWindow::buildConversationPane()
             });
 
     return page;
+}
+
+void MainWindow::onChatListMenu(const QPoint &position)
+{
+    const QModelIndex index = m_chatList->indexAt(position);
+    if (!index.isValid())
+        return;
+
+    const data::ChatSummary summary =
+        index.data(ChatListModel::SummaryRole).value<data::ChatSummary>();
+    if (summary.chat.id <= 0)
+        return;
+
+    const qint64 chatId = summary.chat.id;
+
+    QMenu menu(this);
+    QAction *open = menu.addAction(tr("Открыть"));
+    menu.addSeparator();
+    QAction *clear = menu.addAction(tr("Очистить историю"));
+    QAction *remove = menu.addAction(tr("Удалить чат"));
+
+    QAction *chosen = menu.exec(m_chatList->viewport()->mapToGlobal(position));
+    if (!chosen)
+        return;
+
+    if (chosen == open) {
+        openChatById(chatId);
+        return;
+    }
+
+    if (chosen == clear) {
+        const auto answer = QMessageBox::question(
+            this, tr("Очистить историю"),
+            tr("Удалить все сообщения этого чата на этом компьютере? "
+               "У собеседника они останутся."));
+        if (answer == QMessageBox::Yes)
+            m_chats->clearHistory(chatId);
+        return;
+    }
+
+    if (chosen != remove)
+        return;
+
+    const auto answer = QMessageBox::question(
+        this, tr("Удалить чат"),
+        tr("Чат исчезнет из списка, локальная история будет удалена. "
+           "У собеседника сообщения останутся. Новое сообщение вернёт чат."));
+    if (answer != QMessageBox::Yes)
+        return;
+
+    if (m_currentChatId == chatId) {
+        m_currentChatId = 0;
+        if (m_messageView)
+            m_messageView->setMessages(QList<data::Message>());
+    }
+
+    m_chats->deleteChat(chatId);
 }
 
 void MainWindow::onChatsChanged()

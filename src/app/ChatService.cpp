@@ -2,6 +2,7 @@
 
 #include "app/AttachmentService.h"
 #include "app/HistoryStore.h"
+#include "app/SettingsStore.h"
 #include "core/Ids.h"
 #include "core/Limits.h"
 #include "core/Protocol.h"
@@ -218,7 +219,14 @@ ChatService::ChatService(net::ClientConnection *connection, HistoryStore *histor
                 // Кэш показывает интерфейс сразу; сетевой список его заменит.
                 if (!m_chats.isEmpty() || chats.isEmpty())
                     return;
-                m_chats = chats;
+
+                QList<data::ChatSummary> visible;
+                for (const data::ChatSummary &summary : chats) {
+                    if (!m_hiddenChats.contains(summary.chat.id))
+                        visible.append(summary);
+                }
+
+                m_chats = visible;
                 emit chatsChanged();
             });
 
@@ -322,7 +330,13 @@ void ChatService::loadChats()
                               for (const QJsonValue &value : array)
                                   summaries.append(data::json::chatSummaryFromJson(value.toObject()));
 
-                              m_chats = summaries;
+                              QList<data::ChatSummary> visible;
+                              for (const data::ChatSummary &summary : qAsConst(summaries)) {
+                                  if (!m_hiddenChats.contains(summary.chat.id))
+                                      visible.append(summary);
+                              }
+
+                              m_chats = visible;
                               emit chatsChanged();
                               persistChats();
                           });
@@ -662,6 +676,70 @@ void ChatService::retryAttachment(qint64 attachmentId)
         m_attachments->download(attachment);
 }
 
+void ChatService::setSettingsStore(SettingsStore *settings)
+{
+    m_settings = settings;
+    if (m_settings)
+        m_hiddenChats = m_settings->hiddenChats();
+}
+
+void ChatService::saveHiddenChats()
+{
+    if (!m_settings)
+        return;
+
+    m_settings->setHiddenChats(m_hiddenChats);
+    m_settings->sync();
+}
+
+void ChatService::unhideChat(qint64 chatId)
+{
+    if (m_hiddenChats.remove(chatId))
+        saveHiddenChats();
+}
+
+void ChatService::deleteChat(qint64 chatId)
+{
+    if (chatId <= 0)
+        return;
+
+    m_hiddenChats.insert(chatId);
+    saveHiddenChats();
+
+    m_states.remove(chatId);
+
+    for (int i = 0; i < m_chats.size(); ++i) {
+        if (m_chats.at(i).chat.id == chatId) {
+            m_chats.removeAt(i);
+            break;
+        }
+    }
+
+    if (m_activeChatId == chatId)
+        m_activeChatId = 0;
+
+    if (m_history)
+        m_history->removeChat(chatId);
+
+    emit chatsChanged();
+    emit messagesChanged(chatId);
+
+    persistChats();
+}
+
+void ChatService::clearHistory(qint64 chatId)
+{
+    if (m_history)
+        m_history->removeChat(chatId);
+
+    ChatState &state = m_states[chatId];
+    state.messages.clear();
+    state.loaded = false;
+    state.hasMore = false;
+
+    emit messagesChanged(chatId);
+}
+
 void ChatService::markRead(qint64 chatId)
 {
     qint64 maxSeq = 0;
@@ -773,6 +851,10 @@ void ChatService::onEvent(const QString &event, const QJsonObject &data)
 
 void ChatService::handleNewMessage(const data::Message &message)
 {
+    // Новое сообщение в удалённом чате возвращает его в список.
+    if (m_hiddenChats.contains(message.chatId))
+        unhideChat(message.chatId);
+
     if (indexOfChat(message.chatId) < 0) {
         loadChats();
     } else {

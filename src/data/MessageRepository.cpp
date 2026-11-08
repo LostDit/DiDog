@@ -322,4 +322,25 @@ bool MessageRepository::countInChat(qint64 chatId, int *value, QString *error) c
     return true;
 }
 
+bool MessageRepository::removeChat(qint64 chatId, QString *error)
+{
+    QSqlQuery attachments(m_db);
+    attachments.prepare(QStringLiteral(
+        "DELETE FROM attachments WHERE message_id IN "
+        "(SELECT id FROM messages WHERE chat_id = ?)"));
+    attachments.addBindValue(chatId);
+
+    if (!attachments.exec())
+        return sql::failQuery(error, attachments, QStringLiteral("Удаление вложений чата"));
+
+    QSqlQuery messages(m_db);
+    messages.prepare(QStringLiteral("DELETE FROM messages WHERE chat_id = ?"));
+    messages.addBindValue(chatId);
+
+    if (!messages.exec())
+        return sql::failQuery(error, messages, QStringLiteral("Удаление сообщений чата"));
+
+    return true;
+}
+
 } // namespace data

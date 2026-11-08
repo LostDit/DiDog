@@ -4,6 +4,8 @@
 #include <QFileInfo>
 #include <QSettings>
 
+#include <algorithm>
+
 namespace app {
 namespace {
 
@@ -200,6 +202,37 @@ void SettingsStore::setCertificatePin(const QString &host, quint16 port,
         m_settings.remove(key);
     else
         m_settings.setValue(key, fingerprint);
+}
+
+QSet<qint64> SettingsStore::hiddenChats() const
+{
+    QSet<qint64> result;
+
+    const QString stored = m_settings.value(QStringLiteral("chats/hidden")).toString();
+    const QStringList parts = stored.split(QLatin1Char(','), Qt::SkipEmptyParts);
+    for (const QString &part : parts) {
+        bool ok = false;
+        const qint64 id = part.trimmed().toLongLong(&ok);
+        if (ok && id > 0)
+            result.insert(id);
+    }
+
+    return result;
+}
+
+void SettingsStore::setHiddenChats(const QSet<qint64> &chatIds)
+{
+    QList<qint64> sorted = chatIds.values();
+    std::sort(sorted.begin(), sorted.end());
+
+    QStringList parts;
+    for (const qint64 id : sorted)
+        parts.append(QString::number(id));
+
+    if (parts.isEmpty())
+        m_settings.remove(QStringLiteral("chats/hidden"));
+    else
+        m_settings.setValue(QStringLiteral("chats/hidden"), parts.join(QLatin1Char(',')));
 }
 
 QString SettingsStore::filePath() const

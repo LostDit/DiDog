@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QSet>
 #include <QSettings>
 #include <QString>
 #include <QVariant>
@@ -51,6 +52,10 @@ public:
     // Отпечаток сертификата сервера для конкретного адреса (TOFU-закрепление).
     QString certificatePin(const QString &host, quint16 port) const;
     void setCertificatePin(const QString &host, quint16 port, const QString &fingerprint);
+
+    // Удалённые пользователем чаты: скрыты в списке, пока не придёт новое сообщение.
+    QSet<qint64> hiddenChats() const;
+    void setHiddenChats(const QSet<qint64> &chatIds);
 
     QString filePath() const;
 
