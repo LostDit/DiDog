@@ -19,9 +19,11 @@
 #include <QDebug>
 #include <QHash>
 #include <QJsonArray>
+#include <QNetworkDatagram>
 #include <QRandomGenerator>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QUdpSocket>
 #include <QVariant>
 #include <QVector>
 
@@ -198,6 +200,14 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleVoiceJoin(data, session);
     if (type == QLatin1String(core::proto::type::kVoiceLeave))
         return handleVoiceLeave(data, session);
+    if (type == QLatin1String(core::proto::type::kVoiceInvite))
+        return handleVoiceInvite(data, session);
+    if (type == QLatin1String(core::proto::type::kVoiceAccept))
+        return handleVoiceAccept(data, session);
+    if (type == QLatin1String(core::proto::type::kVoiceDecline))
+        return handleVoiceDecline(data, session);
+    if (type == QLatin1String(core::proto::type::kVoiceCancel))
+        return handleVoiceCancel(data, session);
 
     if (type == QLatin1String(core::proto::type::kMsgSend))
         return handleMessageSend(data, session);
@@ -791,6 +801,156 @@ HandlerResult ServerCore::handleThemeGet(const QJsonObject &data, ClientSession 
     return HandlerResult::success(payload);
 }
 
+bool ServerCore::startVoiceSocket(quint16 port, QString *error)
+{
+    if (!m_voiceSocket) {
+        m_voiceSocket = new QUdpSocket(this);
+        connect(m_voiceSocket, &QUdpSocket::readyRead, this, &ServerCore::onVoiceDatagram);
+    }
+
+    if (m_voiceSocket->state() == QAbstractSocket::BoundState)
+        return true;
+
+    if (!m_voiceSocket->bind(QHostAddress::Any, port)) {
+        if (error)
+            *error = QStringLiteral("Не удалось открыть UDP-порт %1: %2")
+                         .arg(port)
+                         .arg(m_voiceSocket->errorString());
+        return false;
+    }
+
+    m_voicePort = m_voiceSocket->localPort();
+    qInfo().noquote() << QStringLiteral("Голосовой UDP-релей слушает 0.0.0.0:%1")
+                             .arg(m_voicePort);
+    return true;
+}
+
+void ServerCore::stopVoiceSocket()
+{
+    if (!m_voiceSocket)
+        return;
+
+    m_voiceSocket->close();
+    m_voiceSocket->deleteLater();
+    m_voiceSocket = nullptr;
+    m_voiceEndpoints.clear();
+    m_sessionVoiceTokens.clear();
+}
+
+void ServerCore::removeVoiceEndpoint(ClientSession *session)
+{
+    const auto it = m_sessionVoiceTokens.find(session);
+    if (it == m_sessionVoiceTokens.end())
+        return;
+
+    m_voiceEndpoints.remove(it.value());
+    m_sessionVoiceTokens.erase(it);
+}
+
+void ServerCore::onVoiceDatagram()
+{
+    while (m_voiceSocket && m_voiceSocket->hasPendingDatagrams()) {
+        const QNetworkDatagram datagram = m_voiceSocket->receiveDatagram();
+        if (datagram.data().size() < 12 || datagram.data().size() > 4096)
+            continue;
+
+        quint32 token = 0;
+        quint32 sequence = 0;
+        QByteArray payload;
+        if (!core::proto::decodeVoiceDatagram(datagram.data(), &token, &sequence, &payload))
+            continue;
+
+        auto endpointIt = m_voiceEndpoints.find(token);
+        if (endpointIt == m_voiceEndpoints.end())
+            continue;
+
+        // Запоминаем адрес клиента: это открывает NAT-путь для обратных пакетов.
+        // Пустой payload — «привет»/keepalive, только регистрирует адрес.
+        endpointIt->address = datagram.senderAddress();
+        endpointIt->port = static_cast<quint16>(datagram.senderPort());
+
+        if (payload.isEmpty())
+            continue;
+
+        const VoiceEndpoint sender = endpointIt.value();
+        const QByteArray relay =
+            core::proto::encodeVoiceRelay(static_cast<quint32>(sender.userId), sequence, payload);
+
+        for (auto it = m_voiceEndpoints.constBegin(); it != m_voiceEndpoints.constEnd(); ++it) {
+            if (it.key() == token || it.value().chatId != sender.chatId)
+                continue;
+            if (it.value().address.isNull() || it.value().port == 0)
+                continue;
+
+            m_voiceSocket->writeDatagram(relay, it.value().address, it.value().port);
+        }
+    }
+}
+
+HandlerResult ServerCore::handleVoiceInvite(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    bool member = false;
+    if (!chats.isMember(chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    data::UserRepository users(m_database.handle());
+    data::User caller;
+    if (!users.findById(session->userId(), &caller, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    event.insert(QStringLiteral("caller_id"), static_cast<double>(session->userId()));
+    event.insert(QStringLiteral("caller_name"), caller.displayName);
+    broadcastToChat(chatId, core::proto::event::kVoiceInvite, event, session);
+
+    return HandlerResult::success();
+}
+
+HandlerResult ServerCore::handleVoiceAccept(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+    const qint64 callerId = int64Value(data, "caller_id");
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    event.insert(QStringLiteral("user_id"), static_cast<double>(session->userId()));
+    sendToUser(callerId, core::proto::event::kVoiceAccepted, event);
+
+    return HandlerResult::success();
+}
+
+HandlerResult ServerCore::handleVoiceDecline(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+    const qint64 callerId = int64Value(data, "caller_id");
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    event.insert(QStringLiteral("user_id"), static_cast<double>(session->userId()));
+    sendToUser(callerId, core::proto::event::kVoiceDeclined, event);
+
+    return HandlerResult::success();
+}
+
+HandlerResult ServerCore::handleVoiceCancel(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    event.insert(QStringLiteral("caller_id"), static_cast<double>(session->userId()));
+    broadcastToChat(chatId, core::proto::event::kVoiceCancelled, event, session);
+
+    return HandlerResult::success();
+}
+
 HandlerResult ServerCore::handleVoiceJoin(const QJsonObject &data, ClientSession *session)
 {
     const qint64 chatId = int64Value(data, "chat_id");
@@ -805,6 +965,19 @@ HandlerResult ServerCore::handleVoiceJoin(const QJsonObject &data, ClientSession
 
     m_voiceRooms[chatId].insert(session);
 
+    // Токен для UDP-релея: клиент шлёт его в каждом дейтаграмме.
+    removeVoiceEndpoint(session);
+    quint32 voiceToken = 0;
+    do {
+        voiceToken = QRandomGenerator::global()->generate();
+    } while (voiceToken == 0 || m_voiceEndpoints.contains(voiceToken));
+
+    VoiceEndpoint endpoint;
+    endpoint.chatId = chatId;
+    endpoint.userId = session->userId();
+    m_voiceEndpoints.insert(voiceToken, endpoint);
+    m_sessionVoiceTokens.insert(session, voiceToken);
+
     QJsonObject event;
     event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
     event.insert(QStringLiteral("user_id"), static_cast<double>(session->userId()));
@@ -816,12 +989,16 @@ HandlerResult ServerCore::handleVoiceJoin(const QJsonObject &data, ClientSession
     payload.insert(QStringLiteral("codec"), QStringLiteral("opus"));
     payload.insert(QStringLiteral("sample_rate"), 48000);
     payload.insert(QStringLiteral("frame_ms"), 20);
+    payload.insert(QStringLiteral("udp_port"), m_voicePort);
+    payload.insert(QStringLiteral("udp_token"), static_cast<double>(voiceToken));
     return HandlerResult::success(payload);
 }
 
 HandlerResult ServerCore::handleVoiceLeave(const QJsonObject &data, ClientSession *session)
 {
     const qint64 chatId = int64Value(data, "chat_id");
+
+    removeVoiceEndpoint(session);
 
     auto it = m_voiceRooms.find(chatId);
     if (it != m_voiceRooms.end() && it.value().remove(session)) {
@@ -1355,6 +1532,7 @@ void ServerCore::unregisterSession(ClientSession *session)
         return;
 
     leaveVoiceRoom(session);
+    removeVoiceEndpoint(session);
 
     const qint64 userId = session->userId();
     m_sessions.remove(userId, session);

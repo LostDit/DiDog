@@ -32,6 +32,9 @@ public:
     bool start(quint16 port);
     void stop();
 
+    // UDP-порт голосового релея (по умолчанию 45001).
+    void setVoicePort(quint16 port) { m_voicePort = port; }
+
     // Администрирование: создание промокода (CLI --add-promo).
     bool createPromo(const QString &code, const QString &plan, int days, int maxUses,
                      QString *error);
@@ -56,6 +59,7 @@ private:
 
     bool m_tlsEnabled = false;
     QSslConfiguration m_tlsConfiguration;
+    quint16 m_voicePort = 45001;
 };
 
 } // namespace server

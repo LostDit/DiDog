@@ -32,6 +32,10 @@ inline constexpr const char kThemeList[] = "theme.list";
 inline constexpr const char kThemeGet[] = "theme.get";
 inline constexpr const char kVoiceJoin[] = "voice.join";
 inline constexpr const char kVoiceLeave[] = "voice.leave";
+inline constexpr const char kVoiceInvite[] = "voice.invite";
+inline constexpr const char kVoiceAccept[] = "voice.accept";
+inline constexpr const char kVoiceDecline[] = "voice.decline";
+inline constexpr const char kVoiceCancel[] = "voice.cancel";
 inline constexpr const char kMsgSend[] = "msg.send";
 inline constexpr const char kMsgEdit[] = "msg.edit";
 inline constexpr const char kMsgDelete[] = "msg.delete";
@@ -57,6 +61,10 @@ inline constexpr const char kChatMembers[] = "ev.chat.members";
 inline constexpr const char kPresence[] = "ev.presence";
 inline constexpr const char kTyping[] = "ev.typing";
 inline constexpr const char kVoice[] = "ev.voice";
+inline constexpr const char kVoiceInvite[] = "ev.voice.invite";
+inline constexpr const char kVoiceAccepted[] = "ev.voice.accepted";
+inline constexpr const char kVoiceDeclined[] = "ev.voice.declined";
+inline constexpr const char kVoiceCancelled[] = "ev.voice.cancelled";
 } // namespace event
 
 // Запрос: {"v":1,"id":"…","type":"…","data":{…}}. Пустой id генерируется.
@@ -85,5 +93,16 @@ QByteArray encodeVoice(quint32 chatId, quint32 userId, quint32 sequence,
                        const QByteArray &payload);
 bool decodeVoice(const QByteArray &payload, quint32 *chatId, quint32 *userId,
                  quint32 *sequence, QByteArray *data);
+
+// UDP-дейтаграммы голоса: "MV01" (4) + token/user_id (4) + seq (4) + Opus.
+inline constexpr quint32 kVoiceMagic = 0x4D563031;
+
+QByteArray encodeVoiceDatagram(quint32 token, quint32 sequence, const QByteArray &payload);
+bool decodeVoiceDatagram(const QByteArray &datagram, quint32 *token, quint32 *sequence,
+                         QByteArray *payload);
+
+QByteArray encodeVoiceRelay(quint32 userId, quint32 sequence, const QByteArray &payload);
+bool decodeVoiceRelay(const QByteArray &datagram, quint32 *userId, quint32 *sequence,
+                      QByteArray *payload);
 
 } // namespace core::proto

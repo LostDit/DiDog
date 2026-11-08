@@ -6,9 +6,13 @@
 #include "server/HandlerResult.h"
 
 #include <QHash>
+#include <QHostAddress>
 #include <QJsonObject>
 #include <QObject>
+#include <QSet>
 #include <QString>
+
+class QUdpSocket;
 
 namespace server {
 
@@ -57,6 +61,10 @@ private:
     HandlerResult handleThemeGet(const QJsonObject &data, ClientSession *session);
     HandlerResult handleVoiceJoin(const QJsonObject &data, ClientSession *session);
     HandlerResult handleVoiceLeave(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleVoiceInvite(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleVoiceAccept(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleVoiceDecline(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleVoiceCancel(const QJsonObject &data, ClientSession *session);
 
     void leaveVoiceRoom(ClientSession *session);
 
@@ -78,6 +86,11 @@ public:
     // Голосовой кадр: проверяет участие в голосовой комнате и пересылает остальным.
     void handleVoiceFrame(ClientSession *session, qint64 chatId, quint32 sequence,
                           const QByteArray &data);
+
+    // UDP-релей голоса: сокет, токены комнат и пересылка дейтаграмм.
+    bool startVoiceSocket(quint16 port, QString *error);
+    void stopVoiceSocket();
+    quint16 voicePort() const { return m_voicePort; }
 
     // Создание промокода (CLI администратора).
     bool createPromo(const QString &code, const QString &plan, int days, int maxUses,
@@ -102,6 +115,21 @@ private:
     QHash<quint32, ReadyAttachment> m_readyAttachments;
     QMultiHash<qint64, ClientSession *> m_sessions;
     QHash<qint64, QSet<ClientSession *>> m_voiceRooms;
+
+    struct VoiceEndpoint {
+        qint64 chatId = 0;
+        qint64 userId = 0;
+        QHostAddress address;
+        quint16 port = 0;
+    };
+
+    void onVoiceDatagram();
+    void removeVoiceEndpoint(ClientSession *session);
+
+    QUdpSocket *m_voiceSocket = nullptr;
+    quint16 m_voicePort = 45001;
+    QHash<quint32, VoiceEndpoint> m_voiceEndpoints;
+    QHash<ClientSession *, quint32> m_sessionVoiceTokens;
 
     bool isUserOnline(qint64 userId) const;
 };

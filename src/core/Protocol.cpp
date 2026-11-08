@@ -143,4 +143,76 @@ bool decodeVoice(const QByteArray &payload, quint32 *chatId, quint32 *userId,
     return true;
 }
 
+QByteArray encodeVoiceDatagram(quint32 token, quint32 sequence, const QByteArray &payload)
+{
+    QByteArray result;
+    QDataStream stream(&result, QIODevice::WriteOnly);
+    stream.setByteOrder(QDataStream::BigEndian);
+    stream << kVoiceMagic << token << sequence;
+    result.append(payload);
+    return result;
+}
+
+bool decodeVoiceDatagram(const QByteArray &datagram, quint32 *token, quint32 *sequence,
+                         QByteArray *payload)
+{
+    if (datagram.size() < 12)
+        return false;
+
+    QDataStream stream(datagram);
+    stream.setByteOrder(QDataStream::BigEndian);
+
+    quint32 magic = 0;
+    quint32 tokenValue = 0;
+    quint32 seq = 0;
+    stream >> magic >> tokenValue >> seq;
+
+    if (stream.status() != QDataStream::Ok || magic != kVoiceMagic)
+        return false;
+
+    if (token)
+        *token = tokenValue;
+    if (sequence)
+        *sequence = seq;
+    if (payload)
+        *payload = datagram.mid(12);
+    return true;
+}
+
+QByteArray encodeVoiceRelay(quint32 userId, quint32 sequence, const QByteArray &payload)
+{
+    QByteArray result;
+    QDataStream stream(&result, QIODevice::WriteOnly);
+    stream.setByteOrder(QDataStream::BigEndian);
+    stream << kVoiceMagic << userId << sequence;
+    result.append(payload);
+    return result;
+}
+
+bool decodeVoiceRelay(const QByteArray &datagram, quint32 *userId, quint32 *sequence,
+                      QByteArray *payload)
+{
+    if (datagram.size() < 12)
+        return false;
+
+    QDataStream stream(datagram);
+    stream.setByteOrder(QDataStream::BigEndian);
+
+    quint32 magic = 0;
+    quint32 user = 0;
+    quint32 seq = 0;
+    stream >> magic >> user >> seq;
+
+    if (stream.status() != QDataStream::Ok || magic != kVoiceMagic)
+        return false;
+
+    if (userId)
+        *userId = user;
+    if (sequence)
+        *sequence = seq;
+    if (payload)
+        *payload = datagram.mid(12);
+    return true;
+}
+
 } // namespace core::proto

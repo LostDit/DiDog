@@ -282,9 +282,13 @@ int runServer(int argc, char *argv[])
         QStringLiteral("add-promo"),
         QStringLiteral("Создать промокод CODE:DAYS[:MAX] и выйти (администрирование)."),
         QStringLiteral("spec"));
+    const QCommandLineOption voicePortOption(
+        QStringLiteral("voice-port"),
+        QStringLiteral("UDP-порт голосового релея (по умолчанию 45001)."),
+        QStringLiteral("port"), QStringLiteral("45001"));
 
     parser.addOptions({portOption, dataOption, verboseOption, tlsOption, tlsCertOption,
-                       tlsKeyOption, serviceOption, addPromoOption});
+                       tlsKeyOption, serviceOption, addPromoOption, voicePortOption});
     parser.process(app);
 
     bool portOk = false;
@@ -314,6 +318,11 @@ int runServer(int argc, char *argv[])
     }
 
     server::ServerApp server;
+
+    bool voicePortOk = false;
+    const uint voicePort = parser.value(voicePortOption).toUInt(&voicePortOk);
+    if (voicePortOk && voicePort > 0 && voicePort <= 65535)
+        server.setVoicePort(static_cast<quint16>(voicePort));
 
     if (parser.isSet(tlsOption)) {
         const auto findFile = [](const QString &explicitPath, const QString &relativeName) {

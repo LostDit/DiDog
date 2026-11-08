@@ -124,6 +124,13 @@ void ServerApp::createServer()
 
 bool ServerApp::start(quint16 port)
 {
+    QString voiceError;
+    const quint16 voicePort = (port == 0) ? 0 : m_voicePort;
+    if (!m_core->startVoiceSocket(voicePort, &voiceError)) {
+        qCritical().noquote() << voiceError;
+        return false;
+    }
+
     createServer();
 
     if (m_server->isListening())
@@ -163,6 +170,8 @@ bool ServerApp::start(quint16 port)
 
 void ServerApp::stop()
 {
+    m_core->stopVoiceSocket();
+
     if (!m_server)
         return;
 
