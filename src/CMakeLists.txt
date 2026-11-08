@@ -41,6 +41,9 @@ set(MESSENGER_CORE_SOURCES
     net/ClientConnection.h      net/ClientConnection.cpp
     net/RequestTracker.h        net/RequestTracker.cpp
 
+    voice/OpusCodec.h           voice/OpusCodec.cpp
+    voice/VoiceService.h        voice/VoiceService.cpp
+
     server/AttachmentStore.h    server/AttachmentStore.cpp
     server/ClientSession.h      server/ClientSession.cpp
     server/HandlerResult.h
@@ -69,6 +72,7 @@ set(MESSENGER_CORE_SOURCES
 add_library(messenger_core STATIC ${MESSENGER_CORE_SOURCES})
 
 target_include_directories(messenger_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(messenger_core PRIVATE ${CMAKE_SOURCE_DIR}/third_party/opus/include)
 
 target_link_libraries(messenger_core PUBLIC
     Qt5::Core
@@ -118,6 +122,12 @@ if(WIN32)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MESSENGER_OPENSSL_DLLS}
                     $<TARGET_FILE_DIR:${exe}>)
     endforeach()
+
+    # Opus загружается динамически (QLibrary), DLL кладём рядом с клиентом.
+    add_custom_command(TARGET MessengerClient POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${CMAKE_SOURCE_DIR}/third_party/opus/win64/libopus.dll
+                $<TARGET_FILE_DIR:MessengerClient>)
 endif()
 
 # Демонстрационный сертификат рядом с сервером (можно заменить своим).

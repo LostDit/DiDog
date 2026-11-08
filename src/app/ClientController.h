@@ -24,6 +24,7 @@ class NotificationService;
 class SessionService;
 class SettingsStore;
 class ThemeManager;
+class VoiceService;
 
 // Связывает окна и сервисы: вход → главное окно → выход → снова вход.
 class ClientController : public QObject
@@ -52,6 +53,7 @@ private:
     ChatService *m_chats = nullptr;
     SessionService *m_session = nullptr;
     BillingService *m_billing = nullptr;
+    VoiceService *m_voice = nullptr;
     QScopedPointer<ui::LoginWindow> m_loginWindow;
     QScopedPointer<ui::MainWindow> m_mainWindow;
 };

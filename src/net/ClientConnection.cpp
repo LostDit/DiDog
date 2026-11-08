@@ -295,6 +295,16 @@ void ClientConnection::handleFrame(const core::Frame &frame)
         return;
     }
 
+    if (frame.type == core::FrameType::Voice) {
+        quint32 chatId = 0;
+        quint32 userId = 0;
+        quint32 sequence = 0;
+        QByteArray data;
+        if (core::proto::decodeVoice(frame.payload, &chatId, &userId, &sequence, &data))
+            emit voiceFrameReceived(chatId, userId, sequence, data);
+        return;
+    }
+
     QJsonObject object;
     QString error;
     if (!core::proto::decode(frame.payload, &object, &error)) {
@@ -356,6 +366,16 @@ bool ClientConnection::sendChunk(quint32 transferId, quint32 sequence, const QBy
 qint64 ClientConnection::bytesToWrite() const
 {
     return m_socket->bytesToWrite();
+}
+
+bool ClientConnection::sendVoiceFrame(quint32 chatId, quint32 sequence, const QByteArray &data)
+{
+    if (m_state != State::Connected)
+        return false;
+
+    const QByteArray payload = core::proto::encodeVoice(chatId, 0, sequence, data);
+    const QByteArray frame = core::FrameCodec::encode(core::FrameType::Voice, payload);
+    return m_socket->write(frame) == frame.size();
 }
 
 void ClientConnection::scheduleReconnect()

@@ -3,6 +3,7 @@
 #include "core/Ids.h"
 
 #include <QCoreApplication>
+#include <QDataStream>
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QJsonValue>
@@ -101,6 +102,45 @@ QString errorMessageOf(const QJsonObject &reply)
     const QJsonObject error = reply.value(QStringLiteral("error")).toObject();
     const QString message = error.value(QStringLiteral("message")).toString();
     return message.isEmpty() ? errorCodeUserMessage(errorCodeOf(reply)) : message;
+}
+
+QByteArray encodeVoice(quint32 chatId, quint32 userId, quint32 sequence,
+                       const QByteArray &payload)
+{
+    QByteArray result;
+    QDataStream stream(&result, QIODevice::WriteOnly);
+    stream.setByteOrder(QDataStream::BigEndian);
+    stream << chatId << userId << sequence;
+    result.append(payload);
+    return result;
+}
+
+bool decodeVoice(const QByteArray &payload, quint32 *chatId, quint32 *userId,
+                 quint32 *sequence, QByteArray *data)
+{
+    if (payload.size() < 12)
+        return false;
+
+    QDataStream stream(payload);
+    stream.setByteOrder(QDataStream::BigEndian);
+
+    quint32 chat = 0;
+    quint32 user = 0;
+    quint32 seq = 0;
+    stream >> chat >> user >> seq;
+
+    if (stream.status() != QDataStream::Ok)
+        return false;
+
+    if (chatId)
+        *chatId = chat;
+    if (userId)
+        *userId = user;
+    if (sequence)
+        *sequence = seq;
+    if (data)
+        *data = payload.mid(12);
+    return true;
 }
 
 } // namespace core::proto

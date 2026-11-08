@@ -35,6 +35,10 @@ public:
     void sendJson(const QJsonObject &object);
     void sendEvent(const QString &event, const QJsonObject &data);
 
+    // Голосовой кадр (Opus) клиенту от имени участника userId.
+    void sendVoiceFrame(quint32 chatId, quint32 userId, quint32 sequence,
+                        const QByteArray &data);
+
     // Выдача файла клиенту: сервер сам режет файл на чанки и шлёт attach.end.
     quint32 allocateDownloadId();
     void queueDownload(quint32 transferId, const QString &path, qint64 size);

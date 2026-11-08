@@ -15,7 +15,8 @@ constexpr int kChunkPrefixSize = 8;
 bool isKnownType(quint8 raw)
 {
     return raw == static_cast<quint8>(FrameType::Json)
-        || raw == static_cast<quint8>(FrameType::Binary);
+        || raw == static_cast<quint8>(FrameType::Binary)
+        || raw == static_cast<quint8>(FrameType::Voice);
 }
 
 } // namespace

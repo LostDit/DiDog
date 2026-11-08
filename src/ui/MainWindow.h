@@ -21,6 +21,7 @@ class BillingService;
 class SessionService;
 class SettingsStore;
 class ThemeManager;
+class VoiceService;
 } // namespace app
 
 namespace net {
@@ -44,7 +45,7 @@ public:
     MainWindow(app::ChatService *chats, app::SessionService *session,
                net::ClientConnection *connection, app::SettingsStore *settings,
                app::ThemeManager *theme, app::BillingService *billing = nullptr,
-               QWidget *parent = nullptr);
+               app::VoiceService *voice = nullptr, QWidget *parent = nullptr);
     ~MainWindow() override;
 
     void setUser(const data::User &user);
@@ -75,6 +76,9 @@ private slots:
     void onDeleteMessageForMe(qint64 messageId);
     void onMembersClicked();
     void onCreateGroup();
+    void onVoiceClicked();
+    void onMuteClicked();
+    void updateVoiceUi();
     void onSendRequested(const QString &text);
     void onThemeToggleClicked();
     void onNewChatClicked();
@@ -104,6 +108,7 @@ private:
     app::SettingsStore *m_settings = nullptr;
     app::ThemeManager *m_theme = nullptr;
     app::BillingService *m_billing = nullptr;
+    app::VoiceService *m_voice = nullptr;
     data::User m_user;
 
     AvatarWidget *m_profileAvatar = nullptr;
@@ -120,6 +125,8 @@ private:
     QLabel *m_headerTitle = nullptr;
     QLabel *m_headerStatus = nullptr;
     QToolButton *m_membersButton = nullptr;
+    QToolButton *m_voiceButton = nullptr;
+    QToolButton *m_muteButton = nullptr;
     int m_groupMemberCount = 0;
     MessageView *m_messageView = nullptr;
     ComposerWidget *m_composer = nullptr;

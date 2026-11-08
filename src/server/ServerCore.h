@@ -55,6 +55,10 @@ private:
     HandlerResult handleBillingRedeem(const QJsonObject &data, ClientSession *session);
     HandlerResult handleThemeList(ClientSession *session);
     HandlerResult handleThemeGet(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleVoiceJoin(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleVoiceLeave(const QJsonObject &data, ClientSession *session);
+
+    void leaveVoiceRoom(ClientSession *session);
 
     HandlerResult handleMessageSend(const QJsonObject &data, ClientSession *session);
     HandlerResult handleMessageEdit(const QJsonObject &data, ClientSession *session);
@@ -70,6 +74,10 @@ public:
     // Бинарный кадр от клиента (чанк загрузки).
     bool handleChunk(ClientSession *session, quint32 transferId, quint32 sequence,
                      const QByteArray &data, QString *error);
+
+    // Голосовой кадр: проверяет участие в голосовой комнате и пересылает остальным.
+    void handleVoiceFrame(ClientSession *session, qint64 chatId, quint32 sequence,
+                          const QByteArray &data);
 
     // Создание промокода (CLI администратора).
     bool createPromo(const QString &code, const QString &plan, int days, int maxUses,
@@ -93,6 +101,7 @@ private:
     AttachmentStore m_attachmentStore;
     QHash<quint32, ReadyAttachment> m_readyAttachments;
     QMultiHash<qint64, ClientSession *> m_sessions;
+    QHash<qint64, QSet<ClientSession *>> m_voiceRooms;
 
     bool isUserOnline(qint64 userId) const;
 };

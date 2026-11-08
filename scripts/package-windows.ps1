@@ -63,6 +63,13 @@ if (Test-Path $openssl) {
     Copy-Item (Join-Path $openssl '*.dll') $dist
     Copy-Item (Join-Path $openssl 'LICENSE-openssl.txt') $dist
 }
+
+# Opus для голосовых каналов.
+$opus = Join-Path $root 'third_party\opus\win64'
+if (Test-Path $opus) {
+    Copy-Item (Join-Path $opus '*.dll') $dist
+    Copy-Item (Join-Path $root 'third_party\opus\LICENSE-opus.txt') $dist
+}
 $tls = Join-Path $root 'resources\tls'
 if (Test-Path $tls) {
     Copy-Item $tls (Join-Path $dist 'tls') -Recurse

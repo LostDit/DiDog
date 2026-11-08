@@ -79,7 +79,7 @@ sudo apt install build-essential cmake ninja-build \
 .\scripts\build-installer.ps1          # Release + windeployqt + Inno Setup
 ```
 
-Результат: `dist\installer\MessengerApp-Setup-1.5.0.exe` (≈21 МБ). Что делает установщик:
+Результат: `dist\installer\MessengerApp-Setup-1.6.0.exe` (≈21 МБ). Что делает установщик:
 
 - ставит приложение в `Program Files\MessengerApp` (или в профиль при `/CURRENTUSER`);
 - добавляет ярлыки «MessengerApp» и «Сервер MessengerApp» в меню «Пуск» (и на рабочий стол по желанию);
@@ -89,7 +89,7 @@ sudo apt install build-essential cmake ninja-build \
 Тихая установка для проверки:
 
 ```powershell
-MessengerApp-Setup-1.5.0.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
+MessengerApp-Setup-1.6.0.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
 ```
 
 **Проверка на двух компьютерах и в разных сетях** — пошаговая инструкция:
@@ -193,6 +193,15 @@ tls=true
 «в сети», роли (владелец, администратор, участник), поиск по именам.
 Владелец и администраторы могут добавлять людей; «Покинуть группу» передаёт роль
 следующему участнику.
+
+## Голос
+
+Кнопка **«Голос»** в шапке личного или группового чата запускает голосовой канал:
+микрофон → Opus → сервер → Opus → динамики. Рядом появляется **«Микрофон»** (mute),
+а статус в шапке показывает «Голос: в эфире». Звук идёт через существующее
+TCP/TLS-соединение, поэтому отдельный порт и настройки не нужны.
+
+Нужен `libopus.dll` рядом с клиентом — он входит в установщик и портативный пакет.
 
 ## Действия с сообщениями
 

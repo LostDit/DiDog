@@ -7,7 +7,8 @@ namespace core {
 
 enum class FrameType : quint8 {
     Json = 1,   // JSON-конверт
-    Binary = 2  // чанк файла: transfer_id + seq + данные
+    Binary = 2, // чанк файла: transfer_id + seq + данные
+    Voice = 3   // голосовой кадр: chat_id + user_id + seq + Opus
 };
 
 struct Frame {

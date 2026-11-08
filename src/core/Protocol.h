@@ -30,6 +30,8 @@ inline constexpr const char kBillingStatus[] = "billing.status";
 inline constexpr const char kBillingRedeem[] = "billing.redeem";
 inline constexpr const char kThemeList[] = "theme.list";
 inline constexpr const char kThemeGet[] = "theme.get";
+inline constexpr const char kVoiceJoin[] = "voice.join";
+inline constexpr const char kVoiceLeave[] = "voice.leave";
 inline constexpr const char kMsgSend[] = "msg.send";
 inline constexpr const char kMsgEdit[] = "msg.edit";
 inline constexpr const char kMsgDelete[] = "msg.delete";
@@ -54,6 +56,7 @@ inline constexpr const char kChat[] = "ev.chat";
 inline constexpr const char kChatMembers[] = "ev.chat.members";
 inline constexpr const char kPresence[] = "ev.presence";
 inline constexpr const char kTyping[] = "ev.typing";
+inline constexpr const char kVoice[] = "ev.voice";
 } // namespace event
 
 // Запрос: {"v":1,"id":"…","type":"…","data":{…}}. Пустой id генерируется.
@@ -76,5 +79,11 @@ bool decode(const QByteArray &payload, QJsonObject *object, QString *error);
 // Разбор ответа: код ошибки и текст (для журналирования и UI).
 ErrorCode errorCodeOf(const QJsonObject &reply);
 QString errorMessageOf(const QJsonObject &reply);
+
+// Голосовой кадр: chat_id | user_id | seq | Opus-данные.
+QByteArray encodeVoice(quint32 chatId, quint32 userId, quint32 sequence,
+                       const QByteArray &payload);
+bool decodeVoice(const QByteArray &payload, quint32 *chatId, quint32 *userId,
+                 quint32 *sequence, QByteArray *data);
 
 } // namespace core::proto

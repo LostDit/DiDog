@@ -72,6 +72,16 @@ void ClientSession::sendEvent(const QString &event, const QJsonObject &data)
     sendJson(core::proto::eventObject(event, data));
 }
 
+void ClientSession::sendVoiceFrame(quint32 chatId, quint32 userId, quint32 sequence,
+                                   const QByteArray &data)
+{
+    if (!m_socket || m_socket->state() != QAbstractSocket::ConnectedState)
+        return;
+
+    const QByteArray payload = core::proto::encodeVoice(chatId, userId, sequence, data);
+    m_socket->write(core::FrameCodec::encode(core::FrameType::Voice, payload));
+}
+
 void ClientSession::onReadyRead()
 {
     m_codec.append(m_socket->readAll());
@@ -96,6 +106,22 @@ void ClientSession::onReadyRead()
 
 void ClientSession::handleFrame(const core::Frame &frame)
 {
+    if (frame.type == core::FrameType::Voice) {
+        quint32 chatId = 0;
+        quint32 userId = 0;
+        quint32 sequence = 0;
+        QByteArray data;
+        if (!core::proto::decodeVoice(frame.payload, &chatId, &userId, &sequence, &data)) {
+            qWarning().noquote() << QStringLiteral("Повреждённый голосовой кадр от %1")
+                                        .arg(peerAddress());
+            return;
+        }
+
+        if (m_core)
+            m_core->handleVoiceFrame(this, chatId, sequence, data);
+        return;
+    }
+
     if (frame.type == core::FrameType::Binary) {
         quint32 transferId = 0;
         quint32 sequence = 0;
@@ -273,7 +299,6 @@ void ClientSession::onDisconnected()
                                                                       : m_username);
     if (m_core)
         m_core->unregisterSession(this);
-    deleteLater();
-}
+    deleteLater();}
 
 } // namespace server

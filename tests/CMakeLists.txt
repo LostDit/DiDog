@@ -10,6 +10,10 @@ function(add_messenger_test target source)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     ${MESSENGER_OPENSSL_DLLS}
                     $<TARGET_FILE_DIR:${target}>)
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    ${CMAKE_SOURCE_DIR}/third_party/opus/win64/libopus.dll
+                    $<TARGET_FILE_DIR:${target}>)
     endif()
 
     add_test(NAME ${target} COMMAND ${target})
@@ -40,3 +44,5 @@ add_messenger_test(tst_attachment_history tst_attachment_history.cpp)
 add_messenger_test(tst_message_ops tst_message_ops.cpp)
 add_messenger_test(tst_group_chat tst_group_chat.cpp)
 add_messenger_test(tst_billing tst_billing.cpp)
+add_messenger_test(tst_voice_relay tst_voice_relay.cpp)
+add_messenger_test(tst_opus tst_opus.cpp)

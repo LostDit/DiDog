@@ -194,6 +194,10 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleThemeList(session);
     if (type == QLatin1String(core::proto::type::kThemeGet))
         return handleThemeGet(data, session);
+    if (type == QLatin1String(core::proto::type::kVoiceJoin))
+        return handleVoiceJoin(data, session);
+    if (type == QLatin1String(core::proto::type::kVoiceLeave))
+        return handleVoiceLeave(data, session);
 
     if (type == QLatin1String(core::proto::type::kMsgSend))
         return handleMessageSend(data, session);
@@ -787,6 +791,94 @@ HandlerResult ServerCore::handleThemeGet(const QJsonObject &data, ClientSession 
     return HandlerResult::success(payload);
 }
 
+HandlerResult ServerCore::handleVoiceJoin(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    bool member = false;
+    if (!chats.isMember(chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    m_voiceRooms[chatId].insert(session);
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    event.insert(QStringLiteral("user_id"), static_cast<double>(session->userId()));
+    event.insert(QStringLiteral("joined"), true);
+    broadcastToChat(chatId, core::proto::event::kVoice, event);
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    payload.insert(QStringLiteral("codec"), QStringLiteral("opus"));
+    payload.insert(QStringLiteral("sample_rate"), 48000);
+    payload.insert(QStringLiteral("frame_ms"), 20);
+    return HandlerResult::success(payload);
+}
+
+HandlerResult ServerCore::handleVoiceLeave(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+
+    auto it = m_voiceRooms.find(chatId);
+    if (it != m_voiceRooms.end() && it.value().remove(session)) {
+        if (it.value().isEmpty())
+            m_voiceRooms.erase(it);
+
+        QJsonObject event;
+        event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+        event.insert(QStringLiteral("user_id"), static_cast<double>(session->userId()));
+        event.insert(QStringLiteral("joined"), false);
+        broadcastToChat(chatId, core::proto::event::kVoice, event);
+    }
+
+    return HandlerResult::success();
+}
+
+void ServerCore::leaveVoiceRoom(ClientSession *session)
+{
+    if (!session)
+        return;
+
+    const auto chatIds = m_voiceRooms.keys();
+    for (const qint64 chatId : chatIds) {
+        auto it = m_voiceRooms.find(chatId);
+        if (it == m_voiceRooms.end() || !it.value().contains(session))
+            continue;
+
+        it.value().remove(session);
+        if (it.value().isEmpty())
+            m_voiceRooms.erase(it);
+
+        QJsonObject event;
+        event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+        event.insert(QStringLiteral("user_id"), static_cast<double>(session->userId()));
+        event.insert(QStringLiteral("joined"), false);
+        broadcastToChat(chatId, core::proto::event::kVoice, event);
+    }
+}
+
+void ServerCore::handleVoiceFrame(ClientSession *session, qint64 chatId, quint32 sequence,
+                                  const QByteArray &data)
+{
+    if (!session || data.isEmpty())
+        return;
+
+    auto it = m_voiceRooms.find(chatId);
+    if (it == m_voiceRooms.end() || !it.value().contains(session))
+        return;
+
+    const QSet<ClientSession *> listeners = it.value();
+    for (ClientSession *peer : listeners) {
+        if (peer != session)
+            peer->sendVoiceFrame(static_cast<quint32>(chatId),
+                                 static_cast<quint32>(session->userId()), sequence, data);
+    }
+}
+
 HandlerResult ServerCore::handleChatRead(const QJsonObject &data, ClientSession *session)
 {
     const qint64 chatId = int64Value(data, "chat_id");
@@ -1261,6 +1353,8 @@ void ServerCore::unregisterSession(ClientSession *session)
 {
     if (!session)
         return;
+
+    leaveVoiceRoom(session);
 
     const qint64 userId = session->userId();
     m_sessions.remove(userId, session);

@@ -15,6 +15,7 @@
 #include "ui/SearchDialog.h"
 #include "ui/SettingsDialog.h"
 #include "ui/VideoPlayerDialog.h"
+#include "voice/VoiceService.h"
 
 #include <QAction>
 #include <QCloseEvent>
@@ -67,13 +68,15 @@ QToolButton *makeIconButton(const QString &iconPath, const QString &toolTip)
 
 MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
                        net::ClientConnection *connection, app::SettingsStore *settings,
-                       app::ThemeManager *theme, app::BillingService *billing, QWidget *parent)
+                       app::ThemeManager *theme, app::BillingService *billing,
+                       app::VoiceService *voice, QWidget *parent)
     : QMainWindow(parent)
     , m_chats(chats)
     , m_session(session)
     , m_settings(settings)
     , m_theme(theme)
     , m_billing(billing)
+    , m_voice(voice)
 {
     setObjectName(QStringLiteral("Root"));
     setWindowTitle(QStringLiteral("MessengerApp"));
@@ -93,6 +96,16 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
             });
     connect(m_chats, &app::ChatService::groupCreated, this,
             [this](qint64 chatId) { openChatById(chatId); });
+
+    if (m_voice) {
+        connect(m_voice, &app::VoiceService::activeChanged, this, [this](bool) {
+            updateVoiceUi();
+            updateHeader();
+        });
+        connect(m_voice, &app::VoiceService::mutedChanged, this,
+                [this](bool) { updateVoiceUi(); });
+        connect(m_voice, &app::VoiceService::errorOccurred, this, &MainWindow::onError);
+    }
     connect(m_chats, &app::ChatService::messagesChanged, this, &MainWindow::onMessagesChanged);
     connect(m_chats, &app::ChatService::errorOccurred, this, &MainWindow::onError);
     connect(m_chats, &app::ChatService::typingChanged, this, &MainWindow::onTypingChanged);
@@ -362,6 +375,22 @@ QWidget *MainWindow::buildConversationPane()
     connect(m_membersButton, &QToolButton::clicked, this, &MainWindow::onMembersClicked);
     headerLayout->addWidget(m_membersButton);
 
+    m_voiceButton = new QToolButton(header);
+    m_voiceButton->setText(tr("Голос"));
+    m_voiceButton->setObjectName(QStringLiteral("LinkButton"));
+    m_voiceButton->setCursor(Qt::PointingHandCursor);
+    m_voiceButton->setVisible(false);
+    connect(m_voiceButton, &QToolButton::clicked, this, &MainWindow::onVoiceClicked);
+    headerLayout->addWidget(m_voiceButton);
+
+    m_muteButton = new QToolButton(header);
+    m_muteButton->setText(tr("Микрофон"));
+    m_muteButton->setObjectName(QStringLiteral("LinkButton"));
+    m_muteButton->setCursor(Qt::PointingHandCursor);
+    m_muteButton->setVisible(false);
+    connect(m_muteButton, &QToolButton::clicked, this, &MainWindow::onMuteClicked);
+    headerLayout->addWidget(m_muteButton);
+
     headerLayout->addStretch(1);
 
     layout->addWidget(header);
@@ -577,6 +606,9 @@ void MainWindow::openChat(qint64 chatId)
     if (chatId <= 0)
         return;
 
+    if (m_voice && m_voice->isActive() && m_voice->chatId() != chatId)
+        m_voice->stop();
+
     m_currentChatId = chatId;
     m_chats->setActiveChat(chatId);
 
@@ -627,7 +659,9 @@ void MainWindow::updateHeader()
         m_membersButton->setVisible(isGroup);
 
     QString status;
-    if (m_typingUserId > 0) {
+    if (m_voice && m_voice->isActive() && m_voice->chatId() == m_currentChatId) {
+        status = m_voice->isMuted() ? tr("Голос: микрофон выключен") : tr("Голос: в эфире");
+    } else if (m_typingUserId > 0) {
         status = tr("печатает…");
     } else if (isGroup) {
         status = tr("%1 участник(ов)").arg(m_groupMemberCount);
@@ -637,6 +671,47 @@ void MainWindow::updateHeader()
     }
 
     m_headerStatus->setText(status);
+    updateVoiceUi();
+}
+
+void MainWindow::onVoiceClicked()
+{
+    if (!m_voice || m_currentChatId <= 0)
+        return;
+
+    if (m_voice->isActive() && m_voice->chatId() == m_currentChatId)
+        m_voice->stop();
+    else
+        m_voice->start(m_currentChatId);
+
+    updateVoiceUi();
+}
+
+void MainWindow::onMuteClicked()
+{
+    if (!m_voice)
+        return;
+
+    m_voice->setMuted(!m_voice->isMuted());
+    updateVoiceUi();
+    updateHeader();
+}
+
+void MainWindow::updateVoiceUi()
+{
+    const bool active = m_voice && m_voice->isActive()
+                        && m_voice->chatId() == m_currentChatId;
+
+    if (m_voiceButton) {
+        m_voiceButton->setVisible(m_currentChatId > 0);
+        m_voiceButton->setText(active ? tr("Завершить голос") : tr("Голос"));
+    }
+
+    if (m_muteButton) {
+        m_muteButton->setVisible(active);
+        m_muteButton->setText(m_voice && m_voice->isMuted() ? tr("Включить микрофон")
+                                                           : tr("Выключить микрофон"));
+    }
 }
 
 void MainWindow::onSendRequested(const QString &text)

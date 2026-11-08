@@ -180,6 +180,21 @@ server → client : auth.ok {token, user} | error
 `{id}` → `{theme: {id, name, premium, tokens: {bg, surface, accent, …}}}`;
 премиальный пакет без подписки → `BAD_REQUEST` «Требуется подписка».
 
+### `voice.join`
+`{chat_id}` → `{chat_id, codec:"opus", sample_rate:48000, frame_ms:20}`;
+сервер добавляет сессию в голосовую комнату чата и рассылает `ev.voice`
+остальным участникам. Ошибки: `NOT_MEMBER`.
+
+### `voice.leave`
+`{chat_id}` → `{}`; выход из комнаты, событие `ev.voice` с `joined:false`.
+При обрыве соединения сервер снимает сессию с комнаты автоматически.
+
+### Голосовые кадры (`type=3`)
+Бинарный кадр: `chat_id (uint32) | user_id (uint32) | seq (uint32) | Opus-данные`
+(20 мс, 48 кГц, моно, ~32 кбит/с). Клиент отправляет кадр с `user_id = 0`,
+сервер подставляет id отправителя и пересылает остальным участникам комнаты.
+Кадры не подтверждаются; потеря пакета маскируется PLC декодера Opus.
+
 ### `attach.begin`
 `{chat_id, file_name, mime, byte_size, sha256}` →
 `{transfer_id, chunk_size}`; ошибки `TOO_LARGE`, `RATE_LIMITED`.
@@ -216,6 +231,7 @@ server → client : auth.ok {token, user} | error
 | `ev.chat.members` | `{chat_id}` | состав группы изменился |
 | `ev.presence` | `{user_id, online, last_seen}` | подключение/отключение |
 | `ev.typing` | `{chat_id, user_id, on}` | набор текста |
+| `ev.voice` | `{chat_id, user_id, joined}` | вход/выход участника из голосового канала |
 
 `message`:
 ```json

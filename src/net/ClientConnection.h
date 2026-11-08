@@ -64,6 +64,9 @@ public:
     // Отправка бинарного чанка (загрузка вложения).
     bool sendChunk(quint32 transferId, quint32 sequence, const QByteArray &data);
 
+    // Голосовой кадр (Opus) через сервер.
+    bool sendVoiceFrame(quint32 chatId, quint32 sequence, const QByteArray &data);
+
     qint64 bytesToWrite() const;
 
 signals:
@@ -76,6 +79,8 @@ signals:
 
     // Бинарные кадры и завершение выдачи файла (attach.end).
     void chunkReceived(quint32 transferId, quint32 sequence, const QByteArray &data);
+    void voiceFrameReceived(quint32 chatId, quint32 userId, quint32 sequence,
+                            const QByteArray &data);
     void transferFinished(quint32 transferId);
     void bytesWritten(qint64 bytes);
     void certificatePinned(const QString &fingerprint);

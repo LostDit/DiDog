@@ -10,6 +10,7 @@
 #include "app/SettingsStore.h"
 #include "app/ThemeManager.h"
 #include "net/ClientConnection.h"
+#include "voice/VoiceService.h"
 #include "ui/LoginWindow.h"
 #include "ui/MainWindow.h"
 
@@ -106,6 +107,7 @@ void ClientController::createConnection()
 
     m_session = new SessionService(m_connection, m_settings, this);
     m_billing = new BillingService(m_connection, m_settings, this);
+    m_voice = new VoiceService(m_connection, this);
     m_attachments = new AttachmentService(m_connection, paths::attachmentsDir(), this);
 
     connect(m_session, &SessionService::authenticated, this, &ClientController::onAuthenticated);
@@ -158,7 +160,7 @@ void ClientController::onAuthenticated(const data::User &user)
 
     if (!m_mainWindow) {
         m_mainWindow.reset(new ui::MainWindow(m_chats, m_session, m_connection,
-                                              m_settings, m_theme, m_billing));
+                                              m_settings, m_theme, m_billing, m_voice));
         m_mainWindow->setUser(user);
         m_mainWindow->show();
 
