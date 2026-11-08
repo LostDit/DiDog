@@ -3,7 +3,7 @@
 ; Требует предварительно собранный dist\MessengerApp (scripts\package-windows.ps1).
 
 #define AppName "MessengerApp"
-#define AppVersion "1.6.0"
+#define AppVersion "1.6.1"
 #define AppPublisher "LostDit"
 #define AppUrl "https://github.com/LostDit/MessengerApp"
 #define ClientExe "MessengerClient.exe"

@@ -127,6 +127,7 @@ if(WIN32)
     add_custom_command(TARGET MessengerClient POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 ${CMAKE_SOURCE_DIR}/third_party/opus/win64/libopus.dll
+                ${CMAKE_SOURCE_DIR}/third_party/opus/win64/libssp-0.dll
                 $<TARGET_FILE_DIR:MessengerClient>)
 endif()
 

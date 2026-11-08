@@ -13,6 +13,7 @@ function(add_messenger_test target source)
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                     ${CMAKE_SOURCE_DIR}/third_party/opus/win64/libopus.dll
+                    ${CMAKE_SOURCE_DIR}/third_party/opus/win64/libssp-0.dll
                     $<TARGET_FILE_DIR:${target}>)
     endif()
 

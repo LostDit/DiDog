@@ -47,9 +47,12 @@ bool loadApi(QString *error)
 #endif
     };
 
+    QStringList failures;
+
     for (const QString &name : candidates) {
         auto *library = new QLibrary(name);
         if (!library->load()) {
+            failures.append(QStringLiteral("%1: %2").arg(name, library->errorString()));
             delete library;
             continue;
         }
@@ -77,8 +80,11 @@ bool loadApi(QString *error)
         a = OpusApi();
     }
 
-    if (error)
-        *error = QStringLiteral("Библиотека Opus не найдена (libopus.dll / libopus.so.0)");
+    if (error) {
+        *error = QStringLiteral("Библиотека Opus не найдена (libopus.dll / libopus.so.0).");
+        if (!failures.isEmpty())
+            *error += QStringLiteral(" Причина: %1").arg(failures.first());
+    }
     return false;
 }
 
