@@ -7,6 +7,7 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QAudioDeviceInfo>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDialogButtonBox>
@@ -118,6 +119,46 @@ void SettingsDialog::buildUi()
     m_promoStatus->setWordWrap(true);
     m_promoStatus->setVisible(false);
     layout->addWidget(m_promoStatus);
+
+    layout->addWidget(sectionTitle(tr("Голос"), this));
+
+    m_pttCheck = new QCheckBox(tr("Push-to-talk: говорить, удерживая кнопку"), this);
+    m_pttCheck->setChecked(m_settings->voicePushToTalk());
+    connect(m_pttCheck, &QCheckBox::toggled, this,
+            [this](bool enabled) { m_settings->setVoicePushToTalk(enabled); });
+    layout->addWidget(m_pttCheck);
+
+    auto *devicesRow = new QHBoxLayout;
+    devicesRow->setSpacing(8);
+
+    m_inputCombo = new QComboBox(this);
+    m_inputCombo->setObjectName(QStringLiteral("ThemeCombo"));
+    m_inputCombo->addItem(tr("Микрофон по умолчанию"), QString());
+    for (const QAudioDeviceInfo &device : QAudioDeviceInfo::availableDevices(QAudio::AudioInput))
+        m_inputCombo->addItem(device.deviceName(), device.deviceName());
+    m_inputCombo->setCurrentIndex(
+        qMax(0, m_inputCombo->findData(m_settings->voiceInputDevice())));
+    devicesRow->addWidget(m_inputCombo, 1);
+
+    m_outputCombo = new QComboBox(this);
+    m_outputCombo->setObjectName(QStringLiteral("ThemeCombo"));
+    m_outputCombo->addItem(tr("Динамики по умолчанию"), QString());
+    for (const QAudioDeviceInfo &device : QAudioDeviceInfo::availableDevices(QAudio::AudioOutput))
+        m_outputCombo->addItem(device.deviceName(), device.deviceName());
+    m_outputCombo->setCurrentIndex(
+        qMax(0, m_outputCombo->findData(m_settings->voiceOutputDevice())));
+    devicesRow->addWidget(m_outputCombo, 1);
+
+    layout->addLayout(devicesRow);
+
+    const auto saveDevices = [this]() {
+        m_settings->setVoiceDevices(m_inputCombo->currentData().toString(),
+                                    m_outputCombo->currentData().toString());
+    };
+    connect(m_inputCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, saveDevices);
+    connect(m_outputCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, saveDevices);
 
     layout->addWidget(sectionTitle(tr("Обновления"), this));
 

@@ -1,8 +1,10 @@
 #include "voice/VoiceService.h"
 
+#include "app/SettingsStore.h"
 #include "core/Protocol.h"
 #include "net/ClientConnection.h"
 #include "voice/OpusCodec.h"
+#include "voice/VoiceCrypto.h"
 
 #include <QAudioDeviceInfo>
 #include <QAudioFormat>
@@ -37,13 +39,18 @@ QAudioFormat voiceFormat()
 
 } // namespace
 
-VoiceService::VoiceService(net::ClientConnection *connection, QObject *parent)
+VoiceService::VoiceService(net::ClientConnection *connection, SettingsStore *settings,
+                           QObject *parent)
     : QObject(parent)
     , m_connection(connection)
+    , m_settings(settings)
     , m_codec(new OpusCodec)
     , m_keepalive(new QTimer(this))
     , m_jitterTimer(new QTimer(this))
 {
+    m_pushToTalk = m_settings && m_settings->voicePushToTalk();
+    m_transmitting = !m_pushToTalk;
+
     if (!m_connection)
         return;
 
@@ -125,8 +132,16 @@ void VoiceService::call(qint64 chatId)
             }
 
             const QJsonObject data = reply.value(QStringLiteral("data")).toObject();
+            const QByteArray key = QByteArray::fromHex(
+                data.value(QStringLiteral("voice_key")).toString().toLatin1());
+            if (key.size() != 32) {
+                emit errorOccurred(tr("Сервер не выдал ключ шифрования голоса."));
+                setState(State::Idle);
+                return;
+            }
             openUdp(static_cast<quint16>(data.value(QStringLiteral("udp_port")).toInt()),
-                    static_cast<quint32>(data.value(QStringLiteral("udp_token")).toDouble()));
+                    static_cast<quint32>(data.value(QStringLiteral("udp_token")).toDouble()),
+                    key);
             openAudio();
 
             m_connection->request(
@@ -169,8 +184,16 @@ void VoiceService::accept(qint64 chatId, qint64 callerId)
             }
 
             const QJsonObject data = reply.value(QStringLiteral("data")).toObject();
+            const QByteArray key = QByteArray::fromHex(
+                data.value(QStringLiteral("voice_key")).toString().toLatin1());
+            if (key.size() != 32) {
+                emit errorOccurred(tr("Сервер не выдал ключ шифрования голоса."));
+                setState(State::Idle);
+                return;
+            }
             openUdp(static_cast<quint16>(data.value(QStringLiteral("udp_port")).toInt()),
-                    static_cast<quint32>(data.value(QStringLiteral("udp_token")).toDouble()));
+                    static_cast<quint32>(data.value(QStringLiteral("udp_token")).toDouble()),
+                    key);
             openAudio();
 
             m_connection->request(
@@ -223,7 +246,6 @@ void VoiceService::hangup()
     closeAudio();
     closeUdp();
     m_jitter.clear();
-    m_expectedSequence = 0;
     m_chatId = 0;
     m_callerId = 0;
     setState(State::Idle);
@@ -250,11 +272,51 @@ void VoiceService::setMuted(bool muted)
     emit mutedChanged(muted);
 }
 
+void VoiceService::setPushToTalk(bool enabled)
+{
+    if (m_pushToTalk == enabled)
+        return;
+
+    m_pushToTalk = enabled;
+    m_transmitting = !enabled;
+}
+
+void VoiceService::setTransmitting(bool transmitting)
+{
+    if (!m_pushToTalk || m_transmitting == transmitting)
+        return;
+
+    m_transmitting = transmitting;
+}
+
 void VoiceService::openAudio()
 {
     const QAudioFormat format = voiceFormat();
-    const QAudioDeviceInfo inputDevice = QAudioDeviceInfo::defaultInputDevice();
-    const QAudioDeviceInfo outputDevice = QAudioDeviceInfo::defaultOutputDevice();
+
+    QAudioDeviceInfo inputDevice = QAudioDeviceInfo::defaultInputDevice();
+    QAudioDeviceInfo outputDevice = QAudioDeviceInfo::defaultOutputDevice();
+
+    const QString inputName = m_settings ? m_settings->voiceInputDevice() : QString();
+    if (!inputName.isEmpty()) {
+        for (const QAudioDeviceInfo &device :
+             QAudioDeviceInfo::availableDevices(QAudio::AudioInput)) {
+            if (device.deviceName() == inputName) {
+                inputDevice = device;
+                break;
+            }
+        }
+    }
+
+    const QString outputName = m_settings ? m_settings->voiceOutputDevice() : QString();
+    if (!outputName.isEmpty()) {
+        for (const QAudioDeviceInfo &device :
+             QAudioDeviceInfo::availableDevices(QAudio::AudioOutput)) {
+            if (device.deviceName() == outputName) {
+                outputDevice = device;
+                break;
+            }
+        }
+    }
 
     if (inputDevice.isNull() || outputDevice.isNull()) {
         emit errorOccurred(tr("Микрофон или динамики не найдены."));
@@ -293,12 +355,14 @@ void VoiceService::closeAudio()
     }
 }
 
-void VoiceService::openUdp(quint16 port, quint32 token)
+void VoiceService::openUdp(quint16 port, quint32 token, const QByteArray &key)
 {
     closeUdp();
 
     m_serverVoicePort = port;
     m_token = token;
+    m_key = key;
+    m_lastSequenceByUser.clear();
 
     const QString host = m_connection ? m_connection->host() : QString();
     if (!m_serverAddress.setAddress(host)) {
@@ -320,7 +384,6 @@ void VoiceService::openUdp(quint16 port, quint32 token)
     m_udp->bind(QHostAddress(QHostAddress::Any), 0);
     connect(m_udp, &QUdpSocket::readyRead, this, &VoiceService::onUdpDatagrams);
 
-    m_expectedSequence = 0;
     m_sendSequence = 0;
     sendDatagram(QByteArray()); // «привет»: сервер запоминает наш адрес
     m_keepalive->start();
@@ -337,6 +400,8 @@ void VoiceService::closeUdp()
     }
 
     m_token = 0;
+    m_key.clear();
+    m_lastSequenceByUser.clear();
 }
 
 void VoiceService::sendDatagram(const QByteArray &payload)
@@ -344,8 +409,18 @@ void VoiceService::sendDatagram(const QByteArray &payload)
     if (!m_udp || m_token == 0 || m_serverAddress.isNull() || m_serverVoicePort == 0)
         return;
 
+    const quint32 sequence = m_sendSequence++;
+
+    QByteArray body = payload;
+    if (!payload.isEmpty()) {
+        bool encrypted = false;
+        body = VoiceCrypto::encrypt(m_key, sequence, payload, &encrypted);
+        if (!encrypted)
+            return;
+    }
+
     const QByteArray datagram =
-        core::proto::encodeVoiceDatagram(m_token, m_sendSequence++, payload);
+        core::proto::encodeVoiceDatagram(m_token, sequence, body);
     m_udp->writeDatagram(datagram, m_serverAddress, m_serverVoicePort);
 }
 
@@ -396,9 +471,22 @@ void VoiceService::onAudioReady()
         const QByteArray frame = m_captureBuffer.left(kFrameBytes);
         m_captureBuffer.remove(0, kFrameBytes);
 
-        updateSpeaking(frame);
+        const bool canSend = !m_muted && (!m_pushToTalk || m_transmitting);
 
-        if (m_muted)
+        if (canSend) {
+            updateSpeaking(frame);
+        } else if (m_speaking) {
+            m_speaking = false;
+            if (m_connection && m_connection->isConnected()) {
+                m_connection->request(
+                    QStringLiteral("voice.speaking"),
+                    QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(m_chatId)},
+                                {QStringLiteral("on"), false}},
+                    nullptr, 3000);
+            }
+        }
+
+        if (!canSend)
             continue;
 
         const QByteArray packet = m_codec->encode(frame);
@@ -426,13 +514,19 @@ void VoiceService::onUdpDatagrams()
         if (payload.isEmpty())
             continue;
 
-        if (m_expectedSequence == 0)
-            m_expectedSequence = sequence;
+        // Повтор или слишком старый пакет от этого участника — отбрасываем.
+        const quint32 last = m_lastSequenceByUser.value(userId, 0);
+        if (last != 0 && sequence <= last)
+            continue;
+        m_lastSequenceByUser.insert(userId, sequence);
 
-        if (sequence < m_expectedSequence)
+        bool decrypted = false;
+        const QByteArray opus = VoiceCrypto::decrypt(m_key, sequence, payload, &decrypted);
+        if (!decrypted)
             continue;
 
-        m_jitter.insert(sequence, payload);
+        const quint64 key = (static_cast<quint64>(userId) << 32) | sequence;
+        m_jitter.insert(key, opus);
         while (m_jitter.size() > kMaxJitterPackets)
             m_jitter.erase(m_jitter.begin());
     }
@@ -448,7 +542,6 @@ void VoiceService::flushJitter()
 
     const auto it = m_jitter.begin();
     const QByteArray packet = it.value();
-    m_expectedSequence = it.key() + 1;
     m_jitter.erase(m_jitter.begin());
 
     const QByteArray pcm = m_codec->decode(packet);

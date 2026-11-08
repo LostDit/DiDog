@@ -70,6 +70,13 @@ public:
     QString customThemeTokens() const;
     void setCustomTheme(const QString &id, const QString &tokensJson);
 
+    // Голос: push-to-talk и выбранные устройства (пусто — системные по умолчанию).
+    bool voicePushToTalk() const;
+    void setVoicePushToTalk(bool enabled);
+    QString voiceInputDevice() const;
+    QString voiceOutputDevice() const;
+    void setVoiceDevices(const QString &input, const QString &output);
+
     QString filePath() const;
 
 private:

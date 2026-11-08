@@ -107,7 +107,7 @@ void ClientController::createConnection()
 
     m_session = new SessionService(m_connection, m_settings, this);
     m_billing = new BillingService(m_connection, m_settings, this);
-    m_voice = new VoiceService(m_connection, this);
+    m_voice = new VoiceService(m_connection, m_settings, this);
     m_attachments = new AttachmentService(m_connection, paths::attachmentsDir(), this);
 
     connect(m_session, &SessionService::authenticated, this, &ClientController::onAuthenticated);

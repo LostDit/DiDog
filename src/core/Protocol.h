@@ -98,8 +98,8 @@ QByteArray encodeVoice(quint32 chatId, quint32 userId, quint32 sequence,
 bool decodeVoice(const QByteArray &payload, quint32 *chatId, quint32 *userId,
                  quint32 *sequence, QByteArray *data);
 
-// UDP-дейтаграммы голоса: "MV01" (4) + token/user_id (4) + seq (4) + Opus.
-inline constexpr quint32 kVoiceMagic = 0x4D563031;
+// UDP-дейтаграммы голоса: "MV02" (4) + token/user_id (4) + seq (4) + AEAD-данные.
+inline constexpr quint32 kVoiceMagic = 0x4D563032;
 
 QByteArray encodeVoiceDatagram(quint32 token, quint32 sequence, const QByteArray &payload);
 bool decodeVoiceDatagram(const QByteArray &datagram, quint32 *token, quint32 *sequence,

@@ -305,6 +305,32 @@ void SettingsStore::setSubscription(const QString &plan, qint64 expiresAt)
     m_settings.setValue(QStringLiteral("billing/expires"), expiresAt);
 }
 
+bool SettingsStore::voicePushToTalk() const
+{
+    return m_settings.value(QStringLiteral("voice/pushToTalk"), false).toBool();
+}
+
+void SettingsStore::setVoicePushToTalk(bool enabled)
+{
+    m_settings.setValue(QStringLiteral("voice/pushToTalk"), enabled);
+}
+
+QString SettingsStore::voiceInputDevice() const
+{
+    return m_settings.value(QStringLiteral("voice/inputDevice")).toString();
+}
+
+QString SettingsStore::voiceOutputDevice() const
+{
+    return m_settings.value(QStringLiteral("voice/outputDevice")).toString();
+}
+
+void SettingsStore::setVoiceDevices(const QString &input, const QString &output)
+{
+    m_settings.setValue(QStringLiteral("voice/inputDevice"), input);
+    m_settings.setValue(QStringLiteral("voice/outputDevice"), output);
+}
+
 QString SettingsStore::filePath() const
 {
     return m_settings.fileName();

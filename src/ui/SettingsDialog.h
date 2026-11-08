@@ -73,6 +73,10 @@ private:
     QPushButton *m_updateButton = nullptr;
     QProgressBar *m_updateProgress = nullptr;
     bool m_updateReady = false;
+
+    QCheckBox *m_pttCheck = nullptr;
+    QComboBox *m_inputCombo = nullptr;
+    QComboBox *m_outputCombo = nullptr;
 };
 
 } // namespace ui

@@ -850,6 +850,7 @@ void ServerCore::stopVoiceSocket()
     m_voiceSocket = nullptr;
     m_voiceEndpoints.clear();
     m_sessionVoiceTokens.clear();
+    m_voiceKeys.clear();
 }
 
 void ServerCore::removeVoiceEndpoint(ClientSession *session)
@@ -883,6 +884,11 @@ void ServerCore::onVoiceDatagram()
         // Пустой payload — «привет»/keepalive, только регистрирует адрес.
         endpointIt->address = datagram.senderAddress();
         endpointIt->port = static_cast<quint16>(datagram.senderPort());
+
+        // Защита от повторов: seq должен расти.
+        if (sequence != 0 && sequence <= endpointIt->lastSequence)
+            continue;
+        endpointIt->lastSequence = sequence;
 
         if (payload.isEmpty())
             continue;
@@ -1141,6 +1147,15 @@ HandlerResult ServerCore::handleVoiceJoin(const QJsonObject &data, ClientSession
     m_voiceEndpoints.insert(voiceToken, endpoint);
     m_sessionVoiceTokens.insert(session, voiceToken);
 
+    // Ключ комнаты: один на всех участников, выдаётся по TLS и живёт,
+    // пока в комнате кто-то есть. Сервер сам звук не расшифровывает.
+    if (!m_voiceKeys.contains(chatId)) {
+        QByteArray key(32, Qt::Uninitialized);
+        QRandomGenerator::global()->fillRange(reinterpret_cast<quint32 *>(key.data()), 8);
+        m_voiceKeys.insert(chatId, key);
+    }
+    const QByteArray voiceKey = m_voiceKeys.value(chatId);
+
     QJsonObject event;
     event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
     event.insert(QStringLiteral("user_id"), static_cast<double>(session->userId()));
@@ -1154,6 +1169,8 @@ HandlerResult ServerCore::handleVoiceJoin(const QJsonObject &data, ClientSession
     payload.insert(QStringLiteral("frame_ms"), 20);
     payload.insert(QStringLiteral("udp_port"), m_voicePort);
     payload.insert(QStringLiteral("udp_token"), static_cast<double>(voiceToken));
+    payload.insert(QStringLiteral("voice_key"),
+                   QString::fromLatin1(voiceKey.toHex()));
     return HandlerResult::success(payload);
 }
 
@@ -1190,8 +1207,10 @@ void ServerCore::leaveVoiceRoom(ClientSession *session)
             continue;
 
         it.value().remove(session);
-        if (it.value().isEmpty())
+        if (it.value().isEmpty()) {
             m_voiceRooms.erase(it);
+            m_voiceKeys.remove(chatId); // комната опустела — ключ больше не нужен
+        }
 
         QJsonObject event;
         event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));

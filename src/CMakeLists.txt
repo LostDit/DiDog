@@ -43,6 +43,7 @@ set(MESSENGER_CORE_SOURCES
     net/RequestTracker.h        net/RequestTracker.cpp
 
     voice/OpusCodec.h           voice/OpusCodec.cpp
+    voice/VoiceCrypto.h         voice/VoiceCrypto.cpp
     voice/VoiceService.h        voice/VoiceService.cpp
 
     server/AttachmentStore.h    server/AttachmentStore.cpp

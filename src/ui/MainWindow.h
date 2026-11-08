@@ -138,6 +138,7 @@ private:
     QToolButton *m_membersButton = nullptr;
     QToolButton *m_voiceButton = nullptr;
     QToolButton *m_muteButton = nullptr;
+    QToolButton *m_talkButton = nullptr;
     ParticipantsPanel *m_participantsPanel = nullptr;
     bool m_panelVisible = false;
     qint64 m_speakingUserId = 0;

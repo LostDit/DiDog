@@ -435,6 +435,25 @@ QWidget *MainWindow::buildConversationPane()
     connect(m_muteButton, &QToolButton::clicked, this, &MainWindow::onMuteClicked);
     headerLayout->addWidget(m_muteButton);
 
+    m_talkButton = new QToolButton(header);
+    m_talkButton->setText(tr("Говорить"));
+    m_talkButton->setObjectName(QStringLiteral("LinkButton"));
+    m_talkButton->setCursor(Qt::PointingHandCursor);
+    m_talkButton->setVisible(false);
+    connect(m_talkButton, &QToolButton::pressed, this, [this]() {
+        if (m_voice)
+            m_voice->setTransmitting(true);
+        if (m_talkButton)
+            m_talkButton->setText(tr("Говорю…"));
+    });
+    connect(m_talkButton, &QToolButton::released, this, [this]() {
+        if (m_voice)
+            m_voice->setTransmitting(false);
+        if (m_talkButton)
+            m_talkButton->setText(tr("Говорить"));
+    });
+    headerLayout->addWidget(m_talkButton);
+
     headerLayout->addStretch(1);
 
     layout->addWidget(header);
@@ -868,6 +887,12 @@ void MainWindow::updateVoiceUi()
         m_muteButton->setText(m_voice && m_voice->isMuted() ? tr("Включить микрофон")
                                                            : tr("Выключить микрофон"));
     }
+
+    if (m_talkButton) {
+        const bool active = state == app::VoiceService::State::Active && inCurrentChat
+                            && m_voice && m_voice->pushToTalk();
+        m_talkButton->setVisible(active);
+    }
 }
 
 void MainWindow::onIncomingCall(qint64 chatId, qint64 callerId, const QString &callerName)
@@ -1086,6 +1111,11 @@ void MainWindow::openSettings()
 
     ui::SettingsDialog dialog(m_settings, m_theme, m_billing, m_updater, this);
     dialog.exec();
+
+    if (m_voice) {
+        m_voice->setPushToTalk(m_settings->voicePushToTalk());
+        updateVoiceUi();
+    }
 }
 
 void MainWindow::onError(const QString &message)

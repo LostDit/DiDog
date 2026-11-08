@@ -138,6 +138,7 @@ private:
         qint64 userId = 0;
         QHostAddress address;
         quint16 port = 0;
+        quint32 lastSequence = 0;
     };
 
     void onVoiceDatagram();
@@ -147,6 +148,7 @@ private:
     quint16 m_voicePort = 45001;
     QHash<quint32, VoiceEndpoint> m_voiceEndpoints;
     QHash<ClientSession *, quint32> m_sessionVoiceTokens;
+    QHash<qint64, QByteArray> m_voiceKeys;
 
     bool isUserOnline(qint64 userId) const;
 };

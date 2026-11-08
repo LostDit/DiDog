@@ -145,23 +145,29 @@
 <context>
     <name>app::VoiceService</name>
     <message>
-        <location filename="../src/voice/VoiceService.cpp" line="98"/>
-        <location filename="../src/voice/VoiceService.cpp" line="147"/>
+        <location filename="../src/voice/VoiceService.cpp" line="105"/>
+        <location filename="../src/voice/VoiceService.cpp" line="162"/>
         <source>Нет соединения с сервером.</source>
         <translation>No connection to the server.</translation>
     </message>
     <message>
-        <location filename="../src/voice/VoiceService.cpp" line="260"/>
+        <location filename="../src/voice/VoiceService.cpp" line="138"/>
+        <location filename="../src/voice/VoiceService.cpp" line="190"/>
+        <source>Сервер не выдал ключ шифрования голоса.</source>
+        <translation>The server did not provide a voice encryption key.</translation>
+    </message>
+    <message>
+        <location filename="../src/voice/VoiceService.cpp" line="322"/>
         <source>Микрофон или динамики не найдены.</source>
         <translation>No microphone or speakers found.</translation>
     </message>
     <message>
-        <location filename="../src/voice/VoiceService.cpp" line="267"/>
+        <location filename="../src/voice/VoiceService.cpp" line="329"/>
         <source>Не удалось открыть микрофон.</source>
         <translation>Could not open the microphone.</translation>
     </message>
     <message>
-        <location filename="../src/voice/VoiceService.cpp" line="315"/>
+        <location filename="../src/voice/VoiceService.cpp" line="379"/>
         <source>Сервер не выдал UDP-адрес для голоса.</source>
         <translation>The server did not provide a UDP address for voice.</translation>
     </message>
@@ -529,7 +535,7 @@
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="270"/>
-        <location filename="../src/ui/MainWindow.cpp" line="1020"/>
+        <location filename="../src/ui/MainWindow.cpp" line="1045"/>
         <source>Новый чат</source>
         <translation>New chat</translation>
     </message>
@@ -572,7 +578,7 @@ History is stored on this device.</translation>
     </message>
     <message>
         <location filename="../src/ui/MainWindow.cpp" line="423"/>
-        <location filename="../src/ui/MainWindow.cpp" line="862"/>
+        <location filename="../src/ui/MainWindow.cpp" line="881"/>
         <source>Голос</source>
         <translation>Voice</translation>
     </message>
@@ -582,231 +588,242 @@ History is stored on this device.</translation>
         <translation>Microphone</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="443"/>
+        <location filename="../src/ui/MainWindow.cpp" line="439"/>
+        <location filename="../src/ui/MainWindow.cpp" line="453"/>
+        <source>Говорить</source>
+        <translation>Talk</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindow.cpp" line="447"/>
+        <source>Говорю…</source>
+        <translation>Talking…</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/MainWindow.cpp" line="462"/>
         <source>Лента сообщений</source>
         <translation>Message feed</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="483"/>
+        <location filename="../src/ui/MainWindow.cpp" line="502"/>
         <source>Сохранить файл</source>
         <translation>Save file</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="490"/>
-        <location filename="../src/ui/MainWindow.cpp" line="496"/>
+        <location filename="../src/ui/MainWindow.cpp" line="509"/>
+        <location filename="../src/ui/MainWindow.cpp" line="515"/>
         <source>Не удалось сохранить файл</source>
         <translation>Could not save the file</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="491"/>
+        <location filename="../src/ui/MainWindow.cpp" line="510"/>
         <source>Файл занят или недоступен для записи.</source>
         <translation>The file is in use or read-only.</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="497"/>
+        <location filename="../src/ui/MainWindow.cpp" line="516"/>
         <source>Не удалось скопировать файл в выбранное место.</source>
         <translation>Could not copy the file to the selected location.</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="532"/>
+        <location filename="../src/ui/MainWindow.cpp" line="551"/>
         <source>Изменить сообщение</source>
         <translation>Edit message</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="532"/>
+        <location filename="../src/ui/MainWindow.cpp" line="551"/>
         <source>Новый текст</source>
         <translation>New text</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="546"/>
+        <location filename="../src/ui/MainWindow.cpp" line="565"/>
         <source>Удалить у всех</source>
         <translation>Delete for everyone</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="547"/>
+        <location filename="../src/ui/MainWindow.cpp" line="566"/>
         <source>Сообщение исчезнет у всех участников чата. Продолжить?</source>
         <translation>The message will disappear for all chat members. Continue?</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="558"/>
+        <location filename="../src/ui/MainWindow.cpp" line="577"/>
         <source>Удалить у себя</source>
         <translation>Delete for me</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="559"/>
+        <location filename="../src/ui/MainWindow.cpp" line="578"/>
         <source>Сообщение будет скрыто только на этом компьютере.</source>
         <translation>The message will be hidden on this computer only.</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="578"/>
+        <location filename="../src/ui/MainWindow.cpp" line="597"/>
         <source>Открыть</source>
         <translation>Open</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="580"/>
-        <location filename="../src/ui/MainWindow.cpp" line="594"/>
+        <location filename="../src/ui/MainWindow.cpp" line="599"/>
+        <location filename="../src/ui/MainWindow.cpp" line="613"/>
         <source>Очистить историю</source>
         <translation>Clear history</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="581"/>
-        <location filename="../src/ui/MainWindow.cpp" line="606"/>
+        <location filename="../src/ui/MainWindow.cpp" line="600"/>
+        <location filename="../src/ui/MainWindow.cpp" line="625"/>
         <source>Удалить чат</source>
         <translation>Delete chat</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="595"/>
+        <location filename="../src/ui/MainWindow.cpp" line="614"/>
         <source>Удалить все сообщения этого чата на этом компьютере? У собеседника они останутся.</source>
         <translation>Delete all messages of this chat on this computer? The other person keeps them.</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="607"/>
+        <location filename="../src/ui/MainWindow.cpp" line="626"/>
         <source>Чат исчезнет из списка, локальная история будет удалена. У собеседника сообщения останутся. Новое сообщение вернёт чат.</source>
         <translation>The chat disappears from the list and local history is deleted. The other person keeps the messages. A new message brings the chat back.</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="747"/>
+        <location filename="../src/ui/MainWindow.cpp" line="766"/>
         <source>Звоним…</source>
         <translation>Calling…</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="749"/>
-        <location filename="../src/ui/MainWindow.cpp" line="876"/>
+        <location filename="../src/ui/MainWindow.cpp" line="768"/>
+        <location filename="../src/ui/MainWindow.cpp" line="901"/>
         <source>Входящий вызов</source>
         <translation>Incoming call</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="751"/>
+        <location filename="../src/ui/MainWindow.cpp" line="770"/>
         <source>Говорит: %1</source>
         <translation>Speaking: %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="754"/>
+        <location filename="../src/ui/MainWindow.cpp" line="773"/>
         <source>участник</source>
         <translation>member</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="756"/>
+        <location filename="../src/ui/MainWindow.cpp" line="775"/>
         <source>Голос: микрофон выключен</source>
         <translation>Voice: microphone off</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="756"/>
+        <location filename="../src/ui/MainWindow.cpp" line="775"/>
         <source>Голос: в эфире</source>
         <translation>Voice: live</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="758"/>
+        <location filename="../src/ui/MainWindow.cpp" line="777"/>
         <source>печатает…</source>
         <translation>typing…</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="763"/>
+        <location filename="../src/ui/MainWindow.cpp" line="782"/>
         <source>%1 участник</source>
         <translation>%1 member</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="766"/>
+        <location filename="../src/ui/MainWindow.cpp" line="785"/>
         <source>%1 участника</source>
         <translation>%1 members</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="768"/>
+        <location filename="../src/ui/MainWindow.cpp" line="787"/>
         <source>%1 участников</source>
         <translation>%1 members</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="773"/>
+        <location filename="../src/ui/MainWindow.cpp" line="792"/>
         <source>в сети</source>
         <translation>online</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="773"/>
+        <location filename="../src/ui/MainWindow.cpp" line="792"/>
         <source>не в сети</source>
         <translation>offline</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="786"/>
+        <location filename="../src/ui/MainWindow.cpp" line="805"/>
         <source>Сначала откройте чат.</source>
         <translation>Open a chat first.</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="858"/>
+        <location filename="../src/ui/MainWindow.cpp" line="877"/>
         <source>Отменить</source>
         <translation>Cancel</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="860"/>
+        <location filename="../src/ui/MainWindow.cpp" line="879"/>
         <source>Завершить голос</source>
         <translation>End voice</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="868"/>
+        <location filename="../src/ui/MainWindow.cpp" line="887"/>
         <source>Включить микрофон</source>
         <translation>Unmute</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="869"/>
+        <location filename="../src/ui/MainWindow.cpp" line="888"/>
         <source>Выключить микрофон</source>
         <translation>Mute</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="877"/>
+        <location filename="../src/ui/MainWindow.cpp" line="902"/>
         <source>%1 звонит.</source>
         <translation>%1 is calling.</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="877"/>
+        <location filename="../src/ui/MainWindow.cpp" line="902"/>
         <source>Собеседник</source>
         <translation>Contact</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="879"/>
+        <location filename="../src/ui/MainWindow.cpp" line="904"/>
         <source>Принять</source>
         <translation>Accept</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="880"/>
+        <location filename="../src/ui/MainWindow.cpp" line="905"/>
         <source>Отклонить</source>
         <translation>Decline</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="899"/>
+        <location filename="../src/ui/MainWindow.cpp" line="924"/>
         <source>Вызов принят</source>
         <translation>Call accepted</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="907"/>
+        <location filename="../src/ui/MainWindow.cpp" line="932"/>
         <source>Вызов отклонён</source>
         <translation>Call declined</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="914"/>
+        <location filename="../src/ui/MainWindow.cpp" line="939"/>
         <source>Вызов отменён</source>
         <translation>Call cancelled</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="998"/>
+        <location filename="../src/ui/MainWindow.cpp" line="1023"/>
         <source>Светлая тема</source>
         <translation>Light theme</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="998"/>
+        <location filename="../src/ui/MainWindow.cpp" line="1023"/>
         <source>Тёмная тема</source>
         <translation>Dark theme</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="1004"/>
+        <location filename="../src/ui/MainWindow.cpp" line="1029"/>
         <source>Личный чат</source>
         <translation>Direct chat</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="1005"/>
+        <location filename="../src/ui/MainWindow.cpp" line="1030"/>
         <source>Новая группа…</source>
         <translation>New group…</translation>
     </message>
     <message>
-        <location filename="../src/ui/MainWindow.cpp" line="1021"/>
+        <location filename="../src/ui/MainWindow.cpp" line="1046"/>
         <source>Логин собеседника:</source>
         <translation>Contact&apos;s login:</translation>
     </message>
@@ -1021,195 +1038,215 @@ History is stored on this device.</translation>
 <context>
     <name>ui::SettingsDialog</name>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="45"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="46"/>
         <source>Настройки</source>
         <translation>Settings</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="58"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="59"/>
         <source>Внешний вид</source>
         <translation>Appearance</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="68"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="69"/>
         <source>Светлая</source>
         <translation>Light</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="69"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="70"/>
         <source>Тёмная</source>
         <translation>Dark</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="72"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="73"/>
         <source>Тема</source>
         <translation>Theme</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="76"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="77"/>
         <source>Системный</source>
         <translation>System</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="77"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="78"/>
         <source>Русский</source>
         <translation>Russian</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="83"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="84"/>
         <source>Язык</source>
         <translation>Language</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="85"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="86"/>
         <source>Язык применится после перезапуска приложения.</source>
         <translation>The language will change after restarting the app.</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="91"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="92"/>
         <source>Уведомления</source>
         <translation>Notifications</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="93"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="94"/>
         <source>Показывать уведомления о новых сообщениях</source>
         <translation>Show notifications about new messages</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="97"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="98"/>
         <source>Подписка</source>
         <translation>Subscription</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="108"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="109"/>
         <source>Промокод</source>
         <translation>Promo code</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="109"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="110"/>
         <source>Активировать</source>
         <translation>Activate</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="122"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="123"/>
+        <source>Голос</source>
+        <translation>Voice</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/SettingsDialog.cpp" line="125"/>
+        <source>Push-to-talk: говорить, удерживая кнопку</source>
+        <translation>Push-to-talk: hold the button to speak</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/SettingsDialog.cpp" line="136"/>
+        <source>Микрофон по умолчанию</source>
+        <translation>Default microphone</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/SettingsDialog.cpp" line="145"/>
+        <source>Динамики по умолчанию</source>
+        <translation>Default speakers</translation>
+    </message>
+    <message>
+        <location filename="../src/ui/SettingsDialog.cpp" line="163"/>
         <source>Обновления</source>
         <translation>Updates</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="124"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="165"/>
         <source>Версия %1</source>
         <translation>Version %1</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="129"/>
-        <location filename="../src/ui/SettingsDialog.cpp" line="288"/>
-        <location filename="../src/ui/SettingsDialog.cpp" line="315"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="170"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="329"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="356"/>
         <source>Проверить обновления</source>
         <translation>Check for updates</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="139"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="180"/>
         <source>Сервер</source>
         <translation>Server</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="146"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="187"/>
         <source>Адрес</source>
         <translation>Address</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="151"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="192"/>
         <source>Порт</source>
         <translation>Port</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="162"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="203"/>
         <source>Новый адрес применится при следующем входе.</source>
         <translation>The new address will be used at the next sign-in.</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="166"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="207"/>
         <source>Данные</source>
         <translation>Data</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="175"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="216"/>
         <source>Открыть папку</source>
         <translation>Open folder</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="186"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="227"/>
         <source>Закрыть</source>
         <translation>Close</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="221"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="262"/>
         <source>Подписка активирована.</source>
         <translation>Subscription activated.</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="252"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="293"/>
         <source>Бесплатный план: базовые темы. Промокод даёт подписку.</source>
         <translation>Free plan: basic themes. A promo code unlocks the subscription.</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="258"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="299"/>
         <source>Подписка %1 действует до %2.</source>
         <translation>Subscription %1 is valid until %2.</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="268"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="309"/>
         <source>Загрузка…</source>
         <translation>Loading…</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="269"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="310"/>
         <source>Скачиваем изменённые файлы…</source>
         <translation>Downloading changed files…</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="276"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="317"/>
         <source>Проверяем обновления…</source>
         <translation>Checking for updates…</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="289"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="330"/>
         <source>Установлена последняя версия (%1).</source>
         <translation>The latest version is installed (%1).</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="296"/>
-        <location filename="../src/ui/SettingsDialog.cpp" line="314"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="337"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="355"/>
         <source>Установить обновление</source>
         <translation>Install update</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="297"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="338"/>
         <source>Доступна версия %1 — %2 МБ. Скачаются только изменённые файлы.</source>
         <translation>Version %1 is available — %2 MB. Only changed files will be downloaded.</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="308"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="349"/>
         <source>Загрузка: %1 (%2%)</source>
         <translation>Downloading: %1 (%2%)</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="326"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="367"/>
         <source>Проверяем…</source>
         <translation>Checking…</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="345"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="386"/>
         <source>%1 — по подписке</source>
         <translation>%1 — subscription only</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="353"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="394"/>
         <source>Нужна подписка</source>
         <translation>Subscription required</translation>
     </message>
     <message>
-        <location filename="../src/ui/SettingsDialog.cpp" line="373"/>
+        <location filename="../src/ui/SettingsDialog.cpp" line="414"/>
         <source>Тема применена.</source>
         <translation>Theme applied.</translation>
     </message>

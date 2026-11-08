@@ -128,6 +128,11 @@ void TestVoiceUdp::datagramsAreRelayed()
     QVERIFY(udpPort > 0);
     QVERIFY(firstToken != 0);
 
+    const QByteArray firstKey = QByteArray::fromHex(
+        firstJoin.value(QStringLiteral("data")).toObject()
+            .value(QStringLiteral("voice_key")).toString().toLatin1());
+    QCOMPARE(firstKey.size(), 32);
+
     const QJsonObject secondJoin = request(
         second, QStringLiteral("voice.join"),
         QJsonObject{{QStringLiteral("chat_id"), chatId}}, &ok);
@@ -136,6 +141,11 @@ void TestVoiceUdp::datagramsAreRelayed()
                                                          .toObject()
                                                          .value(QStringLiteral("udp_token"))
                                                          .toDouble());
+
+    const QByteArray secondKey = QByteArray::fromHex(
+        secondJoin.value(QStringLiteral("data")).toObject()
+            .value(QStringLiteral("voice_key")).toString().toLatin1());
+    QCOMPARE(secondKey, firstKey); // одна комната — один ключ шифрования
     QVERIFY(secondToken != 0);
 
     QUdpSocket firstSocket;
