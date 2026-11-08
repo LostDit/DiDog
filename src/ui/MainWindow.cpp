@@ -12,6 +12,7 @@
 #include "ui/ImageViewerDialog.h"
 #include "ui/MessageView.h"
 #include "ui/ParticipantsDialog.h"
+#include "ui/ProfileCardDialog.h"
 #include "ui/SearchDialog.h"
 #include "ui/SettingsDialog.h"
 #include "ui/VideoPlayerDialog.h"
@@ -22,6 +23,7 @@
 #include <QCloseEvent>
 #include <QCursor>
 #include <QDebug>
+#include <QEvent>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -224,6 +226,8 @@ QWidget *MainWindow::buildSidebar()
     m_profileAvatar = new AvatarWidget;
     m_profileAvatar->setDiameter(38);
     m_profileAvatar->setIdentity(QStringLiteral("Гость"), 212);
+    m_profileAvatar->setCursor(Qt::PointingHandCursor);
+    m_profileAvatar->installEventFilter(this);
     profileRow->addWidget(m_profileAvatar);
 
     auto *nameColumn = new QVBoxLayout;
@@ -388,11 +392,15 @@ QWidget *MainWindow::buildConversationPane()
 
     m_headerAvatar = new AvatarWidget;
     m_headerAvatar->setDiameter(40);
+    m_headerAvatar->setCursor(Qt::PointingHandCursor);
+    m_headerAvatar->installEventFilter(this);
     headerLayout->addWidget(m_headerAvatar);
 
     auto *titleColumn = new QVBoxLayout;
     titleColumn->setSpacing(0);
     m_headerTitle = makeLabel(QString(), "ChatTitle", Qt::AlignLeft);
+    m_headerTitle->setCursor(Qt::PointingHandCursor);
+    m_headerTitle->installEventFilter(this);
     m_headerStatus = makeLabel(QString(), "ChatStatus", Qt::AlignLeft);
     titleColumn->addWidget(m_headerTitle);
     titleColumn->addWidget(m_headerStatus);
@@ -452,6 +460,7 @@ QWidget *MainWindow::buildConversationPane()
             &MainWindow::onDeleteMessageForEveryone);
     connect(m_messageView, &MessageView::deleteForMeRequested, this,
             &MainWindow::onDeleteMessageForMe);
+    connect(m_messageView, &MessageView::avatarActivated, this, &MainWindow::openProfile);
 
     connect(m_messageView, &MessageView::imageActivated, this, [this](const QString &filePath) {
         ui::ImageViewerDialog viewer(filePath, this);
@@ -709,7 +718,17 @@ void MainWindow::updateHeader()
     } else if (m_typingUserId > 0) {
         status = tr("печатает…");
     } else if (isGroup) {
-        status = tr("%1 участник(ов)").arg(m_groupMemberCount);
+        const int count = m_groupMemberCount;
+        QString countText;
+        if (count % 10 == 1 && count % 100 != 11)
+            countText = tr("%1 участник").arg(count);
+        else if (count % 10 >= 2 && count % 10 <= 4
+                 && (count % 100 < 10 || count % 100 >= 20))
+            countText = tr("%1 участника").arg(count);
+        else
+            countText = tr("%1 участников").arg(count);
+
+        status = countText;
         m_chats->loadMembers(m_currentChatId);
     } else {
         status = m_online.value(summary.peerId, false) ? tr("в сети") : tr("не в сети");
@@ -717,6 +736,42 @@ void MainWindow::updateHeader()
 
     m_headerStatus->setText(status);
     updateVoiceUi();
+
+    if (m_messageView)
+        m_messageView->setShowSenderNames(isGroup);
+}
+
+void MainWindow::openProfile(qint64 userId)
+{
+    if (m_currentChatId <= 0) {
+        showToast(tr("Сначала откройте чат."));
+        return;
+    }
+    if (userId <= 0)
+        return;
+
+    ProfileCardDialog dialog(m_chats, m_currentChatId, userId, m_user.id, this);
+    dialog.exec();
+}
+
+bool MainWindow::eventFilter(QObject *watched, QEvent *event)
+{
+    if (event->type() == QEvent::MouseButtonRelease) {
+        if (watched == m_profileAvatar) {
+            if (m_currentChatId > 0)
+                openProfile(m_user.id);
+            return true;
+        }
+
+        if (watched == m_headerAvatar || watched == m_headerTitle) {
+            const data::ChatSummary summary = m_chats->chat(m_currentChatId);
+            if (summary.chat.kind == QLatin1String("direct") && summary.peerId > 0)
+                openProfile(summary.peerId);
+            return true;
+        }
+    }
+
+    return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::onVoiceClicked()

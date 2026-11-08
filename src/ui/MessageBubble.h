@@ -10,6 +10,8 @@ class QPushButton;
 
 namespace ui {
 
+class AvatarWidget;
+
 // Один пузырь сообщения: текст, время и статус доставки.
 class MessageBubble : public QWidget
 {
@@ -17,7 +19,7 @@ class MessageBubble : public QWidget
 
 public:
     MessageBubble(const data::Message &message, bool own, bool showAvatar,
-                  QWidget *parent = nullptr);
+                  bool showSenderName = false, QWidget *parent = nullptr);
 
     const data::Message &message() const { return m_message; }
     QString clientMsgId() const { return m_message.clientMsgId; }
@@ -32,6 +34,7 @@ signals:
     void editRequested(qint64 messageId);
     void deleteForEveryoneRequested(qint64 messageId);
     void deleteForMeRequested(qint64 messageId);
+    void avatarActivated(qint64 userId);
     void imageActivated(const QString &filePath);
     void videoActivated(const QString &filePath);
     void fileActivated(const QString &fileName, const QString &filePath);
@@ -49,7 +52,10 @@ private:
     data::Message m_message;
     bool m_own = false;
     bool m_showAvatar = false;
+    bool m_showSenderName = false;
     int m_maxTextWidth = 420;
+
+    AvatarWidget *m_avatar = nullptr;
 
     QFrame *m_bubble = nullptr;
     QLabel *m_text = nullptr;

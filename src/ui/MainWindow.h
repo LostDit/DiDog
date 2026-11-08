@@ -66,6 +66,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private slots:
     void onChatsChanged();
@@ -84,6 +85,7 @@ private slots:
     void onCallAccepted(qint64 chatId, qint64 userId);
     void onCallDeclined(qint64 chatId, qint64 userId);
     void onCallCancelled(qint64 chatId);
+    void openProfile(qint64 userId);
     void onSendRequested(const QString &text);
     void onThemeToggleClicked();
     void onNewChatClicked();

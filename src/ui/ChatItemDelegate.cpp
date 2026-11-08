@@ -108,9 +108,32 @@ void ChatItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opti
     painter->setFont(nameFont);
     painter->setPen(colors.text);
     const QFontMetrics nameMetrics(nameFont);
-    painter->drawText(QRect(textLeft, row.top() + 12, textWidth, 18),
+
+    int nameRight = textWidth;
+    if (summary.chat.kind == QLatin1String("group")) {
+        const QString chip = tr("группа");
+        QFont chipFont = option.font;
+        chipFont.setPointSizeF(qMax(7.5, option.font.pointSizeF() - 2.0));
+        const QFontMetrics chipMetrics(chipFont);
+        const int chipWidth = chipMetrics.horizontalAdvance(chip) + 12;
+        const QRectF chipRect(textLeft + textWidth - chipWidth, row.top() + 13, chipWidth, 16);
+
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(blend(colors.accent, 0.14, colors.surface));
+        painter->drawRoundedRect(chipRect, 8, 8);
+
+        painter->setFont(chipFont);
+        painter->setPen(colors.accent);
+        painter->drawText(chipRect, Qt::AlignCenter, chip);
+
+        painter->setFont(nameFont);
+        painter->setPen(colors.text);
+        nameRight = textWidth - chipWidth - 8;
+    }
+
+    painter->drawText(QRect(textLeft, row.top() + 12, nameRight, 18),
                       Qt::AlignLeft | Qt::AlignVCenter,
-                      nameMetrics.elidedText(summary.peerDisplayName, Qt::ElideRight, textWidth));
+                      nameMetrics.elidedText(summary.peerDisplayName, Qt::ElideRight, nameRight));
 
     // Превью
     QFont previewFont = option.font;

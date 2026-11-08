@@ -50,11 +50,12 @@ QString statusText(data::DeliveryState state)
 } // namespace
 
 MessageBubble::MessageBubble(const data::Message &message, bool own, bool showAvatar,
-                             QWidget *parent)
+                             bool showSenderName, QWidget *parent)
     : QWidget(parent)
     , m_message(message)
     , m_own(own)
     , m_showAvatar(showAvatar)
+    , m_showSenderName(showSenderName)
 {
     setObjectName(QStringLiteral("MessageBubble"));
 
@@ -67,6 +68,8 @@ MessageBubble::MessageBubble(const data::Message &message, bool own, bool showAv
         avatar->setDiameter(36);
         avatar->setIdentity(message.senderDisplayName, message.senderHue);
         avatar->setVisible(m_showAvatar);
+        avatar->setCursor(Qt::PointingHandCursor);
+        m_avatar = avatar;
         layout->addWidget(avatar, 0, Qt::AlignTop);
     } else {
         layout->addStretch(1);
@@ -80,6 +83,13 @@ MessageBubble::MessageBubble(const data::Message &message, bool own, bool showAv
     auto *bubbleLayout = new QVBoxLayout(m_bubble);
     bubbleLayout->setContentsMargins(12, 8, 12, 6);
     bubbleLayout->setSpacing(2);
+
+    if (!m_own && m_showSenderName && m_showAvatar) {
+        auto *sender = new QLabel(message.senderDisplayName, m_bubble);
+        sender->setObjectName(QStringLiteral("MessageSender"));
+        sender->setTextFormat(Qt::PlainText);
+        bubbleLayout->addWidget(sender);
+    }
 
     m_text = new QLabel(m_bubble);
     m_text->setObjectName(QStringLiteral("MessageText"));
@@ -361,6 +371,13 @@ void MessageBubble::buildAttachment()
 
 void MessageBubble::mousePressEvent(QMouseEvent *event)
 {
+    if (event->button() == Qt::LeftButton && m_avatar && m_avatar->isVisible()
+        && m_avatar->geometry().contains(event->pos()) && m_message.senderId > 0) {
+        emit avatarActivated(m_message.senderId);
+        event->accept();
+        return;
+    }
+
     const bool onAttachment = m_attachment && m_attachment->geometry().contains(event->pos());
 
     if (event->button() == Qt::LeftButton && onAttachment && m_message.hasAttachment()

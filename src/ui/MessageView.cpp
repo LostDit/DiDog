@@ -117,9 +117,11 @@ void MessageView::setMessages(const QList<data::Message> &messages)
                                && (newDay || previousSender != message.senderId
                                    || message.createdAt - previousTime > kGroupWindowMs);
 
-        auto *bubble = new MessageBubble(message, own, showAvatar, m_content);
+        auto *bubble = new MessageBubble(message, own, showAvatar, m_showSenderNames, m_content);
         connect(bubble, &MessageBubble::retryRequested,
                 this, &MessageView::retryRequested);
+        connect(bubble, &MessageBubble::avatarActivated,
+                this, &MessageView::avatarActivated);
         connect(bubble, &MessageBubble::attachmentRetryRequested,
                 this, &MessageView::attachmentRetryRequested);
         connect(bubble, &MessageBubble::editRequested,
