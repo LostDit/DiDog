@@ -58,6 +58,8 @@ set(MESSENGER_CORE_SOURCES
     ui/MessageView.h            ui/MessageView.cpp
     ui/SearchDialog.h           ui/SearchDialog.cpp
     ui/SettingsDialog.h         ui/SettingsDialog.cpp
+    ui/GroupDialog.h            ui/GroupDialog.cpp
+    ui/ParticipantsDialog.h     ui/ParticipantsDialog.cpp
     ui/VideoPlayerDialog.h      ui/VideoPlayerDialog.cpp
 )
 

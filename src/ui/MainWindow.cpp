@@ -8,14 +8,17 @@
 #include "ui/ChatItemDelegate.h"
 #include "ui/ChatListModel.h"
 #include "ui/ComposerWidget.h"
+#include "ui/GroupDialog.h"
 #include "ui/ImageViewerDialog.h"
 #include "ui/MessageView.h"
+#include "ui/ParticipantsDialog.h"
 #include "ui/SearchDialog.h"
 #include "ui/SettingsDialog.h"
 #include "ui/VideoPlayerDialog.h"
 
 #include <QAction>
 #include <QCloseEvent>
+#include <QCursor>
 #include <QDebug>
 #include <QFile>
 #include <QFileDialog>
@@ -80,6 +83,15 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
     restoreWindowState();
 
     connect(m_chats, &app::ChatService::chatsChanged, this, &MainWindow::onChatsChanged);
+    connect(m_chats, &app::ChatService::membersLoaded, this,
+            [this](qint64 chatId, const QList<data::ChatMember> &members) {
+                if (chatId != m_currentChatId)
+                    return;
+                m_groupMemberCount = members.size();
+                updateHeader();
+            });
+    connect(m_chats, &app::ChatService::groupCreated, this,
+            [this](qint64 chatId) { openChatById(chatId); });
     connect(m_chats, &app::ChatService::messagesChanged, this, &MainWindow::onMessagesChanged);
     connect(m_chats, &app::ChatService::errorOccurred, this, &MainWindow::onError);
     connect(m_chats, &app::ChatService::typingChanged, this, &MainWindow::onTypingChanged);
@@ -340,6 +352,15 @@ QWidget *MainWindow::buildConversationPane()
     titleColumn->addWidget(m_headerTitle);
     titleColumn->addWidget(m_headerStatus);
     headerLayout->addLayout(titleColumn);
+
+    m_membersButton = new QToolButton(header);
+    m_membersButton->setText(tr("Участники"));
+    m_membersButton->setObjectName(QStringLiteral("LinkButton"));
+    m_membersButton->setCursor(Qt::PointingHandCursor);
+    m_membersButton->setVisible(false);
+    connect(m_membersButton, &QToolButton::clicked, this, &MainWindow::onMembersClicked);
+    headerLayout->addWidget(m_membersButton);
+
     headerLayout->addStretch(1);
 
     layout->addWidget(header);
@@ -600,10 +621,17 @@ void MainWindow::updateHeader()
     m_headerAvatar->setIdentity(summary.peerDisplayName, summary.peerHue);
     m_headerTitle->setText(summary.peerDisplayName);
 
+    const bool isGroup = summary.chat.kind == QLatin1String("group");
+    if (m_membersButton)
+        m_membersButton->setVisible(isGroup);
+
     QString status;
     if (m_typingUserId > 0) {
         status = tr("печатает…");
-    } else if (summary.chat.kind == QLatin1String("direct")) {
+    } else if (isGroup) {
+        status = tr("%1 участник(ов)").arg(m_groupMemberCount);
+        m_chats->loadMembers(m_currentChatId);
+    } else {
         status = m_online.value(summary.peerId, false) ? tr("в сети") : tr("не в сети");
     }
 
@@ -695,6 +723,22 @@ void MainWindow::updateThemeButton()
 
 void MainWindow::onNewChatClicked()
 {
+    QMenu menu(this);
+    QAction *direct = menu.addAction(tr("Личный чат"));
+    QAction *group = menu.addAction(tr("Новая группа…"));
+
+    QAction *chosen = menu.exec(QCursor::pos());
+    if (!chosen)
+        return;
+
+    if (chosen == group) {
+        onCreateGroup();
+        return;
+    }
+
+    if (chosen != direct)
+        return;
+
     bool ok = false;
     const QString username = QInputDialog::getText(this, tr("Новый чат"),
                                                    tr("Логин собеседника:"),
@@ -703,6 +747,24 @@ void MainWindow::onNewChatClicked()
         return;
 
     m_chats->createDirect(username.trimmed());
+}
+
+void MainWindow::onCreateGroup()
+{
+    GroupDialog dialog(m_chats, 0, QSet<qint64>(), this);
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_chats->createGroup(dialog.groupTitle(), dialog.selectedIds());
+}
+
+void MainWindow::onMembersClicked()
+{
+    if (m_currentChatId <= 0)
+        return;
+
+    ParticipantsDialog dialog(m_chats, m_currentChatId, m_user.id, this);
+    dialog.exec();
 }
 
 void MainWindow::onTypingChanged(qint64 chatId, qint64 userId, bool typing)

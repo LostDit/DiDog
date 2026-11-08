@@ -20,8 +20,15 @@ public:
     bool findDirect(qint64 userA, qint64 userB, Chat *out, bool *found, QString *error) const;
 
     bool addMember(qint64 chatId, qint64 userId, QString *error);
+    bool addMember(qint64 chatId, qint64 userId, const QString &role, QString *error);
     bool isMember(qint64 chatId, qint64 userId, bool *isMember, QString *error) const;
     bool memberIds(qint64 chatId, QList<qint64> *ids, QString *error) const;
+    bool members(qint64 chatId, QList<ChatMember> *out, QString *error) const;
+    bool memberRole(qint64 chatId, qint64 userId, QString *role, bool *found,
+                    QString *error) const;
+    bool removeMember(qint64 chatId, qint64 userId, QString *error);
+    bool setRole(qint64 chatId, qint64 userId, const QString &role, QString *error);
+    bool deleteChat(qint64 chatId, QString *error);
 
     // «Общий чат» создаётся при первом запуске сервера и подключает всех пользователей.
     bool ensureGeneralChat(Chat *chat, QString *error);

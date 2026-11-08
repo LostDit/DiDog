@@ -194,4 +194,28 @@ ChatSummary chatSummaryFromJson(const QJsonObject &object)
     return summary;
 }
 
+QJsonObject chatMemberToJson(const ChatMember &member)
+{
+    QJsonObject object;
+    object.insert(QStringLiteral("id"), static_cast<double>(member.userId));
+    object.insert(QStringLiteral("username"), member.username);
+    object.insert(QStringLiteral("display_name"), member.displayName);
+    object.insert(QStringLiteral("avatar_hue"), member.avatarHue);
+    object.insert(QStringLiteral("role"), member.role);
+    object.insert(QStringLiteral("online"), member.online);
+    return object;
+}
+
+ChatMember chatMemberFromJson(const QJsonObject &object)
+{
+    ChatMember member;
+    member.userId = toInt64(object.value(QStringLiteral("id")));
+    member.username = object.value(QStringLiteral("username")).toString();
+    member.displayName = object.value(QStringLiteral("display_name")).toString();
+    member.avatarHue = object.value(QStringLiteral("avatar_hue")).toInt(210);
+    member.role = object.value(QStringLiteral("role")).toString(QStringLiteral("member"));
+    member.online = object.value(QStringLiteral("online")).toBool(false);
+    return member;
+}
+
 } // namespace data::json

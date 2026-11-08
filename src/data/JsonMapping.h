@@ -21,4 +21,7 @@ Chat chatFromJson(const QJsonObject &object);
 QJsonObject chatSummaryToJson(const ChatSummary &summary);
 ChatSummary chatSummaryFromJson(const QJsonObject &object);
 
+QJsonObject chatMemberToJson(const ChatMember &member);
+ChatMember chatMemberFromJson(const QJsonObject &object);
+
 } // namespace data::json

@@ -71,6 +71,8 @@ private slots:
     void onEditMessage(qint64 messageId);
     void onDeleteMessageForEveryone(qint64 messageId);
     void onDeleteMessageForMe(qint64 messageId);
+    void onMembersClicked();
+    void onCreateGroup();
     void onSendRequested(const QString &text);
     void onThemeToggleClicked();
     void onNewChatClicked();
@@ -114,6 +116,8 @@ private:
     AvatarWidget *m_headerAvatar = nullptr;
     QLabel *m_headerTitle = nullptr;
     QLabel *m_headerStatus = nullptr;
+    QToolButton *m_membersButton = nullptr;
+    int m_groupMemberCount = 0;
     MessageView *m_messageView = nullptr;
     ComposerWidget *m_composer = nullptr;
     QLabel *m_connectionBanner = nullptr;

@@ -57,6 +57,13 @@ public:
     void sendFile(qint64 chatId, const QString &filePath);
     void markRead(qint64 chatId);
     void createDirect(const QString &username);
+
+    // Групповые чаты.
+    void createGroup(const QString &title, const QList<qint64> &memberIds);
+    void loadMembers(qint64 chatId);
+    void addMembers(qint64 chatId, const QList<qint64> &userIds);
+    void leaveChat(qint64 chatId);
+    void searchUsers(const QString &query);
     void retryFailed(qint64 chatId, const QString &clientMsgId);
 
     // Повторное скачивание вложения (клик по «Не удалось загрузить»).
@@ -77,6 +84,11 @@ signals:
     void presenceChanged(qint64 userId, bool online);
     void messageArrived(qint64 chatId, const data::Message &message);
     void searchResults(const QString &query, const QList<data::Message> &messages);
+    void groupCreated(qint64 chatId);
+    void membersLoaded(qint64 chatId, const QList<data::ChatMember> &members);
+    void membersChanged(qint64 chatId);
+    void usersFound(const QString &query, const QList<data::User> &users);
+    void leftChat(qint64 chatId);
 
 private slots:
     void onEvent(const QString &event, const QJsonObject &data);

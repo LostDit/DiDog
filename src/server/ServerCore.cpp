@@ -115,6 +115,16 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleChatDirect(data, session);
     if (type == QLatin1String(core::proto::type::kChatRead))
         return handleChatRead(data, session);
+    if (type == QLatin1String(core::proto::type::kChatCreate))
+        return handleChatCreate(data, session);
+    if (type == QLatin1String(core::proto::type::kChatMembers))
+        return handleChatMembers(data, session);
+    if (type == QLatin1String(core::proto::type::kChatAdd))
+        return handleChatAdd(data, session);
+    if (type == QLatin1String(core::proto::type::kChatLeave))
+        return handleChatLeave(data, session);
+    if (type == QLatin1String(core::proto::type::kUserSearch))
+        return handleUserSearch(data, session);
 
     if (type == QLatin1String(core::proto::type::kMsgSend))
         return handleMessageSend(data, session);
@@ -377,6 +387,217 @@ HandlerResult ServerCore::handleChatDirect(const QJsonObject &data, ClientSessio
     QJsonObject payload;
     payload.insert(QStringLiteral("chat"), data::json::chatSummaryToJson(mine));
     return HandlerResult::success(payload);
+}
+
+HandlerResult ServerCore::handleChatCreate(const QJsonObject &data, ClientSession *session)
+{
+    const QString title = stringValue(data, "title").trimmed();
+    if (title.size() < 2 || title.size() > 64)
+        return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                      QStringLiteral("Название группы: от 2 до 64 символов"));
+
+    QSet<qint64> memberIds;
+    const QJsonArray array = data.value(QStringLiteral("member_ids")).toArray();
+    for (const QJsonValue &value : array) {
+        const qint64 id = static_cast<qint64>(value.toDouble());
+        if (id > 0 && id != session->userId())
+            memberIds.insert(id);
+    }
+
+    if (memberIds.size() > 50)
+        return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                      QStringLiteral("Слишком много участников"));
+
+    data::UserRepository users(m_database.handle());
+    QString error;
+    data::User member;
+    for (const qint64 id : memberIds) {
+        if (!users.findById(id, &member, &error))
+            return HandlerResult::failure(core::ErrorCode::NotFound,
+                                          QStringLiteral("Пользователь не найден"));
+    }
+
+    data::ChatRepository chats(m_database.handle());
+    data::Chat created;
+    if (!chats.createGroup(title, &created, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    if (!chats.addMember(created.id, session->userId(), QStringLiteral("owner"), &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    for (const qint64 id : memberIds) {
+        if (!chats.addMember(created.id, id, QStringLiteral("member"), &error))
+            return HandlerResult::failure(core::ErrorCode::Internal, error);
+    }
+
+    // Приглашённым отправляем событие, чтобы чат появился в списке.
+    for (const qint64 id : memberIds) {
+        data::ChatSummary theirs;
+        if (!chats.summaryFor(created.id, id, &theirs, &error))
+            continue;
+
+        QJsonObject event;
+        event.insert(QStringLiteral("chat"), data::json::chatSummaryToJson(theirs));
+        sendToUser(id, core::proto::event::kChat, event, session);
+    }
+
+    data::ChatSummary mine;
+    if (!chats.summaryFor(created.id, session->userId(), &mine, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("chat"), data::json::chatSummaryToJson(mine));
+    return HandlerResult::success(payload);
+}
+
+HandlerResult ServerCore::handleChatMembers(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    bool member = false;
+    if (!chats.isMember(chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    QList<data::ChatMember> members;
+    if (!chats.members(chatId, &members, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    QJsonArray array;
+    for (data::ChatMember &entry : members) {
+        entry.online = isUserOnline(entry.userId);
+        array.append(data::json::chatMemberToJson(entry));
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("members"), array);
+    return HandlerResult::success(payload);
+}
+
+HandlerResult ServerCore::handleChatAdd(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    QString role;
+    bool found = false;
+    if (!chats.memberRole(chatId, session->userId(), &role, &found, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!found)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+    if (role != QLatin1String("owner") && role != QLatin1String("admin"))
+        return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                      QStringLiteral("Недостаточно прав"));
+
+    QSet<qint64> userIds;
+    const QJsonArray array = data.value(QStringLiteral("user_ids")).toArray();
+    for (const QJsonValue &value : array) {
+        const qint64 id = static_cast<qint64>(value.toDouble());
+        if (id > 0 && id != session->userId())
+            userIds.insert(id);
+    }
+    if (userIds.isEmpty())
+        return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                      QStringLiteral("Не выбраны участники"));
+
+    data::UserRepository users(m_database.handle());
+    data::User user;
+    for (const qint64 id : userIds) {
+        if (!users.findById(id, &user, &error))
+            return HandlerResult::failure(core::ErrorCode::NotFound,
+                                          QStringLiteral("Пользователь не найден"));
+        if (!chats.addMember(chatId, id, QStringLiteral("member"), &error))
+            return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+        data::ChatSummary summary;
+        if (chats.summaryFor(chatId, id, &summary, &error)) {
+            QJsonObject event;
+            event.insert(QStringLiteral("chat"), data::json::chatSummaryToJson(summary));
+            sendToUser(id, core::proto::event::kChat, event, session);
+        }
+    }
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    broadcastToChat(chatId, core::proto::event::kChatMembers, event);
+
+    return HandlerResult::success();
+}
+
+HandlerResult ServerCore::handleChatLeave(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    QString role;
+    bool found = false;
+    if (!chats.memberRole(chatId, session->userId(), &role, &found, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!found)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    QList<data::ChatMember> members;
+    if (!chats.members(chatId, &members, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    // Владелец передаёт роль следующему участнику.
+    if (role == QLatin1String("owner")) {
+        for (const data::ChatMember &member : members) {
+            if (member.userId == session->userId())
+                continue;
+            if (!chats.setRole(chatId, member.userId, QStringLiteral("owner"), &error))
+                return HandlerResult::failure(core::ErrorCode::Internal, error);
+            break;
+        }
+    }
+
+    if (!chats.removeMember(chatId, session->userId(), &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    QList<data::ChatMember> remaining;
+    if (!chats.members(chatId, &remaining, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    if (remaining.isEmpty()) {
+        if (!chats.deleteChat(chatId, &error))
+            return HandlerResult::failure(core::ErrorCode::Internal, error);
+    } else {
+        QJsonObject event;
+        event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+        broadcastToChat(chatId, core::proto::event::kChatMembers, event);
+    }
+
+    return HandlerResult::success();
+}
+
+HandlerResult ServerCore::handleUserSearch(const QJsonObject &data, ClientSession *session)
+{
+    const QString query = stringValue(data, "query").trimmed();
+    const int limit = qBound(1, data.value(QStringLiteral("limit")).toInt(20), 50);
+
+    data::UserRepository users(m_database.handle());
+    QList<data::User> found;
+    QString error;
+    if (!users.search(query, session->userId(), limit, &found, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    QJsonArray array;
+    for (const data::User &user : found)
+        array.append(data::json::userToJson(user));
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("users"), array);
+    return HandlerResult::success(payload);
+}
+
+bool ServerCore::isUserOnline(qint64 userId) const
+{
+    return m_sessions.contains(userId);
 }
 
 HandlerResult ServerCore::handleChatRead(const QJsonObject &data, ClientSession *session)

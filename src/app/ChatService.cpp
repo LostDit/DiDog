@@ -868,6 +868,113 @@ void ChatService::applyMessageUpdate(const data::Message &message)
     }
 }
 
+void ChatService::createGroup(const QString &title, const QList<qint64> &memberIds)
+{
+    QJsonArray ids;
+    for (const qint64 id : memberIds)
+        ids.append(static_cast<double>(id));
+
+    QJsonObject request;
+    request.insert(QStringLiteral("title"), title);
+    request.insert(QStringLiteral("member_ids"), ids);
+
+    m_connection->request(QStringLiteral("chat.create"), request,
+                          [this](const QJsonObject &reply) {
+                              if (!replyOk(reply)) {
+                                  emit errorOccurred(core::proto::errorMessageOf(reply));
+                                  return;
+                              }
+
+                              const data::ChatSummary summary = data::json::chatSummaryFromJson(
+                                  replyData(reply).value(QStringLiteral("chat")).toObject());
+
+                              upsertSummary(summary);
+                              emit chatsChanged();
+                              emit chatAdded(summary.chat.id);
+                              emit groupCreated(summary.chat.id);
+                          },
+                          15000);
+}
+
+void ChatService::loadMembers(qint64 chatId)
+{
+    m_connection->request(QStringLiteral("chat.members"),
+                          QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(chatId)}},
+                          [this, chatId](const QJsonObject &reply) {
+                              if (!replyOk(reply))
+                                  return;
+
+                              QList<data::ChatMember> members;
+                              const QJsonArray array = replyData(reply)
+                                                           .value(QStringLiteral("members"))
+                                                           .toArray();
+                              for (const QJsonValue &value : array)
+                                  members.append(data::json::chatMemberFromJson(value.toObject()));
+
+                              emit membersLoaded(chatId, members);
+                          },
+                          15000);
+}
+
+void ChatService::addMembers(qint64 chatId, const QList<qint64> &userIds)
+{
+    QJsonArray ids;
+    for (const qint64 id : userIds)
+        ids.append(static_cast<double>(id));
+
+    QJsonObject request;
+    request.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    request.insert(QStringLiteral("user_ids"), ids);
+
+    m_connection->request(QStringLiteral("chat.add"), request,
+                          [this, chatId](const QJsonObject &reply) {
+                              if (!replyOk(reply)) {
+                                  emit errorOccurred(core::proto::errorMessageOf(reply));
+                                  return;
+                              }
+                              emit membersChanged(chatId);
+                              loadMembers(chatId);
+                          },
+                          15000);
+}
+
+void ChatService::leaveChat(qint64 chatId)
+{
+    m_connection->request(QStringLiteral("chat.leave"),
+                          QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(chatId)}},
+                          [this, chatId](const QJsonObject &reply) {
+                              if (!replyOk(reply)) {
+                                  emit errorOccurred(core::proto::errorMessageOf(reply));
+                                  return;
+                              }
+
+                              deleteChat(chatId);
+                              emit leftChat(chatId);
+                          },
+                          15000);
+}
+
+void ChatService::searchUsers(const QString &query)
+{
+    m_connection->request(QStringLiteral("user.search"),
+                          QJsonObject{{QStringLiteral("query"), query},
+                                      {QStringLiteral("limit"), 30}},
+                          [this, query](const QJsonObject &reply) {
+                              if (!replyOk(reply))
+                                  return;
+
+                              QList<data::User> users;
+                              const QJsonArray array = replyData(reply)
+                                                           .value(QStringLiteral("users"))
+                                                           .toArray();
+                              for (const QJsonValue &value : array)
+                                  users.append(data::json::userFromJson(value.toObject()));
+
+                              emit usersFound(query, users);
+                          },
+                          15000);
+}
+
 void ChatService::markRead(qint64 chatId)
 {
     qint64 maxSeq = 0;
@@ -962,6 +1069,13 @@ void ChatService::onEvent(const QString &event, const QJsonObject &data)
             static_cast<qint64>(data.value(QStringLiteral("up_to_seq")).toDouble());
         if (userId != m_currentUserId)
             applyRead(chatId, upToSeq);
+        return;
+    }
+
+    if (event == QLatin1String(core::proto::event::kChatMembers)) {
+        const qint64 chatId = static_cast<qint64>(
+            data.value(QStringLiteral("chat_id")).toDouble());
+        emit membersChanged(chatId);
         return;
     }
 

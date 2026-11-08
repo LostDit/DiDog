@@ -125,6 +125,11 @@ const char *const kSchemaV3[] = {
     "ALTER TABLE messages ADD COLUMN edited_at INTEGER NOT NULL DEFAULT 0",
 };
 
+// Схема v4: роли участников групповых чатов.
+const char *const kSchemaV4[] = {
+    "ALTER TABLE chat_members ADD COLUMN role TEXT NOT NULL DEFAULT 'member'",
+};
+
 bool exec(QSqlDatabase &db, const QString &sql, QString *error)
 {
     QSqlQuery query(db);
@@ -195,6 +200,30 @@ bool applyV2(QSqlDatabase &db, QString *error)
     return true;
 }
 
+bool applyV4(QSqlDatabase &db, QString *error)
+{
+    if (!db.transaction()) {
+        if (error)
+            *error = QStringLiteral("Не удалось начать транзакцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+
+    for (const char *statement : kSchemaV4) {
+        if (!exec(db, QString::fromLatin1(statement), error)) {
+            db.rollback();
+            return false;
+        }
+    }
+
+    if (!db.commit()) {
+        if (error)
+            *error = QStringLiteral("Не удалось зафиксировать миграцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+    return true;
+}
 } // namespace
 
 bool applyV3(QSqlDatabase &db, QString *error)
@@ -261,6 +290,9 @@ bool apply(QSqlDatabase &db, QString *error)
         return false;
 
     if (current < 3 && !applyV3(db, error))
+        return false;
+
+    if (current < 4 && !applyV4(db, error))
         return false;
 
     if (!exec(db, QStringLiteral("PRAGMA user_version = %1").arg(kCurrentVersion), error))

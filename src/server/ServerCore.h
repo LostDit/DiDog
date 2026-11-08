@@ -46,6 +46,11 @@ private:
     HandlerResult handleChatOpen(const QJsonObject &data, ClientSession *session);
     HandlerResult handleChatDirect(const QJsonObject &data, ClientSession *session);
     HandlerResult handleChatRead(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleChatCreate(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleChatMembers(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleChatAdd(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleChatLeave(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleUserSearch(const QJsonObject &data, ClientSession *session);
 
     HandlerResult handleMessageSend(const QJsonObject &data, ClientSession *session);
     HandlerResult handleMessageEdit(const QJsonObject &data, ClientSession *session);
@@ -80,6 +85,8 @@ private:
     AttachmentStore m_attachmentStore;
     QHash<quint32, ReadyAttachment> m_readyAttachments;
     QMultiHash<qint64, ClientSession *> m_sessions;
+
+    bool isUserOnline(qint64 userId) const;
 };
 
 } // namespace server

@@ -29,6 +29,10 @@ public:
     bool count(int *value, QString *error) const;
     bool all(QList<User> *users, QString *error) const;
 
+    // Поиск по логину и имени для приглашения в группу.
+    bool search(const QString &query, qint64 excludeId, int limit, QList<User> *users,
+                QString *error) const;
+
 private:
     QSqlDatabase m_db;
 };

@@ -143,6 +143,28 @@ server → client : auth.ok {token, user} | error
 (вместо сообщения остаётся tombstone). История и `chat.open` возвращают
 сообщение с `deleted: true`.
 
+### `chat.create`
+```json
+{ "title": "Друзья", "member_ids": [2, 5] }
+```
+→ `{chat}` (summary для создателя, `kind: "group"`). Создатель получает роль `owner`,
+приглашённые — `member` и событие `ev.chat`. Название 2–64 символа, до 50 участников.
+
+### `chat.members`
+`{chat_id}` → `{members: [{id, username, display_name, avatar_hue, role, online}]}`;
+роли: `owner`, `admin`, `member`; `online` — есть активная сессия.
+
+### `chat.add`
+`{chat_id, user_ids: [int]}` → `{}`; только `owner`/`admin`. Добавленные получают
+`ev.chat`, остальные участники — `ev.chat.members`.
+
+### `chat.leave`
+`{chat_id}` → `{}`; владелец передаёт роль следующему участнику. Если участников
+не осталось, чат удаляется.
+
+### `user.search`
+`{query, limit?}` → `{users: […]}`; поиск по логину и имени, без текущего пользователя.
+
 ### `attach.begin`
 `{chat_id, file_name, mime, byte_size, sha256}` →
 `{transfer_id, chunk_size}`; ошибки `TOO_LARGE`, `RATE_LIMITED`.
@@ -175,7 +197,8 @@ server → client : auth.ok {token, user} | error
 | `ev.msg.deleted` | `{chat_id, message}` | сообщение удалено у всех (`deleted: true`) |
 | `ev.receipt` | `{chat_id, message_id, user_id, state}` | квитанция delivered/read |
 | `ev.read` | `{chat_id, user_id, up_to_seq}` | пользователь прочитал чат |
-| `ev.chat` | `{chat}` | создан личный чат (второму участнику) |
+| `ev.chat` | `{chat}` | создан личный или групповой чат (второму участнику) |
+| `ev.chat.members` | `{chat_id}` | состав группы изменился |
 | `ev.presence` | `{user_id, online, last_seen}` | подключение/отключение |
 | `ev.typing` | `{chat_id, user_id, on}` | набор текста |
 

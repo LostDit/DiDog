@@ -45,6 +45,16 @@ struct Chat {
     qint64 createdAt = 0;
 };
 
+// Участник группового чата (для панели «Участники»).
+struct ChatMember {
+    qint64 userId = 0;
+    QString username;
+    QString displayName;
+    int avatarHue = 210;
+    QString role = QStringLiteral("member"); // owner | admin | member
+    bool online = false;
+};
+
 struct Attachment {
     qint64 id = 0;
     qint64 messageId = 0;

@@ -118,16 +118,108 @@ bool ChatRepository::findDirect(qint64 userA, qint64 userB, Chat *out, bool *fou
 
 bool ChatRepository::addMember(qint64 chatId, qint64 userId, QString *error)
 {
+    return addMember(chatId, userId, QStringLiteral("member"), error);
+}
+
+bool ChatRepository::addMember(qint64 chatId, qint64 userId, const QString &role, QString *error)
+{
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
-        "INSERT OR IGNORE INTO chat_members(chat_id, user_id, last_read_seq, joined_at) "
-        "VALUES(?, ?, 0, ?)"));
+        "INSERT OR IGNORE INTO chat_members(chat_id, user_id, last_read_seq, joined_at, role) "
+        "VALUES(?, ?, 0, ?, ?)"));
     query.addBindValue(chatId);
     query.addBindValue(userId);
     query.addBindValue(QDateTime::currentMSecsSinceEpoch());
+    query.addBindValue(role);
 
     if (!query.exec())
         return sql::failQuery(error, query, QStringLiteral("Не удалось добавить участника"));
+    return true;
+}
+
+bool ChatRepository::members(qint64 chatId, QList<ChatMember> *out, QString *error) const
+{
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral(
+        "SELECT u.id, u.username, u.display_name, u.avatar_hue, cm.role "
+        "FROM chat_members cm JOIN users u ON u.id = cm.user_id "
+        "WHERE cm.chat_id = ? "
+        "ORDER BY CASE cm.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, "
+        "         u.display_name COLLATE NOCASE"));
+    query.addBindValue(chatId);
+
+    if (!query.exec())
+        return sql::failQuery(error, query, QStringLiteral("Список участников"));
+
+    if (out) {
+        out->clear();
+        while (query.next()) {
+            ChatMember member;
+            member.userId = query.value(0).toLongLong();
+            member.username = query.value(1).toString();
+            member.displayName = query.value(2).toString();
+            member.avatarHue = query.value(3).toInt();
+            member.role = query.value(4).toString();
+            out->append(member);
+        }
+    }
+    return true;
+}
+
+bool ChatRepository::memberRole(qint64 chatId, qint64 userId, QString *role, bool *found,
+                                QString *error) const
+{
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral(
+        "SELECT role FROM chat_members WHERE chat_id = ? AND user_id = ?"));
+    query.addBindValue(chatId);
+    query.addBindValue(userId);
+
+    if (!query.exec())
+        return sql::failQuery(error, query, QStringLiteral("Роль участника"));
+
+    if (found)
+        *found = query.next();
+    if (found && *found && role)
+        *role = query.value(0).toString();
+    return true;
+}
+
+bool ChatRepository::removeMember(qint64 chatId, qint64 userId, QString *error)
+{
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral(
+        "DELETE FROM chat_members WHERE chat_id = ? AND user_id = ?"));
+    query.addBindValue(chatId);
+    query.addBindValue(userId);
+
+    if (!query.exec())
+        return sql::failQuery(error, query, QStringLiteral("Выход из чата"));
+    return true;
+}
+
+bool ChatRepository::setRole(qint64 chatId, qint64 userId, const QString &role, QString *error)
+{
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral(
+        "UPDATE chat_members SET role = ? WHERE chat_id = ? AND user_id = ?"));
+    query.addBindValue(role);
+    query.addBindValue(chatId);
+    query.addBindValue(userId);
+
+    if (!query.exec())
+        return sql::failQuery(error, query, QStringLiteral("Смена роли участника"));
+    return true;
+}
+
+bool ChatRepository::deleteChat(qint64 chatId, QString *error)
+{
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral("DELETE FROM chats WHERE id = ?"));
+    query.addBindValue(chatId);
+
+    if (!query.exec())
+        return sql::failQuery(error, query, QStringLiteral("Удаление чата"));
     return true;
 }
 

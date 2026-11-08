@@ -162,4 +162,39 @@ bool UserRepository::all(QList<User> *users, QString *error) const
     return true;
 }
 
+bool UserRepository::search(const QString &query, qint64 excludeId, int limit,
+                            QList<User> *users, QString *error) const
+{
+    const QString trimmed = query.trimmed();
+    if (trimmed.isEmpty())
+        return all(users, error);
+
+    QString pattern = trimmed;
+    pattern.replace(QLatin1Char('\\'), QStringLiteral("\\\\"));
+    pattern.replace(QLatin1Char('%'), QStringLiteral("\\%"));
+    pattern.replace(QLatin1Char('_'), QStringLiteral("\\_"));
+
+    QSqlQuery statement(m_db);
+    statement.prepare(QStringLiteral("SELECT %1 FROM users "
+                                     "WHERE id <> ? AND (username LIKE ? ESCAPE '\\' "
+                                     "OR display_name LIKE ? ESCAPE '\\') "
+                                     "ORDER BY display_name COLLATE NOCASE LIMIT ?")
+                          .arg(QString::fromLatin1(kUserColumns)));
+    statement.addBindValue(excludeId);
+    const QString like = QStringLiteral("%") + pattern + QStringLiteral("%");
+    statement.addBindValue(like);
+    statement.addBindValue(like);
+    statement.addBindValue(qBound(1, limit, 100));
+
+    if (!statement.exec())
+        return sql::failQuery(error, statement, QStringLiteral("Поиск пользователей"));
+
+    if (users) {
+        users->clear();
+        while (statement.next())
+            users->append(readUser(statement));
+    }
+    return true;
+}
+
 } // namespace data
