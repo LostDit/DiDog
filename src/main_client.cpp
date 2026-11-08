@@ -1,3 +1,4 @@
+#include "ui/ButtonFx.h"
 #include "app/AppPaths.h"
 #include "app/ClientController.h"
 #include "app/Localization.h"
@@ -126,8 +127,10 @@ int main(int argc, char *argv[])
     }
 
     QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+    ui::ButtonFx::install(&app);
 
     app::SettingsStore settings(app::paths::settingsFile());
+    ui::ButtonFx::setEnabled(settings.animationsEnabled());
     app::i18n::install(settings.language());
 
     app::ThemeManager theme(&settings);

@@ -55,6 +55,7 @@ set(MESSENGER_CORE_SOURCES
 
     ui/AvatarPainter.h          ui/AvatarPainter.cpp
     ui/AvatarWidget.h           ui/AvatarWidget.cpp
+    ui/ButtonFx.h               ui/ButtonFx.cpp
     ui/ChatItemDelegate.h       ui/ChatItemDelegate.cpp
     ui/ChatListModel.h          ui/ChatListModel.cpp
     ui/ComposerWidget.h         ui/ComposerWidget.cpp

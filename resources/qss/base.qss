@@ -758,3 +758,18 @@ QComboBox#SettingsCombo QAbstractItemView {
     border-radius: 8px;
     padding: 7px 10px;
 }
+QPushButton#PrimaryButton:focus,
+QPushButton#GhostButton:focus,
+QToolButton#SendButton:focus,
+QToolButton#IconButton:focus {
+    background-color: {{accent-soft}};
+}
+
+QPushButton#LinkButton:focus,
+QToolButton#LinkButton:focus {
+    color: {{accent}};
+}
+
+QPushButton#TabButton:hover {
+    background-color: {{hover}};
+}

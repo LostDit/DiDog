@@ -1,6 +1,7 @@
 #include "ui/SettingsDialog.h"
 
 #include "app/AppPaths.h"
+#include "ui/ButtonFx.h"
 #include "app/SettingsStore.h"
 #include "app/ThemeManager.h"
 #include "app/UpdateService.h"
@@ -228,7 +229,7 @@ void SettingsDialog::buildUi()
     m_animationsCheck = new QCheckBox(tr("Анимации интерфейса"), this);
     m_animationsCheck->setChecked(m_settings->animationsEnabled());
     connect(m_animationsCheck, &QCheckBox::toggled, this,
-            [this](bool enabled) { m_settings->setAnimationsEnabled(enabled); });
+            [this](bool enabled) { m_settings->setAnimationsEnabled(enabled); ui::ButtonFx::setEnabled(enabled); });
     layout->addWidget(m_animationsCheck);
 
     layout->addStretch(1);
