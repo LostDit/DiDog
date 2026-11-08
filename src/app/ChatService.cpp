@@ -235,7 +235,14 @@ ChatService::ChatService(net::ClientConnection *connection, HistoryStore *histor
                 ChatState &state = m_states[chatId];
                 if (state.loaded || messages.isEmpty())
                     return;
-                state.messages = messages;
+
+                QList<data::Message> visible;
+                for (const data::Message &message : messages) {
+                    if (!isMessageHidden(message.id))
+                        visible.append(message);
+                }
+
+                state.messages = visible;
                 state.loaded = true;
                 state.hasMore = messages.size() >= core::limits::kHistoryPageSize;
                 hydrateAttachments(chatId);
@@ -386,7 +393,13 @@ void ChatService::openChat(qint64 chatId)
                                   }
                               }
 
-                              current.messages = loaded + pending;
+                              QList<data::Message> visible;
+                              for (const data::Message &message : qAsConst(loaded)) {
+                                  if (!isMessageHidden(message.id))
+                                      visible.append(message);
+                              }
+
+                              current.messages = visible + pending;
                               current.loaded = true;
                               current.hasMore = data.value(QStringLiteral("has_more")).toBool();
 
@@ -438,7 +451,13 @@ void ChatService::loadOlder(qint64 chatId)
                               if (older.isEmpty())
                                   return;
 
-                              current.messages = older + current.messages;
+                              QList<data::Message> visible;
+                              for (const data::Message &message : qAsConst(older)) {
+                                  if (!isMessageHidden(message.id))
+                                      visible.append(message);
+                              }
+
+                              current.messages = visible + current.messages;
                               emit historyPrepend(chatId);
                               emit messagesChanged(chatId);
                           });
@@ -679,8 +698,10 @@ void ChatService::retryAttachment(qint64 attachmentId)
 void ChatService::setSettingsStore(SettingsStore *settings)
 {
     m_settings = settings;
-    if (m_settings)
+    if (m_settings) {
         m_hiddenChats = m_settings->hiddenChats();
+        m_hiddenMessages = m_settings->hiddenMessages();
+    }
 }
 
 void ChatService::saveHiddenChats()
@@ -738,6 +759,113 @@ void ChatService::clearHistory(qint64 chatId)
     state.hasMore = false;
 
     emit messagesChanged(chatId);
+}
+
+void ChatService::editMessage(qint64 chatId, qint64 messageId, const QString &body)
+{
+    if (body.trimmed().isEmpty())
+        return;
+
+    QJsonObject request;
+    request.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    request.insert(QStringLiteral("message_id"), static_cast<double>(messageId));
+    request.insert(QStringLiteral("body"), body);
+
+    m_connection->request(QStringLiteral("msg.edit"), request,
+                          [this](const QJsonObject &reply) {
+                              if (!replyOk(reply)) {
+                                  emit errorOccurred(core::proto::errorMessageOf(reply));
+                                  return;
+                              }
+
+                              applyMessageUpdate(data::json::messageFromJson(
+                                  replyData(reply).value(QStringLiteral("message")).toObject()));
+                          },
+                          15000);
+}
+
+void ChatService::deleteMessageForEveryone(qint64 chatId, qint64 messageId)
+{
+    QJsonObject request;
+    request.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    request.insert(QStringLiteral("message_id"), static_cast<double>(messageId));
+
+    m_connection->request(QStringLiteral("msg.delete"), request,
+                          [this](const QJsonObject &reply) {
+                              if (!replyOk(reply)) {
+                                  emit errorOccurred(core::proto::errorMessageOf(reply));
+                                  return;
+                              }
+
+                              applyMessageUpdate(data::json::messageFromJson(
+                                  replyData(reply).value(QStringLiteral("message")).toObject()));
+                          },
+                          15000);
+}
+
+void ChatService::deleteMessageForMe(qint64 chatId, qint64 messageId)
+{
+    m_hiddenMessages.insert(messageId);
+    saveHiddenMessages();
+
+    ChatState &state = m_states[chatId];
+    for (int i = 0; i < state.messages.size(); ++i) {
+        if (state.messages.at(i).id == messageId) {
+            state.messages.removeAt(i);
+            break;
+        }
+    }
+
+    if (m_history)
+        m_history->removeMessage(messageId);
+
+    emit messagesChanged(chatId);
+}
+
+bool ChatService::isMessageHidden(qint64 messageId) const
+{
+    return messageId > 0 && m_hiddenMessages.contains(messageId);
+}
+
+void ChatService::saveHiddenMessages()
+{
+    if (!m_settings)
+        return;
+
+    m_settings->setHiddenMessages(m_hiddenMessages);
+    m_settings->sync();
+}
+
+void ChatService::applyMessageUpdate(const data::Message &message)
+{
+    if (message.id <= 0)
+        return;
+
+    for (auto it = m_states.begin(); it != m_states.end(); ++it) {
+        bool changed = false;
+
+        for (data::Message &stored : it.value().messages) {
+            if (stored.id != message.id)
+                continue;
+
+            stored.body = message.body;
+            stored.deleted = message.deleted;
+            stored.editedAt = message.editedAt;
+
+            if (message.deleted) {
+                stored.attachment = data::Attachment();
+                stored.localPath.clear();
+            }
+
+            if (m_history)
+                m_history->saveMessage(stored);
+
+            changed = true;
+        }
+
+        if (changed)
+            emit messagesChanged(it.key());
+    }
 }
 
 void ChatService::markRead(qint64 chatId)
@@ -799,6 +927,15 @@ int ChatService::totalUnread() const
 
 void ChatService::onEvent(const QString &event, const QJsonObject &data)
 {
+    if (event == QLatin1String(core::proto::event::kMsgEdited)
+        || event == QLatin1String(core::proto::event::kMsgDeleted)) {
+        const data::Message message =
+            data::json::messageFromJson(data.value(QStringLiteral("message")).toObject());
+        if (message.id > 0)
+            applyMessageUpdate(message);
+        return;
+    }
+
     if (event == QLatin1String(core::proto::event::kMsg)) {
         const data::Message message =
             data::json::messageFromJson(data.value(QStringLiteral("message")).toObject());
@@ -935,6 +1072,9 @@ void ChatService::upsertSummary(const data::ChatSummary &summary)
 
 void ChatService::insertMessageSorted(qint64 chatId, const data::Message &message)
 {
+    if (isMessageHidden(message.id))
+        return;
+
     ChatState &state = m_states[chatId];
 
     for (const data::Message &existing : qAsConst(state.messages)) {

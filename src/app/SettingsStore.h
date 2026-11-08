@@ -57,6 +57,10 @@ public:
     QSet<qint64> hiddenChats() const;
     void setHiddenChats(const QSet<qint64> &chatIds);
 
+    // Сообщения, скрытые «у себя».
+    QSet<qint64> hiddenMessages() const;
+    void setHiddenMessages(const QSet<qint64> &messageIds);
+
     QString filePath() const;
 
 private:

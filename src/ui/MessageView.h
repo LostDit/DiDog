@@ -41,6 +41,9 @@ signals:
     void loadOlderRequested();
     void retryRequested(const QString &clientMsgId);
     void attachmentRetryRequested(qint64 attachmentId);
+    void editRequested(qint64 messageId);
+    void deleteForEveryoneRequested(qint64 messageId);
+    void deleteForMeRequested(qint64 messageId);
     void imageActivated(const QString &filePath);
     void videoActivated(const QString &filePath);
     void fileActivated(const QString &fileName, const QString &filePath);

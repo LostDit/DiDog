@@ -122,6 +122,12 @@ void MessageView::setMessages(const QList<data::Message> &messages)
                 this, &MessageView::retryRequested);
         connect(bubble, &MessageBubble::attachmentRetryRequested,
                 this, &MessageView::attachmentRetryRequested);
+        connect(bubble, &MessageBubble::editRequested,
+                this, &MessageView::editRequested);
+        connect(bubble, &MessageBubble::deleteForEveryoneRequested,
+                this, &MessageView::deleteForEveryoneRequested);
+        connect(bubble, &MessageBubble::deleteForMeRequested,
+                this, &MessageView::deleteForMeRequested);
         connect(bubble, &MessageBubble::imageActivated, this, &MessageView::imageActivated);
         connect(bubble, &MessageBubble::videoActivated, this, &MessageView::videoActivated);
         connect(bubble, &MessageBubble::fileActivated, this, &MessageView::fileActivated);

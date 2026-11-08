@@ -14,6 +14,7 @@ namespace {
 
 const char kSelectMessage[] =
     "SELECT m.id, m.chat_id, m.sender_id, m.seq, m.client_msg_id, m.kind, m.body, m.created_at, "
+    "       m.deleted AS deleted, m.edited_at AS edited_at, "
     "       u.display_name AS sender_name, u.avatar_hue AS sender_hue, "
     "       a.id AS att_id, a.file_name AS att_name, a.mime AS att_mime, "
     "       a.byte_size AS att_size, a.sha256 AS att_sha, a.rel_path AS att_path, "
@@ -34,6 +35,8 @@ Message readMessage(const QSqlQuery &query)
     message.kind = messageKindFromString(query.value(QStringLiteral("kind")).toString());
     message.body = query.value(QStringLiteral("body")).toString();
     message.createdAt = query.value(QStringLiteral("created_at")).toLongLong();
+    message.deleted = query.value(QStringLiteral("deleted")).toBool();
+    message.editedAt = query.value(QStringLiteral("edited_at")).toLongLong();
     message.senderDisplayName = query.value(QStringLiteral("sender_name")).toString();
     message.senderHue = query.value(QStringLiteral("sender_hue")).toInt();
 
@@ -154,8 +157,10 @@ bool MessageRepository::store(const Message &message, bool *inserted, QString *e
 
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
-        "INSERT OR IGNORE INTO messages(id, chat_id, sender_id, seq, client_msg_id, kind, body, "
-        "created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)"));
+        "INSERT INTO messages(id, chat_id, sender_id, seq, client_msg_id, kind, body, "
+        "created_at, deleted, edited_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "ON CONFLICT(id) DO UPDATE SET body = excluded.body, "
+        "deleted = excluded.deleted, edited_at = excluded.edited_at"));
     query.addBindValue(message.id);
     query.addBindValue(message.chatId);
     query.addBindValue(message.senderId);
@@ -164,6 +169,8 @@ bool MessageRepository::store(const Message &message, bool *inserted, QString *e
     query.addBindValue(messageKindToString(message.kind));
     query.addBindValue(message.body);
     query.addBindValue(message.createdAt);
+    query.addBindValue(message.deleted ? 1 : 0);
+    query.addBindValue(message.editedAt);
 
     if (!query.exec())
         return sql::failQuery(error, query, QStringLiteral("Сохранение сообщения"));
@@ -339,6 +346,53 @@ bool MessageRepository::removeChat(qint64 chatId, QString *error)
 
     if (!messages.exec())
         return sql::failQuery(error, messages, QStringLiteral("Удаление сообщений чата"));
+
+    return true;
+}
+
+bool MessageRepository::updateEdited(qint64 id, const QString &body, qint64 editedAt,
+                                     QString *error)
+{
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral("UPDATE messages SET body = ?, edited_at = ? WHERE id = ?"));
+    query.addBindValue(body);
+    query.addBindValue(editedAt);
+    query.addBindValue(id);
+
+    if (!query.exec())
+        return sql::failQuery(error, query, QStringLiteral("Редактирование сообщения"));
+
+    return true;
+}
+
+bool MessageRepository::markDeleted(qint64 id, QString *error)
+{
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral(
+        "UPDATE messages SET deleted = 1, body = '', edited_at = 0 WHERE id = ?"));
+    query.addBindValue(id);
+
+    if (!query.exec())
+        return sql::failQuery(error, query, QStringLiteral("Удаление сообщения"));
+
+    return true;
+}
+
+bool MessageRepository::removeMessage(qint64 id, QString *error)
+{
+    QSqlQuery attachments(m_db);
+    attachments.prepare(QStringLiteral("DELETE FROM attachments WHERE message_id = ?"));
+    attachments.addBindValue(id);
+
+    if (!attachments.exec())
+        return sql::failQuery(error, attachments, QStringLiteral("Удаление вложения"));
+
+    QSqlQuery message(m_db);
+    message.prepare(QStringLiteral("DELETE FROM messages WHERE id = ?"));
+    message.addBindValue(id);
+
+    if (!message.exec())
+        return sql::failQuery(error, message, QStringLiteral("Удаление сообщения"));
 
     return true;
 }

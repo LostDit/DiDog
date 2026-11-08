@@ -154,6 +154,17 @@ void HistoryWorker::removeChat(qint64 chatId)
         report(error);
 }
 
+void HistoryWorker::removeMessage(qint64 messageId)
+{
+    if (!m_open)
+        return;
+
+    data::MessageRepository messages(m_database.handle());
+    QString error;
+    if (!messages.removeMessage(messageId, &error))
+        report(error);
+}
+
 void HistoryWorker::report(const QString &error)
 {
     qWarning().noquote() << QStringLiteral("История: %1").arg(error);
@@ -276,6 +287,11 @@ void HistoryStore::searchMessages(const QString &query, int limit)
 void HistoryStore::removeChat(qint64 chatId)
 {
     submit([chatId](HistoryWorker *worker) { worker->removeChat(chatId); });
+}
+
+void HistoryStore::removeMessage(qint64 messageId)
+{
+    submit([messageId](HistoryWorker *worker) { worker->removeMessage(messageId); });
 }
 
 } // namespace app

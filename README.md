@@ -79,7 +79,7 @@ sudo apt install build-essential cmake ninja-build \
 .\scripts\build-installer.ps1          # Release + windeployqt + Inno Setup
 ```
 
-Результат: `dist\installer\MessengerApp-Setup-1.2.0.exe` (≈21 МБ). Что делает установщик:
+Результат: `dist\installer\MessengerApp-Setup-1.3.0.exe` (≈21 МБ). Что делает установщик:
 
 - ставит приложение в `Program Files\MessengerApp` (или в профиль при `/CURRENTUSER`);
 - добавляет ярлыки «MessengerApp» и «Сервер MessengerApp» в меню «Пуск» (и на рабочий стол по желанию);
@@ -89,7 +89,7 @@ sudo apt install build-essential cmake ninja-build \
 Тихая установка для проверки:
 
 ```powershell
-MessengerApp-Setup-1.2.0.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
+MessengerApp-Setup-1.3.0.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
 ```
 
 **Проверка на двух компьютерах и в разных сетях** — пошаговая инструкция:
@@ -174,10 +174,20 @@ tls=true
   у собеседника сообщения остаются. Новое сообщение вернёт чат в список.
 - **Очистить историю** — удаляются только локальные сообщения, чат остаётся.
 
+## Действия с сообщениями
+
+Правый клик по сообщению:
+
+- **Копировать текст** — в буфер обмена;
+- **Изменить** — свои текстовые сообщения, у изменённых появляется «изм.»;
+- **Удалить у всех** — только свои: у всех участников остаётся «Сообщение удалено»;
+- **Удалить у себя** — скрывает сообщение только на этом компьютере.
+
 ## Документация
 
 - [CHANGELOG.md](CHANGELOG.md) — все изменения по версиям (каждая правка фиксируется здесь)
 - [docs/FEATURES.md](docs/FEATURES.md) — матрица функций: что есть, что дальше
+- [docs/UI-CONCEPTS.md](docs/UI-CONCEPTS.md) — панель участников по макету и концепция личной странички
 - [docs/VOICE-AND-SUBSCRIPTIONS.md](docs/VOICE-AND-SUBSCRIPTIONS.md) — план голосовых каналов и подписок
 
 Правило проекта: изменение кода сопровождается записью в `CHANGELOG.md` и

@@ -70,6 +70,8 @@ struct Message {
     MessageKind kind = MessageKind::Text;
     QString body;
     qint64 createdAt = 0;
+    bool deleted = false;
+    qint64 editedAt = 0;
     Attachment attachment;
     DeliveryState state = DeliveryState::Sent;
 

@@ -1,0 +1,265 @@
+#include "core/Protocol.h"
+#include "net/ClientConnection.h"
+#include "server/ServerApp.h"
+
+#include <QElapsedTimer>
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QScopedPointer>
+#include <QSignalSpy>
+#include <QTemporaryDir>
+#include <QUuid>
+#include <QtTest>
+
+namespace {
+
+bool hasEvent(const QSignalSpy &spy, const QString &name)
+{
+    for (const QList<QVariant> &arguments : spy) {
+        if (arguments.value(0).toString() == name)
+            return true;
+    }
+    return false;
+}
+
+QJsonObject eventData(const QSignalSpy &spy, const QString &name)
+{
+    for (const QList<QVariant> &arguments : spy) {
+        if (arguments.value(0).toString() == name)
+            return arguments.value(1).value<QJsonObject>();
+    }
+    return QJsonObject();
+}
+
+} // namespace
+
+// Редактирование и удаление сообщений на уровне протокола: оба клиента
+// видят изменения, чужие сообщения менять нельзя.
+class TestMessageOps : public QObject
+{
+    Q_OBJECT
+
+private slots:
+    void init();
+    void cleanup();
+
+    void editAndDeleteReachBothSides();
+    void foreignMessageCannotBeChanged();
+
+private:
+    QJsonObject request(net::ClientConnection &connection, const QString &type,
+                        const QJsonObject &data, bool *ok = nullptr);
+
+    QScopedPointer<QTemporaryDir> m_dir;
+    QScopedPointer<server::ServerApp> m_server;
+};
+
+void TestMessageOps::init()
+{
+    m_dir.reset(new QTemporaryDir);
+    QVERIFY(m_dir->isValid());
+
+    m_server.reset(new server::ServerApp);
+
+    QString error;
+    QVERIFY2(m_server->initialize(m_dir->filePath(QStringLiteral("server.db")),
+                                  m_dir->filePath(QStringLiteral("attachments")), &error),
+             qPrintable(error));
+    QVERIFY2(m_server->start(0), qPrintable(m_server->errorString()));
+}
+
+void TestMessageOps::cleanup()
+{
+    m_server.reset();
+    m_dir.reset();
+}
+
+QJsonObject TestMessageOps::request(net::ClientConnection &connection, const QString &type,
+                                    const QJsonObject &data, bool *ok)
+{
+    bool done = false;
+    QJsonObject reply;
+
+    connection.request(type, data, [&done, &reply](const QJsonObject &value) {
+        reply = value;
+        done = true;
+    });
+
+    if (ok)
+        *ok = false;
+
+    QElapsedTimer timer;
+    timer.start();
+    while (!done && timer.elapsed() < 10000)
+        QTest::qWait(10);
+
+    if (ok)
+        *ok = done && reply.value(QStringLiteral("ok")).toBool(false);
+
+    return reply;
+}
+
+void TestMessageOps::editAndDeleteReachBothSides()
+{
+    net::ClientConnection first;
+    net::ClientConnection second;
+    first.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    second.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+
+    QSignalSpy firstConnected(&first, &net::ClientConnection::socketConnected);
+    QSignalSpy secondConnected(&second, &net::ClientConnection::socketConnected);
+    QSignalSpy secondEvents(&second, &net::ClientConnection::eventReceived);
+
+    first.connectToServer();
+    second.connectToServer();
+    QTRY_COMPARE_WITH_TIMEOUT(firstConnected.count(), 1, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(secondConnected.count(), 1, 15000);
+
+    bool ok = false;
+    request(first, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("author")},
+                        {QStringLiteral("display_name"), QStringLiteral("Author")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+
+    request(second, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("reader")},
+                        {QStringLiteral("display_name"), QStringLiteral("Reader")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+
+    const QJsonObject chatsReply = request(first, QStringLiteral("chat.list"), QJsonObject(), &ok);
+    QVERIFY(ok);
+    const QJsonArray chats = chatsReply.value(QStringLiteral("data")).toObject()
+                                 .value(QStringLiteral("chats")).toArray();
+    QVERIFY(!chats.isEmpty());
+    const double chatId = chats.first().toObject().value(QStringLiteral("id")).toDouble();
+
+    const QJsonObject sendReply = request(
+        first, QStringLiteral("msg.send"),
+        QJsonObject{{QStringLiteral("chat_id"), chatId},
+                    {QStringLiteral("client_msg_id"), QUuid::createUuid().toString(QUuid::WithoutBraces)},
+                    {QStringLiteral("kind"), QStringLiteral("text")},
+                    {QStringLiteral("body"), QStringLiteral("исходный текст")}},
+        &ok);
+    QVERIFY(ok);
+    const double messageId = sendReply.value(QStringLiteral("data")).toObject()
+                                 .value(QStringLiteral("message_id")).toDouble();
+    QVERIFY(messageId > 0);
+
+    QTRY_VERIFY_WITH_TIMEOUT(hasEvent(secondEvents, QStringLiteral("ev.msg")), 10000);
+
+    // Редактирование: второй клиент получает событие с новым текстом.
+    request(first, QStringLiteral("msg.edit"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId},
+                        {QStringLiteral("message_id"), messageId},
+                        {QStringLiteral("body"), QStringLiteral("изменённый текст")}},
+            &ok);
+    QVERIFY(ok);
+
+    QTRY_VERIFY_WITH_TIMEOUT(hasEvent(secondEvents, QStringLiteral("ev.msg.edited")), 10000);
+    const QJsonObject edited = eventData(secondEvents, QStringLiteral("ev.msg.edited"))
+                                   .value(QStringLiteral("message")).toObject();
+    QCOMPARE(edited.value(QStringLiteral("body")).toString(), QStringLiteral("изменённый текст"));
+    QVERIFY(edited.value(QStringLiteral("edited_at")).toDouble() > 0);
+
+    // Удаление у всех: приходит событие с deleted = true.
+    request(first, QStringLiteral("msg.delete"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId},
+                        {QStringLiteral("message_id"), messageId}},
+            &ok);
+    QVERIFY(ok);
+
+    QTRY_VERIFY_WITH_TIMEOUT(hasEvent(secondEvents, QStringLiteral("ev.msg.deleted")), 10000);
+    const QJsonObject deleted = eventData(secondEvents, QStringLiteral("ev.msg.deleted"))
+                                    .value(QStringLiteral("message")).toObject();
+    QVERIFY(deleted.value(QStringLiteral("deleted")).toBool());
+    QVERIFY(deleted.value(QStringLiteral("body")).toString().isEmpty());
+
+    // История отдаёт удалённое сообщение как tombstone.
+    const QJsonObject openReply = request(second, QStringLiteral("chat.open"),
+                                          QJsonObject{{QStringLiteral("chat_id"), chatId},
+                                                      {QStringLiteral("limit"), 10}},
+                                          &ok);
+    QVERIFY(ok);
+    const QJsonArray messages = openReply.value(QStringLiteral("data")).toObject()
+                                    .value(QStringLiteral("messages")).toArray();
+    bool foundDeleted = false;
+    for (const QJsonValue &value : messages) {
+        const QJsonObject message = value.toObject();
+        if (static_cast<qint64>(message.value(QStringLiteral("id")).toDouble()) == messageId)
+            foundDeleted = message.value(QStringLiteral("deleted")).toBool();
+    }
+    QVERIFY(foundDeleted);
+
+    first.disconnectFromServer();
+    second.disconnectFromServer();
+}
+
+void TestMessageOps::foreignMessageCannotBeChanged()
+{
+    net::ClientConnection author;
+    net::ClientConnection stranger;
+    author.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    stranger.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+
+    QSignalSpy authorConnected(&author, &net::ClientConnection::socketConnected);
+    QSignalSpy strangerConnected(&stranger, &net::ClientConnection::socketConnected);
+    author.connectToServer();
+    stranger.connectToServer();
+    QTRY_COMPARE_WITH_TIMEOUT(authorConnected.count(), 1, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(strangerConnected.count(), 1, 15000);
+
+    bool ok = false;
+    request(author, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("owner")},
+                        {QStringLiteral("display_name"), QStringLiteral("Owner")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+
+    request(stranger, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("intruder")},
+                        {QStringLiteral("display_name"), QStringLiteral("Intruder")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+
+    const QJsonObject chatsReply = request(author, QStringLiteral("chat.list"), QJsonObject(), &ok);
+    QVERIFY(ok);
+    const double chatId = chatsReply.value(QStringLiteral("data")).toObject()
+                              .value(QStringLiteral("chats")).toArray()
+                              .first().toObject().value(QStringLiteral("id")).toDouble();
+
+    const QJsonObject sendReply = request(
+        author, QStringLiteral("msg.send"),
+        QJsonObject{{QStringLiteral("chat_id"), chatId},
+                    {QStringLiteral("client_msg_id"), QUuid::createUuid().toString(QUuid::WithoutBraces)},
+                    {QStringLiteral("kind"), QStringLiteral("text")},
+                    {QStringLiteral("body"), QStringLiteral("чужое сообщение")}},
+        &ok);
+    QVERIFY(ok);
+    const double messageId = sendReply.value(QStringLiteral("data")).toObject()
+                                 .value(QStringLiteral("message_id")).toDouble();
+
+    const QJsonObject editReply = request(
+        stranger, QStringLiteral("msg.edit"),
+        QJsonObject{{QStringLiteral("chat_id"), chatId},
+                    {QStringLiteral("message_id"), messageId},
+                    {QStringLiteral("body"), QStringLiteral("подмена")}});
+    QVERIFY(!editReply.value(QStringLiteral("ok")).toBool(false));
+
+    const QJsonObject deleteReply = request(
+        stranger, QStringLiteral("msg.delete"),
+        QJsonObject{{QStringLiteral("chat_id"), chatId},
+                    {QStringLiteral("message_id"), messageId}});
+    QVERIFY(!deleteReply.value(QStringLiteral("ok")).toBool(false));
+
+    author.disconnectFromServer();
+    stranger.disconnectFromServer();
+}
+
+QTEST_GUILESS_MAIN(TestMessageOps)
+#include "tst_message_ops.moc"

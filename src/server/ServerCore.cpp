@@ -118,6 +118,10 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
 
     if (type == QLatin1String(core::proto::type::kMsgSend))
         return handleMessageSend(data, session);
+    if (type == QLatin1String(core::proto::type::kMsgEdit))
+        return handleMessageEdit(data, session);
+    if (type == QLatin1String(core::proto::type::kMsgDelete))
+        return handleMessageDelete(data, session);
     if (type == QLatin1String(core::proto::type::kReceiptDelivered))
         return handleReceiptDelivered(data, session);
     if (type == QLatin1String(core::proto::type::kTyping))
@@ -503,6 +507,99 @@ HandlerResult ServerCore::handleMessageSend(const QJsonObject &data, ClientSessi
     broadcastToChat(chatId, core::proto::event::kMsg, event, session);
 
     return HandlerResult::success(messageAck(stored));
+}
+
+HandlerResult ServerCore::handleMessageEdit(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+    const qint64 messageId = int64Value(data, "message_id");
+    const QString body = stringValue(data, "body");
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    bool member = false;
+    if (!chats.isMember(chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    data::MessageRepository messages(m_database.handle());
+    data::Message message;
+    bool found = false;
+    if (!messages.byId(messageId, &message, &found, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!found || message.chatId != chatId)
+        return HandlerResult::failure(core::ErrorCode::NotFound);
+    if (message.senderId != session->userId())
+        return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                      QStringLiteral("Можно изменять только свои сообщения"));
+    if (message.deleted)
+        return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                      QStringLiteral("Сообщение удалено"));
+    if (message.kind != data::MessageKind::Text)
+        return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                      QStringLiteral("Можно изменять только текст"));
+
+    const security::CheckResult textCheck = security::checkMessageText(body);
+    if (!textCheck.ok)
+        return HandlerResult::failure(core::ErrorCode::BadRequest, textCheck.message);
+
+    if (!messages.updateEdited(messageId, body, QDateTime::currentMSecsSinceEpoch(), &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    data::Message full;
+    if (!messages.byId(messageId, &full, &found, &error) || !found)
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    event.insert(QStringLiteral("message"), data::json::messageToJson(full));
+    broadcastToChat(chatId, core::proto::event::kMsgEdited, event, session);
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("message"), data::json::messageToJson(full));
+    return HandlerResult::success(payload);
+}
+
+HandlerResult ServerCore::handleMessageDelete(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+    const qint64 messageId = int64Value(data, "message_id");
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    bool member = false;
+    if (!chats.isMember(chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    data::MessageRepository messages(m_database.handle());
+    data::Message message;
+    bool found = false;
+    if (!messages.byId(messageId, &message, &found, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!found || message.chatId != chatId)
+        return HandlerResult::failure(core::ErrorCode::NotFound);
+    if (message.senderId != session->userId())
+        return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                      QStringLiteral("Можно удалять только свои сообщения"));
+
+    if (!messages.markDeleted(messageId, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    data::Message full;
+    if (!messages.byId(messageId, &full, &found, &error) || !found)
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    event.insert(QStringLiteral("message"), data::json::messageToJson(full));
+    broadcastToChat(chatId, core::proto::event::kMsgDeleted, event, session);
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("message"), data::json::messageToJson(full));
+    return HandlerResult::success(payload);
 }
 
 HandlerResult ServerCore::handleReceiptDelivered(const QJsonObject &data, ClientSession *session)

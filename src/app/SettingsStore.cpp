@@ -235,6 +235,37 @@ void SettingsStore::setHiddenChats(const QSet<qint64> &chatIds)
         m_settings.setValue(QStringLiteral("chats/hidden"), parts.join(QLatin1Char(',')));
 }
 
+QSet<qint64> SettingsStore::hiddenMessages() const
+{
+    QSet<qint64> result;
+
+    const QString stored = m_settings.value(QStringLiteral("chats/hiddenMessages")).toString();
+    const QStringList parts = stored.split(QLatin1Char(','), Qt::SkipEmptyParts);
+    for (const QString &part : parts) {
+        bool ok = false;
+        const qint64 id = part.trimmed().toLongLong(&ok);
+        if (ok && id > 0)
+            result.insert(id);
+    }
+
+    return result;
+}
+
+void SettingsStore::setHiddenMessages(const QSet<qint64> &messageIds)
+{
+    QList<qint64> sorted = messageIds.values();
+    std::sort(sorted.begin(), sorted.end());
+
+    QStringList parts;
+    for (const qint64 id : sorted)
+        parts.append(QString::number(id));
+
+    if (parts.isEmpty())
+        m_settings.remove(QStringLiteral("chats/hiddenMessages"));
+    else
+        m_settings.setValue(QStringLiteral("chats/hiddenMessages"), parts.join(QLatin1Char(',')));
+}
+
 QString SettingsStore::filePath() const
 {
     return m_settings.fileName();

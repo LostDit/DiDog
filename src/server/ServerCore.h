@@ -48,6 +48,8 @@ private:
     HandlerResult handleChatRead(const QJsonObject &data, ClientSession *session);
 
     HandlerResult handleMessageSend(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleMessageEdit(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleMessageDelete(const QJsonObject &data, ClientSession *session);
     HandlerResult handleReceiptDelivered(const QJsonObject &data, ClientSession *session);
     HandlerResult handleTyping(const QJsonObject &data, ClientSession *session);
 

@@ -37,6 +37,11 @@ public:
     // Удаление локальной истории чата (вложения удаляются вместе с сообщениями).
     bool removeChat(qint64 chatId, QString *error);
 
+    // Редактирование и удаление (у себя — локально, у всех — после ответа сервера).
+    bool updateEdited(qint64 id, const QString &body, qint64 editedAt, QString *error);
+    bool markDeleted(qint64 id, QString *error);
+    bool removeMessage(qint64 id, QString *error);
+
 private:
     QSqlDatabase m_db;
 };

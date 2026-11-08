@@ -68,6 +68,9 @@ private slots:
     void onMessagesChanged(qint64 chatId);
     void onChatSelectionChanged();
     void onChatListMenu(const QPoint &position);
+    void onEditMessage(qint64 messageId);
+    void onDeleteMessageForEveryone(qint64 messageId);
+    void onDeleteMessageForMe(qint64 messageId);
     void onSendRequested(const QString &text);
     void onThemeToggleClicked();
     void onNewChatClicked();

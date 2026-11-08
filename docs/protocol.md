@@ -132,6 +132,17 @@ server → client : auth.ok {token, user} | error
 Ответ (ack): `{message_id, seq, created_at}`.
 Повтор с тем же `client_msg_id` → тот же ответ (идемпотентность), событие `ev.msg` повторно **не** рассылается.
 
+### `msg.edit`
+`{chat_id, message_id, body}` → `{message}`; редактировать можно только свои текстовые
+сообщения, `body` проверяется как при отправке. Сервер рассылает `ev.msg.edited`
+остальным участникам. В ответе и событии — полное сообщение с `edited_at`.
+
+### `msg.delete`
+`{chat_id, message_id}` → `{message}`; удалять у всех можно только свои сообщения.
+Сервер ставит `deleted = 1`, очищает `body` и рассылает `ev.msg.deleted`
+(вместо сообщения остаётся tombstone). История и `chat.open` возвращают
+сообщение с `deleted: true`.
+
 ### `attach.begin`
 `{chat_id, file_name, mime, byte_size, sha256}` →
 `{transfer_id, chunk_size}`; ошибки `TOO_LARGE`, `RATE_LIMITED`.
@@ -160,6 +171,8 @@ server → client : auth.ok {token, user} | error
 | event | data | когда |
 |---|---|---|
 | `ev.msg` | `{message}` | новое сообщение в чате пользователя |
+| `ev.msg.edited` | `{chat_id, message}` | сообщение изменено |
+| `ev.msg.deleted` | `{chat_id, message}` | сообщение удалено у всех (`deleted: true`) |
 | `ev.receipt` | `{chat_id, message_id, user_id, state}` | квитанция delivered/read |
 | `ev.read` | `{chat_id, user_id, up_to_seq}` | пользователь прочитал чат |
 | `ev.chat` | `{chat}` | создан личный чат (второму участнику) |
@@ -170,6 +183,7 @@ server → client : auth.ok {token, user} | error
 ```json
 { "id": 128, "chat_id": 3, "seq": 42, "sender": {"id":2,"username":"anya","display_name":"Аня","avatar_hue":120},
   "kind": "image", "body": "", "created_at": 1699360000000,
+  "deleted": false, "edited_at": 0,
   "attachment": {"id":7,"file_name":"photo.jpg","mime":"image/jpeg","byte_size":182734,
                  "width":1280,"height":720,"duration_ms":null,"sha256":"…"},
   "status": "sent" }

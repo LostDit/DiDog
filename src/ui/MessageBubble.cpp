@@ -3,12 +3,15 @@
 #include "ui/AvatarWidget.h"
 #include "ui/Formatting.h"
 
+#include <QClipboard>
 #include <QFileInfo>
 #include <QFrame>
 #include <QFontMetrics>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QImageReader>
 #include <QLabel>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QMovie>
 #include <QPainter>
@@ -94,7 +97,10 @@ MessageBubble::MessageBubble(const data::Message &message, bool own, bool showAv
     footer->setSpacing(6);
     footer->addStretch(1);
 
-    m_time = new QLabel(format::clockTime(message.createdAt), m_bubble);
+    m_time = new QLabel(format::clockTime(message.createdAt)
+                            + (message.editedAt > 0 ? QStringLiteral(" · ") + tr("изм.")
+                                                    : QString()),
+                        m_bubble);
     m_time->setObjectName(QStringLiteral("MessageTime"));
     footer->addWidget(m_time);
 
@@ -115,6 +121,10 @@ MessageBubble::MessageBubble(const data::Message &message, bool own, bool showAv
     bubbleLayout->addLayout(footer);
 
     layout->addWidget(m_bubble, 0, Qt::AlignTop);
+
+    setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(this, &QWidget::customContextMenuRequested,
+            this, &MessageBubble::showContextMenu);
 
     if (!m_own)
         layout->addStretch(1);
@@ -174,9 +184,77 @@ void MessageBubble::updateMessage(const data::Message &message)
 
 void MessageBubble::rebuild()
 {
-    if (m_text)
+    if (m_message.deleted) {
+        if (m_text) {
+            m_text->setText(QStringLiteral("<i>%1</i>").arg(tr("Сообщение удалено")));
+            m_text->setVisible(true);
+        }
+        if (m_attachment)
+            m_attachment->hide();
+        if (m_retry)
+            m_retry->hide();
+        if (m_time)
+            m_time->setText(format::clockTime(m_message.createdAt));
+        updateStatus();
+        return;
+    }
+
+    if (m_text) {
         m_text->setText(richText(m_message.body));
+        m_text->setVisible(!m_message.body.isEmpty());
+    }
+
+    if (m_time) {
+        m_time->setText(format::clockTime(m_message.createdAt)
+                        + (m_message.editedAt > 0 ? QStringLiteral(" · ") + tr("изм.")
+                                                  : QString()));
+    }
+
     updateStatus();
+}
+
+void MessageBubble::showContextMenu(const QPoint &position)
+{
+    if (m_message.id <= 0)
+        return;
+
+    QMenu menu(this);
+
+    QAction *copy = nullptr;
+    if (!m_message.deleted && !m_message.body.isEmpty())
+        copy = menu.addAction(tr("Копировать текст"));
+
+    QAction *edit = nullptr;
+    if (m_own && !m_message.deleted && m_message.kind == data::MessageKind::Text)
+        edit = menu.addAction(tr("Изменить"));
+
+    if (copy || edit)
+        menu.addSeparator();
+
+    QAction *removeAll = nullptr;
+    if (m_own && !m_message.deleted)
+        removeAll = menu.addAction(tr("Удалить у всех"));
+
+    QAction *removeMe = menu.addAction(tr("Удалить у себя"));
+
+    QAction *chosen = menu.exec(mapToGlobal(position));
+    if (!chosen)
+        return;
+
+    if (chosen == copy) {
+        QGuiApplication::clipboard()->setText(m_message.body);
+        return;
+    }
+    if (chosen == edit) {
+        emit editRequested(m_message.id);
+        return;
+    }
+    if (chosen == removeAll) {
+        emit deleteForEveryoneRequested(m_message.id);
+        return;
+    }
+    if (chosen == removeMe)
+        emit deleteForMeRequested(m_message.id);
 }
 
 void MessageBubble::buildAttachment()

@@ -30,6 +30,7 @@ public:
     void loadOutbox();
     void searchMessages(const QString &query, int limit);
     void removeChat(qint64 chatId);
+    void removeMessage(qint64 messageId);
 
 signals:
     void chatsLoaded(const QList<data::ChatSummary> &chats);
@@ -67,6 +68,7 @@ public:
     void loadOutbox();
     void searchMessages(const QString &query, int limit = 50);
     void removeChat(qint64 chatId);
+    void removeMessage(qint64 messageId);
 
 signals:
     void chatsLoaded(const QList<data::ChatSummary> &chats);

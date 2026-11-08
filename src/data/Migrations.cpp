@@ -119,6 +119,12 @@ const char *const kSchemaV2[] = {
     ")",
 };
 
+// Схема v3: удаление и редактирование сообщений.
+const char *const kSchemaV3[] = {
+    "ALTER TABLE messages ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE messages ADD COLUMN edited_at INTEGER NOT NULL DEFAULT 0",
+};
+
 bool exec(QSqlDatabase &db, const QString &sql, QString *error)
 {
     QSqlQuery query(db);
@@ -191,6 +197,33 @@ bool applyV2(QSqlDatabase &db, QString *error)
 
 } // namespace
 
+bool applyV3(QSqlDatabase &db, QString *error)
+{
+    if (!db.transaction()) {
+        if (error)
+            *error = QStringLiteral("Не удалось начать транзакцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+
+    for (const char *statement : kSchemaV3) {
+        if (!exec(db, QString::fromLatin1(statement), error)) {
+            db.rollback();
+            return false;
+        }
+    }
+
+    if (!db.commit()) {
+        if (error)
+            *error = QStringLiteral("Не удалось зафиксировать миграцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+    return true;
+}
+
+
+
 int version(QSqlDatabase &db)
 {
     QSqlQuery query(db);
@@ -225,6 +258,9 @@ bool apply(QSqlDatabase &db, QString *error)
         return false;
 
     if (current < 2 && !applyV2(db, error))
+        return false;
+
+    if (current < 3 && !applyV3(db, error))
         return false;
 
     if (!exec(db, QStringLiteral("PRAGMA user_version = %1").arg(kCurrentVersion), error))

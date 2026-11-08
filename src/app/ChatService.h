@@ -36,6 +36,11 @@ public:
     // Очистка локальной истории, чат остаётся в списке.
     void clearHistory(qint64 chatId);
 
+    // Редактирование и удаление сообщений.
+    void editMessage(qint64 chatId, qint64 messageId, const QString &body);
+    void deleteMessageForEveryone(qint64 chatId, qint64 messageId);
+    void deleteMessageForMe(qint64 chatId, qint64 messageId);
+
     QList<data::ChatSummary> chats() const { return m_chats; }
     data::ChatSummary chat(qint64 chatId) const;
     QList<data::Message> messages(qint64 chatId) const;
@@ -96,6 +101,9 @@ private:
     void hydrateAttachments(qint64 chatId);
     void unhideChat(qint64 chatId);
     void saveHiddenChats();
+    void saveHiddenMessages();
+    bool isMessageHidden(qint64 messageId) const;
+    void applyMessageUpdate(const data::Message &message);
 
     net::ClientConnection *m_connection = nullptr;
     HistoryStore *m_history = nullptr;
@@ -108,6 +116,7 @@ private:
     QHash<qint64, ChatState> m_states;
     QHash<qint64, int> m_downloadAttempts;
     QSet<qint64> m_hiddenChats;
+    QSet<qint64> m_hiddenMessages;
     qint64 m_activeChatId = 0;
 };
 

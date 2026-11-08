@@ -365,6 +365,11 @@ QWidget *MainWindow::buildConversationPane()
     });
     connect(m_messageView, &MessageView::attachmentRetryRequested, this,
             [this](qint64 attachmentId) { m_chats->retryAttachment(attachmentId); });
+    connect(m_messageView, &MessageView::editRequested, this, &MainWindow::onEditMessage);
+    connect(m_messageView, &MessageView::deleteForEveryoneRequested, this,
+            &MainWindow::onDeleteMessageForEveryone);
+    connect(m_messageView, &MessageView::deleteForMeRequested, this,
+            &MainWindow::onDeleteMessageForMe);
 
     connect(m_messageView, &MessageView::imageActivated, this, [this](const QString &filePath) {
         ui::ImageViewerDialog viewer(filePath, this);
@@ -398,6 +403,53 @@ QWidget *MainWindow::buildConversationPane()
             });
 
     return page;
+}
+
+void MainWindow::onEditMessage(qint64 messageId)
+{
+    if (m_currentChatId <= 0)
+        return;
+
+    QString currentText;
+    for (const data::Message &message : m_chats->messages(m_currentChatId)) {
+        if (message.id == messageId) {
+            currentText = message.body;
+            break;
+        }
+    }
+
+    bool ok = false;
+    const QString text = QInputDialog::getMultiLineText(
+        this, tr("Изменить сообщение"), tr("Новый текст"), currentText, &ok);
+
+    if (!ok || text.trimmed().isEmpty())
+        return;
+
+    m_chats->editMessage(m_currentChatId, messageId, text);
+}
+
+void MainWindow::onDeleteMessageForEveryone(qint64 messageId)
+{
+    if (m_currentChatId <= 0)
+        return;
+
+    const auto answer = QMessageBox::question(
+        this, tr("Удалить у всех"),
+        tr("Сообщение исчезнет у всех участников чата. Продолжить?"));
+    if (answer == QMessageBox::Yes)
+        m_chats->deleteMessageForEveryone(m_currentChatId, messageId);
+}
+
+void MainWindow::onDeleteMessageForMe(qint64 messageId)
+{
+    if (m_currentChatId <= 0)
+        return;
+
+    const auto answer = QMessageBox::question(
+        this, tr("Удалить у себя"),
+        tr("Сообщение будет скрыто только на этом компьютере."));
+    if (answer == QMessageBox::Yes)
+        m_chats->deleteMessageForMe(m_currentChatId, messageId);
 }
 
 void MainWindow::onChatListMenu(const QPoint &position)
