@@ -1,0 +1,214 @@
+﻿MESSENGERAPP: ВЫКЛАДКА ОБНОВЛЕНИЯ НА СЕРВЕР
+================================================
+
+Версия в примере: 2.0.2. Замените её на актуальную, если выпускаете новую.
+Пути: Windows C:\MessengerApp, сервер /var/lib/messengerapp/updates.
+
+ПОРЯДОК ДЕЙСТВИЙ
+  1. Windows: собрать пакет (dist\MessengerApp) и манифест
+  2. Windows: упаковать в zip
+  3. Передать zip на сервер (SCP или HTTP)
+  4. Сервер: распаковать
+  5. Сервер: разложить в updates.new и проверить хеши
+  6. Сервер: подменить каталог updates
+  7. Проверить обновление клиентом
+
+------------------------------------------------
+ШАГ 1. WINDOWS: МАНИФЕСТ
+------------------------------------------------
+Откройте PowerShell:
+
+cd C:\MessengerApp
+$Version = '2.0.2'
+
+.\scripts\make-manifest.ps1 -Version $Version `
+    -Dist dist\MessengerApp `
+    -Exclude 'MessengerUpdater.exe'
+
+Ожидаемый вывод:
+  Манифест: C:\MessengerApp\dist\MessengerApp\manifest.json
+  Версия:   2.0.2
+  Файлов:   49
+
+Проверка:
+
+$m = Get-Content dist\MessengerApp\manifest.json -Raw | ConvertFrom-Json
+"$($m.version) $($m.files.Count)"
+($m.files | Where-Object path -eq 'MessengerUpdater.exe').Count
+
+Должно быть: "2.0.2 49" и 0.
+
+ВАЖНО: -Exclude 'MessengerUpdater.exe' нужен для обновления с версий
+2.0.0/2.0.1. Начиная с 2.0.3 исключение можно не указывать.
+
+Если PowerShell пишет "The string is missing the terminator":
+  $p = 'C:\MessengerApp\scripts\make-manifest.ps1'
+  $text = [System.IO.File]::ReadAllText($p, [System.Text.Encoding]::UTF8)
+  [System.IO.File]::WriteAllText($p, $text, (New-Object System.Text.UTF8Encoding($true)))
+и повторите шаг 1.
+
+------------------------------------------------
+ШАГ 2. WINDOWS: АРХИВ
+------------------------------------------------
+Compress-Archive -Path C:\MessengerApp\dist\MessengerApp `
+    -DestinationPath "C:\MessengerApp\dist\messenger-updates-$Version.zip" -Force
+
+Get-Item "C:\MessengerApp\dist\messenger-updates-$Version.zip" | Select-Object Length
+
+------------------------------------------------
+ШАГ 3. ПЕРЕДАЧА НА СЕРВЕР
+------------------------------------------------
+
+ВАРИАНТ A. SCP (лучше, если SSH-ключ настроен)
+
+Сначала проверка:
+  ssh lostdead@51.250.76.250 "echo ok"
+Должно вывести: ok
+
+Передача:
+  scp "C:\MessengerApp\dist\messenger-updates-$Version.zip" lostdead@51.250.76.250:/tmp/
+
+Если "Permission denied (publickey)":
+  ssh-keygen -t ed25519 -f $env:USERPROFILE\.ssh\id_ed25519 -N '""'
+  Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
+Скопируйте строку ssh-ed25519 ... и выполните на сервере:
+  echo 'ssh-ed25519 AAAA...ваш-ключ... user@windows' >> ~/.ssh/authorized_keys
+  chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys
+  chmod 755 ~
+Затем повторите ssh/scp.
+
+ВАРИАНТ B. HTTP (только если Windows доступен с сервера)
+
+На Windows:
+  cd C:\MessengerApp\dist
+  python -m http.server 8080 --bind 0.0.0.0
+
+Узнать IP Windows:
+  ipconfig | findstr IPv4
+
+Разрешить порт (PowerShell от администратора):
+  New-NetFirewallRule -DisplayName "HTTP 8080" -Direction Inbound -LocalPort 8080 -Protocol TCP -Action Allow
+
+На сервере (подставьте реальный IP вместо 192.168.1.42):
+  wget http://192.168.1.42:8080/messenger-updates-2.0.2.zip -O /tmp/messenger-updates-2.0.2.zip
+
+После передачи закрыть доступ:
+  Remove-NetFirewallRule -DisplayName "HTTP 8080"
+
+ВНИМАНИЕ: <IP-Windows> — это placeholder. Угловые скобки не пишутся.
+Для домашнего ПК за NAT этот способ не сработает — используйте SCP.
+
+------------------------------------------------
+ШАГ 4. СЕРВЕР: РАСПАКОВКА
+------------------------------------------------
+На сервере:
+
+VER=2.0.2
+ls -lh /tmp/messenger-updates-$VER.zip
+
+rm -rf /tmp/messenger-updates-unzip
+mkdir -p /tmp/messenger-updates-unzip
+unzip -q /tmp/messenger-updates-$VER.zip -d /tmp/messenger-updates-unzip
+
+find /tmp/messenger-updates-unzip -maxdepth 2 -name manifest.json
+
+Ожидается путь .../MessengerApp/manifest.json
+
+------------------------------------------------
+ШАГ 5. СЕРВЕР: ПРОВЕРКА ПЕРЕД ПОДМЕНОЙ
+------------------------------------------------
+sudo rm -rf /var/lib/messengerapp/updates.new
+sudo mkdir -p /var/lib/messengerapp/updates.new
+sudo cp -a /tmp/messenger-updates-unzip/MessengerApp/. /var/lib/messengerapp/updates.new/
+sudo chown -R messengerapp:messengerapp /var/lib/messengerapp/updates.new
+sudo chmod -R u+rwX,go+rX /var/lib/messengerapp/updates.new
+
+Версия и количество файлов:
+sudo python3 -c "import json;m=json.load(open('/var/lib/messengerapp/updates.new/manifest.json'));print(m['version'], len(m['files']))"
+Ожидается: 2.0.2 49
+
+Проверка хешей (должно быть bad 0):
+python3 - <<'PY'
+import hashlib, json, os
+root = '/var/lib/messengerapp/updates.new'
+m = json.load(open(os.path.join(root, 'manifest.json')))
+bad = 0
+for f in m['files']:
+    p = os.path.join(root, f['path'])
+    if not os.path.exists(p) or os.path.getsize(p) != f['size'] or \
+       hashlib.sha256(open(p, 'rb').read()).hexdigest() != f['sha256']:
+        print('BAD', f['path']); bad += 1
+print('checked', len(m['files']), 'bad', bad)
+PY
+
+ЕСЛИ bad НЕ 0 — не подменяйте каталог, перепроверьте передачу.
+
+------------------------------------------------
+ШАГ 6. СЕРВЕР: ПОДМЕНА КАТАЛОГА
+------------------------------------------------
+sudo rm -rf /var/lib/messengerapp/updates.old
+sudo mv /var/lib/messengerapp/updates /var/lib/messengerapp/updates.old 2>/dev/null || true
+sudo mv /var/lib/messengerapp/updates.new /var/lib/messengerapp/updates
+
+Перезапуск службы НЕ нужен: манифест читается при каждом запросе.
+
+------------------------------------------------
+ШАГ 7. ПРОВЕРКА
+------------------------------------------------
+sudo ls -l /var/lib/messengerapp/updates/manifest.json
+sudo head -c 60 /var/lib/messengerapp/updates/manifest.json; echo
+sudo systemctl cat messengerapp | grep ExecStart
+
+Проверить, что служба читает каталог:
+sudo -u messengerapp test -r /var/lib/messengerapp/updates/manifest.json && echo readable
+
+На клиенте предыдущей версии:
+  Настройки -> Обновления -> Проверить обновления
+Должно появиться "Доступна версия 2.0.2".
+На клиенте 2.0.2 будет "последняя версия" — это нормально.
+
+------------------------------------------------
+ОТКАТ
+------------------------------------------------
+sudo rm -rf /var/lib/messengerapp/updates
+sudo mv /var/lib/messengerapp/updates.old /var/lib/messengerapp/updates
+
+------------------------------------------------
+ЧАСТЫЕ ОШИБКИ
+------------------------------------------------
+1) Permission denied (publickey)
+   Публичный ключ не добавлен в ~/.ssh/authorized_keys или неверные права.
+   Проверьте: tail -n 3 ~/.ssh/authorized_keys | cat -A
+   Права: chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys && chmod 755 ~
+
+2) wget: "<IP-Windows>: No such file or directory"
+   Использован placeholder вместо IP. Подставьте реальный IPv4.
+
+3) ls: cannot access /tmp/messenger-updates-*.zip
+   Архив не передан. Повторите шаг 3 и проверьте scp.
+
+4) Клиент пишет "Установлена последняя версия"
+   На сервере манифест той же версии, что у клиента, либо клиент смотрит
+   на другой сервер. Проверьте:
+   sudo python3 -c "import json;print(json.load(open('/var/lib/messengerapp/updates/manifest.json'))['version'])"
+
+5) Обновление скачалось, но не перезапустилось
+   Посмотрите на клиенте: %TEMP%\MessengerUpdater.log
+   И проверьте, что в манифесте нет MessengerUpdater.exe:
+   sudo python3 -c "import json;m=json.load(open('/var/lib/messengerapp/updates/manifest.json'));print(any(f['path']=='MessengerUpdater.exe' for f in m['files']))"
+   Должно быть False.
+
+6) "The string is missing the terminator" в make-manifest.ps1
+   У скрипта потерялся BOM. Восстановите командой из шага 1.
+
+------------------------------------------------
+КОРОТКИЙ ЧЕКЛИСТ НА КАЖДЫЙ РЕЛИЗ
+------------------------------------------------
+[ ] Собрать Release, пакет, установщик
+[ ] make-manifest.ps1 (исключение updater для 2.0.x)
+[ ] Compress-Archive
+[ ] scp на сервер
+[ ] unzip
+[ ] updates.new + проверка "bad 0"
+[ ] подмена updates
+[ ] проверка клиентом предыдущей версии
