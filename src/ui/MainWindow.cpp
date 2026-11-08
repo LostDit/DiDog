@@ -121,6 +121,17 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
         connect(m_voice, &app::VoiceService::callAccepted, this, &MainWindow::onCallAccepted);
         connect(m_voice, &app::VoiceService::callDeclined, this, &MainWindow::onCallDeclined);
         connect(m_voice, &app::VoiceService::callCancelled, this, &MainWindow::onCallCancelled);
+        connect(m_voice, &app::VoiceService::callMissed, this,
+                [this](qint64, qint64, const QString &callerName) {
+                    const QString text = callerName.isEmpty()
+                                             ? tr("Пропущенный вызов")
+                                             : tr("Пропущенный вызов от %1").arg(callerName);
+                    showToast(text);
+                    if (m_tray && m_tray->isVisible()) {
+                        m_tray->showMessage(tr("MessengerApp"), text,
+                                            QSystemTrayIcon::Information, 4000);
+                    }
+                });
         connect(m_voice, &app::VoiceService::speakingChanged, this,
                 [this](qint64 chatId, qint64 userId, bool speaking) {
                     if (chatId != m_currentChatId)
@@ -202,6 +213,12 @@ void MainWindow::setUser(const data::User &user)
                                             QSystemTrayIcon::Information, 4000);
                     }
                 });
+
+        connect(m_updater, &app::UpdateService::downloaded, this, [this]() {
+            // Убираем иконку из трея до завершения — иначе Windows оставляет «призрак».
+            if (m_tray)
+                m_tray->hide();
+        });
 
         // Первая проверка после входа и далее каждые 6 часов.
         QTimer::singleShot(3000, this, &MainWindow::checkForUpdatesNow);
@@ -832,6 +849,11 @@ void MainWindow::openProfile(qint64 userId)
         return;
 
     ProfileCardDialog dialog(m_chats, m_currentChatId, userId, m_user.id, this);
+    connect(&dialog, &ProfileCardDialog::callRequested, this, [this](qint64 chatId) {
+        openChat(chatId);
+        if (m_voice && m_voice->state() == app::VoiceService::State::Idle)
+            m_voice->call(chatId);
+    });
     dialog.exec();
 }
 

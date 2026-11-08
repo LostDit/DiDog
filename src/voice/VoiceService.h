@@ -43,7 +43,7 @@ public:
 
     void call(qint64 chatId);
     void accept(qint64 chatId, qint64 callerId);
-    void decline(qint64 chatId, qint64 callerId);
+    void decline(qint64 chatId, qint64 callerId, const QString &reason = QString());
     void cancel(qint64 chatId);
     void hangup();
 
@@ -68,6 +68,7 @@ signals:
     void callAccepted(qint64 chatId, qint64 userId);
     void callDeclined(qint64 chatId, qint64 userId);
     void callCancelled(qint64 chatId);
+    void callMissed(qint64 chatId, qint64 callerId, const QString &callerName);
     void speakingChanged(qint64 chatId, qint64 userId, bool speaking);
 
 private slots:
@@ -86,6 +87,8 @@ private:
     void sendDatagram(const QByteArray &payload);
     void setState(State state);
     void updateSpeaking(const QByteArray &pcm);
+    void startCallTimer();
+    void stopCallTimer();
 
     net::ClientConnection *m_connection = nullptr;
     SettingsStore *m_settings = nullptr;
@@ -99,6 +102,7 @@ private:
     QUdpSocket *m_udp = nullptr;
     QTimer *m_keepalive = nullptr;
     QTimer *m_jitterTimer = nullptr;
+    QTimer *m_callTimer = nullptr;
 
     QHostAddress m_serverAddress;
     quint16 m_serverVoicePort = 0;
@@ -113,6 +117,7 @@ private:
     State m_state = State::Idle;
     qint64 m_chatId = 0;
     qint64 m_callerId = 0;
+    QString m_callerName;
     bool m_muted = false;
     bool m_speaking = false;
     bool m_pushToTalk = false;

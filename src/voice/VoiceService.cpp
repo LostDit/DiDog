@@ -69,6 +69,47 @@ VoiceService::VoiceService(net::ClientConnection *connection, SettingsStore *set
 
     m_jitterTimer->setInterval(20);
     connect(m_jitterTimer, &QTimer::timeout, this, &VoiceService::flushJitter);
+
+    m_callTimer = new QTimer(this);
+    m_callTimer->setSingleShot(true);
+    m_callTimer->setInterval(30000);
+    connect(m_callTimer, &QTimer::timeout, this, [this]() {
+        if (m_state == State::Calling) {
+            if (m_connection && m_connection->isConnected()) {
+                m_connection->request(
+                    QStringLiteral("voice.cancel"),
+                    QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(m_chatId)}},
+                    nullptr, 3000);
+            }
+            closeAudio();
+            closeUdp();
+            m_chatId = 0;
+            m_callerId = 0;
+            setState(State::Idle);
+            emit errorOccurred(tr("Абонент не ответил."));
+            return;
+        }
+
+        if (m_state == State::Ringing) {
+            if (m_connection && m_connection->isConnected()) {
+                m_connection->request(
+                    QStringLiteral("voice.decline"),
+                    QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(m_chatId)},
+                                {QStringLiteral("caller_id"), static_cast<double>(m_callerId)},
+                                {QStringLiteral("reason"), QStringLiteral("timeout")}},
+                    nullptr, 3000);
+            }
+
+            const qint64 chatId = m_chatId;
+            const qint64 callerId = m_callerId;
+            const QString callerName = m_callerName;
+            m_chatId = 0;
+            m_callerId = 0;
+            m_callerName.clear();
+            setState(State::Idle);
+            emit callMissed(chatId, callerId, callerName);
+        }
+    });
 }
 
 VoiceService::~VoiceService()
@@ -119,7 +160,9 @@ void VoiceService::call(qint64 chatId)
 
     m_chatId = chatId;
     m_callerId = 0;
+    m_callerName.clear();
     setState(State::Calling);
+    startCallTimer();
 
     m_connection->request(
         QStringLiteral("voice.join"),
@@ -172,6 +215,7 @@ void VoiceService::accept(qint64 chatId, qint64 callerId)
     m_chatId = chatId;
     m_callerId = callerId;
     setState(State::Active);
+    stopCallTimer();
 
     m_connection->request(
         QStringLiteral("voice.join"),
@@ -205,22 +249,29 @@ void VoiceService::accept(qint64 chatId, qint64 callerId)
         10000);
 }
 
-void VoiceService::decline(qint64 chatId, qint64 callerId)
+void VoiceService::decline(qint64 chatId, qint64 callerId, const QString &reason)
 {
+    stopCallTimer();
+
     if (m_connection && m_connection->isConnected()) {
-        m_connection->request(
-            QStringLiteral("voice.decline"),
-            QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(chatId)},
-                        {QStringLiteral("caller_id"), static_cast<double>(callerId)}},
-            nullptr, 5000);
+        QJsonObject request{{QStringLiteral("chat_id"), static_cast<double>(chatId)},
+                            {QStringLiteral("caller_id"), static_cast<double>(callerId)}};
+        if (!reason.isEmpty())
+            request.insert(QStringLiteral("reason"), reason);
+
+        m_connection->request(QStringLiteral("voice.decline"), request, nullptr, 5000);
     }
 
-    if (m_state == State::Ringing)
+    if (m_state == State::Ringing) {
+        m_callerName.clear();
         setState(State::Idle);
+    }
 }
 
 void VoiceService::cancel(qint64 chatId)
 {
+    stopCallTimer();
+
     if (m_connection && m_connection->isConnected()) {
         m_connection->request(
             QStringLiteral("voice.cancel"),
@@ -236,6 +287,8 @@ void VoiceService::hangup()
     if (m_state == State::Idle)
         return;
 
+    stopCallTimer();
+
     if (m_connection && m_connection->isConnected()) {
         m_connection->request(
             QStringLiteral("voice.leave"),
@@ -248,6 +301,7 @@ void VoiceService::hangup()
     m_jitter.clear();
     m_chatId = 0;
     m_callerId = 0;
+    m_callerName.clear();
     setState(State::Idle);
 }
 
@@ -573,14 +627,16 @@ void VoiceService::onEvent(const QString &name, const QJsonObject &data)
         const QString callerName = data.value(QStringLiteral("caller_name")).toString();
 
         if (m_state != State::Idle) {
-            // Занято: вежливо отклоняем.
-            decline(chatId, callerId);
+            // Занято: вежливо отклоняем с причиной.
+            decline(chatId, callerId, QStringLiteral("busy"));
             return;
         }
 
         m_chatId = chatId;
         m_callerId = callerId;
+        m_callerName = callerName;
         setState(State::Ringing);
+        startCallTimer();
         emit incomingCall(chatId, callerId, callerName);
         return;
     }
@@ -588,6 +644,7 @@ void VoiceService::onEvent(const QString &name, const QJsonObject &data)
     if (name == QLatin1String(core::proto::event::kVoiceAccepted)) {
         if (m_state != State::Calling)
             return;
+        stopCallTimer();
         setState(State::Active);
         emit callAccepted(chatId, static_cast<qint64>(
                                     data.value(QStringLiteral("user_id")).toDouble()));
@@ -596,9 +653,14 @@ void VoiceService::onEvent(const QString &name, const QJsonObject &data)
 
     if (name == QLatin1String(core::proto::event::kVoiceDeclined)) {
         if (m_state == State::Calling) {
+            stopCallTimer();
             closeAudio();
             closeUdp();
             setState(State::Idle);
+
+            if (data.value(QStringLiteral("reason")).toString() == QLatin1String("busy"))
+                emit errorOccurred(tr("Абонент уже в другом звонке."));
+
             emit callDeclined(chatId, static_cast<qint64>(
                                         data.value(QStringLiteral("user_id")).toDouble()));
         }
@@ -614,12 +676,26 @@ void VoiceService::onEvent(const QString &name, const QJsonObject &data)
 
     if (name == QLatin1String(core::proto::event::kVoiceCancelled)) {
         if (m_state == State::Ringing) {
+            stopCallTimer();
             m_chatId = 0;
             m_callerId = 0;
+            m_callerName.clear();
             setState(State::Idle);
             emit callCancelled(chatId);
         }
     }
+}
+
+void VoiceService::startCallTimer()
+{
+    if (m_callTimer)
+        m_callTimer->start();
+}
+
+void VoiceService::stopCallTimer()
+{
+    if (m_callTimer)
+        m_callTimer->stop();
 }
 
 } // namespace app

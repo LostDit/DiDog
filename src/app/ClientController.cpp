@@ -1,5 +1,21 @@
 #include "app/ClientController.h"
 
+#include "app/AttachmentService.h"
+#include "app/BillingService.h"
+#include "app/ChatService.h"
+#include "app/HistoryStore.h"
+#include "app/NotificationService.h"
+#include "app/SessionService.h"
+#include "app/SettingsStore.h"
+#include "app/ThemeManager.h"
+#include "voice/VoiceService.h"
+#include "net/ClientConnection.h"
+#include "ui/LoginWindow.h"
+#include "ui/MainWindow.h"
+
+#include <QLocalServer>
+#include <QLocalSocket>
+
 #include "app/AppPaths.h"
 #include "app/AttachmentService.h"
 #include "app/BillingService.h"
@@ -36,12 +52,14 @@ QString previewOf(const data::Message &message)
 
 } // namespace
 
-ClientController::ClientController(SettingsStore *settings, ThemeManager *theme, QObject *parent)
+ClientController::ClientController(SettingsStore *settings, ThemeManager *theme,
+                                   const QString &instanceName, QObject *parent)
     : QObject(parent)
     , m_settings(settings)
     , m_theme(theme)
 {
     createConnection();
+    listenForActivation(instanceName);
 
     m_notifications = new NotificationService(m_settings, this);
 
@@ -84,6 +102,45 @@ ClientController::ClientController(SettingsStore *settings, ThemeManager *theme,
 }
 
 ClientController::~ClientController() = default;
+
+void ClientController::listenForActivation(const QString &instanceName)
+{
+    if (instanceName.isEmpty())
+        return;
+
+    // Убираем возможный «мёртвый» сокет от прошлого запуска.
+    QLocalServer::removeServer(instanceName);
+
+    m_instanceServer = new QLocalServer(this);
+    if (!m_instanceServer->listen(instanceName))
+        return;
+
+    connect(m_instanceServer, &QLocalServer::newConnection, this, [this]() {
+        while (m_instanceServer && m_instanceServer->hasPendingConnections()) {
+            QLocalSocket *socket = m_instanceServer->nextPendingConnection();
+            connect(socket, &QLocalSocket::readyRead, socket, [this, socket]() {
+                const QByteArray command = socket->readAll();
+                if (command.trimmed() == QByteArrayLiteral("show"))
+                    restoreWindow();
+                socket->disconnectFromServer();
+            });
+            connect(socket, &QLocalSocket::disconnected, socket, &QLocalSocket::deleteLater);
+        }
+    });
+}
+
+void ClientController::restoreWindow()
+{
+    if (m_mainWindow) {
+        m_mainWindow->showNormal();
+        m_mainWindow->raise();
+        m_mainWindow->activateWindow();
+    } else if (m_loginWindow) {
+        m_loginWindow->showNormal();
+        m_loginWindow->raise();
+        m_loginWindow->activateWindow();
+    }
+}
 
 void ClientController::createConnection()
 {

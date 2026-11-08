@@ -119,6 +119,23 @@ void ProfileCardDialog::buildUi(const QString &displayName, const QString &usern
 
     const bool canWrite = known && m_userId > 0 && m_userId != m_currentUserId
                           && !username.isEmpty();
+    const data::ChatSummary summary = m_chats ? m_chats->chat(m_chatId)
+                                              : data::ChatSummary();
+    const bool canCall = known && m_userId != m_currentUserId
+                         && summary.chat.kind == QLatin1String("direct");
+
+    if (canCall) {
+        auto *call = new QPushButton(tr("Позвонить"), m_content);
+        call->setObjectName(QStringLiteral("PrimaryButton"));
+        call->setCursor(Qt::PointingHandCursor);
+        connect(call, &QPushButton::clicked, this, [this]() {
+            emit callRequested(m_chatId);
+            accept();
+        });
+        buttons->addWidget(call);
+        buttons->addSpacing(8);
+    }
+
     if (canWrite) {
         auto *write = new QPushButton(tr("Написать"), m_content);
         write->setObjectName(QStringLiteral("PrimaryButton"));

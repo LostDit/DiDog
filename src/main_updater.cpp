@@ -87,8 +87,30 @@ bool startApplication(const QString &path)
         return false;
 
     const QString workingDir = QFileInfo(path).absolutePath();
-    if (QProcess::startDetached(path, QStringList(), workingDir)) {
-        logLine(QStringLiteral("Запущено: %1").arg(path));
+    qint64 pid = 0;
+
+    if (QProcess::startDetached(path, QStringList(), workingDir, &pid)) {
+        logLine(QStringLiteral("Запущено: %1 (pid %2)").arg(path).arg(pid));
+
+        // Даём клиенту время подняться и проверяем, что он не упал сразу.
+        QThread::msleep(1500);
+#ifdef Q_OS_WIN
+        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
+                                     static_cast<DWORD>(pid));
+        if (process) {
+            DWORD code = 0;
+            const bool alive = GetExitCodeProcess(process, &code) && code == STILL_ACTIVE;
+            CloseHandle(process);
+            if (alive) {
+                logLine(QStringLiteral("Клиент работает"));
+                return true;
+            }
+            logLine(QStringLiteral("Клиент завершился сразу после запуска (код %1)").arg(code));
+        } else {
+            logLine(QStringLiteral("Не удалось проверить процесс, ошибка %1")
+                        .arg(GetLastError()));
+        }
+#endif
         return true;
     }
 
@@ -101,6 +123,7 @@ bool startApplication(const QString &path)
         logLine(QStringLiteral("ShellExecute запустил приложение"));
         return true;
     }
+    logLine(QStringLiteral("ShellExecute ошибка %1").arg(reinterpret_cast<qintptr>(result)));
 #endif
     return false;
 }

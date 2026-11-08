@@ -20,6 +20,9 @@ public:
     ProfileCardDialog(app::ChatService *chats, qint64 chatId, qint64 userId,
                       qint64 currentUserId, QWidget *parent = nullptr);
 
+signals:
+    void callRequested(qint64 chatId);
+
 private slots:
     void onMembersLoaded(qint64 chatId, const QList<data::ChatMember> &members);
 

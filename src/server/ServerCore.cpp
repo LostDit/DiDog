@@ -955,6 +955,7 @@ HandlerResult ServerCore::handleVoiceDecline(const QJsonObject &data, ClientSess
     QJsonObject event;
     event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
     event.insert(QStringLiteral("user_id"), static_cast<double>(session->userId()));
+    event.insert(QStringLiteral("reason"), data.value(QStringLiteral("reason")).toString());
     sendToUser(callerId, core::proto::event::kVoiceDeclined, event);
 
     return HandlerResult::success();
@@ -1131,6 +1132,14 @@ HandlerResult ServerCore::handleVoiceJoin(const QJsonObject &data, ClientSession
         return HandlerResult::failure(core::ErrorCode::Internal, error);
     if (!member)
         return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    // Нельзя состоять в двух голосовых комнатах одновременно.
+    for (auto it = m_voiceRooms.constBegin(); it != m_voiceRooms.constEnd(); ++it) {
+        if (it.key() != chatId && it.value().contains(session)) {
+            return HandlerResult::failure(core::ErrorCode::Conflict,
+                                          QStringLiteral("Вы уже в другом звонке."));
+        }
+    }
 
     m_voiceRooms[chatId].insert(session);
 

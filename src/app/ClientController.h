@@ -4,6 +4,9 @@
 
 #include <QObject>
 #include <QScopedPointer>
+#include <QString>
+
+class QLocalServer;
 
 namespace ui {
 class LoginWindow;
@@ -32,7 +35,8 @@ class ClientController : public QObject
     Q_OBJECT
 
 public:
-    ClientController(SettingsStore *settings, ThemeManager *theme, QObject *parent = nullptr);
+    ClientController(SettingsStore *settings, ThemeManager *theme,
+                     const QString &instanceName = QString(), QObject *parent = nullptr);
     ~ClientController() override;
 
     void start();
@@ -43,6 +47,8 @@ private slots:
 
 private:
     void createConnection();
+    void listenForActivation(const QString &instanceName);
+    void restoreWindow();
 
     SettingsStore *m_settings = nullptr;
     ThemeManager *m_theme = nullptr;
@@ -54,6 +60,7 @@ private:
     SessionService *m_session = nullptr;
     BillingService *m_billing = nullptr;
     VoiceService *m_voice = nullptr;
+    QLocalServer *m_instanceServer = nullptr;
     QScopedPointer<ui::LoginWindow> m_loginWindow;
     QScopedPointer<ui::MainWindow> m_mainWindow;
 };

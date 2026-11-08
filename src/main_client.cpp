@@ -8,9 +8,11 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QCryptographicHash>
 #include <QDebug>
 #include <QDir>
 #include <QIcon>
+#include <QLocalSocket>
 #include <QMessageBox>
 #include <QRegularExpression>
 #include <QStyleFactory>
@@ -97,7 +99,24 @@ int main(int argc, char *argv[])
                              .arg(QStringLiteral(MESSENGER_VERSION), app::paths::dataDir());
 
     app::SingleInstance instanceGuard(app::paths::dataDir() + QStringLiteral("/client.lock"));
+
+    const QString instanceName = QStringLiteral("MessengerApp-")
+        + QString::fromLatin1(QCryptographicHash::hash(app::paths::dataDir().toUtf8(),
+                                                       QCryptographicHash::Sha1)
+                                  .toHex()
+                                  .left(16));
+
     if (!instanceGuard.tryAcquire()) {
+        // Уже запущенный экземпляр: просим показать окно вместо второго трея.
+        QLocalSocket socket;
+        socket.connectToServer(instanceName);
+        if (socket.waitForConnected(700)) {
+            socket.write("show");
+            socket.waitForBytesWritten(700);
+            qInfo().noquote() << QStringLiteral("Активирован уже запущенный клиент");
+            return 0;
+        }
+
         qWarning().noquote() << instanceGuard.errorString();
         QMessageBox::information(nullptr, QStringLiteral("MessengerApp"),
                                  instanceGuard.errorString()
@@ -114,7 +133,7 @@ int main(int argc, char *argv[])
     app::ThemeManager theme(&settings);
     theme.apply();
 
-    app::ClientController controller(&settings, &theme);
+    app::ClientController controller(&settings, &theme, instanceName);
     controller.start();
 
     const int exitCode = app.exec();
