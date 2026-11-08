@@ -49,6 +49,9 @@ New-Item -ItemType Directory -Force -Path $dist | Out-Null
 
 Copy-Item (Join-Path $build 'MessengerClient.exe') $dist
 Copy-Item (Join-Path $build 'MessengerServer.exe') $dist
+$updaterExe = Join-Path $build 'MessengerUpdater.exe'
+if (-not (Test-Path $updaterExe)) { $updaterExe = Join-Path $build 'src\MessengerUpdater.exe' }
+Copy-Item $updaterExe $dist
 Copy-Item (Join-Path $root 'README.md') $dist
 
 # Адрес сервера по умолчанию: клиент прочитает его при первом запуске.

@@ -3,6 +3,7 @@
 #include "app/AppPaths.h"
 #include "app/SettingsStore.h"
 #include "app/ThemeManager.h"
+#include "app/UpdateService.h"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -14,6 +15,7 @@
 #include <QIntValidator>
 #include <QLabel>
 #include <QLineEdit>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -31,11 +33,13 @@ QLabel *sectionTitle(const QString &text, QWidget *parent)
 } // namespace
 
 SettingsDialog::SettingsDialog(app::SettingsStore *settings, app::ThemeManager *theme,
-                               app::BillingService *billing, QWidget *parent)
+                               app::BillingService *billing, app::UpdateService *updater,
+                               QWidget *parent)
     : QDialog(parent)
     , m_settings(settings)
     , m_theme(theme)
     , m_billing(billing)
+    , m_updater(updater)
 {
     setObjectName(QStringLiteral("SettingsDialog"));
     setWindowTitle(tr("Настройки"));
@@ -115,6 +119,23 @@ void SettingsDialog::buildUi()
     m_promoStatus->setVisible(false);
     layout->addWidget(m_promoStatus);
 
+    layout->addWidget(sectionTitle(tr("Обновления"), this));
+
+    m_updateStatus = new QLabel(tr("Версия %1").arg(QStringLiteral(MESSENGER_VERSION)), this);
+    m_updateStatus->setObjectName(QStringLiteral("EmptySubtitle"));
+    m_updateStatus->setWordWrap(true);
+    layout->addWidget(m_updateStatus);
+
+    m_updateButton = new QPushButton(tr("Проверить обновления"), this);
+    m_updateButton->setObjectName(QStringLiteral("GhostButton"));
+    m_updateButton->setCursor(Qt::PointingHandCursor);
+    layout->addWidget(m_updateButton);
+
+    m_updateProgress = new QProgressBar(this);
+    m_updateProgress->setRange(0, 100);
+    m_updateProgress->setVisible(false);
+    layout->addWidget(m_updateProgress);
+
     layout->addWidget(sectionTitle(tr("Сервер"), this));
 
     auto *serverRow = new QHBoxLayout;
@@ -175,6 +196,16 @@ void SettingsDialog::buildUi()
     connect(m_port, &QLineEdit::editingFinished, this, &SettingsDialog::onServerEdited);
     connect(openButton, &QPushButton::clicked, this, &SettingsDialog::openDataFolder);
     connect(promoButton, &QPushButton::clicked, this, &SettingsDialog::onPromoClicked);
+    connect(m_updateButton, &QPushButton::clicked, this, &SettingsDialog::onCheckUpdatesClicked);
+
+    if (m_updater) {
+        connect(m_updater, &app::UpdateService::checkFinished,
+                this, &SettingsDialog::onUpdateCheckFinished);
+        connect(m_updater, &app::UpdateService::progress,
+                this, &SettingsDialog::onUpdateProgress);
+        connect(m_updater, &app::UpdateService::failed,
+                this, &SettingsDialog::onUpdateFailed);
+    }
 
     if (m_billing) {
         connect(m_billing, &app::BillingService::statusChanged,
@@ -225,6 +256,65 @@ void SettingsDialog::updatePlanLabel()
     const QString date = QDateTime::fromMSecsSinceEpoch(expiresAt)
                              .toString(QStringLiteral("dd.MM.yyyy"));
     m_planLabel->setText(tr("Подписка %1 действует до %2.").arg(plan, date));
+}
+
+void SettingsDialog::onCheckUpdatesClicked()
+{
+    if (!m_updater)
+        return;
+
+    if (m_updateReady) {
+        m_updateButton->setEnabled(false);
+        m_updateButton->setText(tr("Загрузка…"));
+        m_updateStatus->setText(tr("Скачиваем изменённые файлы…"));
+        m_updateProgress->setVisible(true);
+        m_updateProgress->setValue(0);
+        m_updater->downloadAndApply();
+        return;
+    }
+
+    m_updateStatus->setText(tr("Проверяем обновления…"));
+    m_updateButton->setEnabled(false);
+    m_updater->checkForUpdates();
+}
+
+void SettingsDialog::onUpdateCheckFinished(bool available, const QString &version,
+                                           qint64 totalBytes)
+{
+    m_updateButton->setEnabled(true);
+
+    if (!available) {
+        m_updateReady = false;
+        m_updateButton->setText(tr("Проверить обновления"));
+        m_updateStatus->setText(tr("Установлена последняя версия (%1).")
+                                    .arg(QStringLiteral(MESSENGER_VERSION)));
+        m_updateProgress->setVisible(false);
+        return;
+    }
+
+    m_updateReady = true;
+    m_updateButton->setText(tr("Установить обновление"));
+    m_updateStatus->setText(tr("Доступна версия %1 — %2 МБ. Скачаются только изменённые файлы.")
+                                .arg(version)
+                                .arg(totalBytes / (1024.0 * 1024.0), 0, 'f', 1));
+}
+
+void SettingsDialog::onUpdateProgress(int percent, const QString &file)
+{
+    m_updateProgress->setVisible(true);
+    m_updateProgress->setValue(percent);
+
+    if (!file.isEmpty())
+        m_updateStatus->setText(tr("Загрузка: %1 (%2%)").arg(file).arg(percent));
+}
+
+void SettingsDialog::onUpdateFailed(const QString &message)
+{
+    m_updateButton->setEnabled(true);
+    m_updateButton->setText(m_updateReady ? tr("Установить обновление")
+                                          : tr("Проверить обновления"));
+    m_updateStatus->setText(message);
+    m_updateProgress->setVisible(false);
 }
 
 void SettingsDialog::onPromoClicked()

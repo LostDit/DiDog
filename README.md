@@ -79,7 +79,7 @@ sudo apt install build-essential cmake ninja-build \
 .\scripts\build-installer.ps1          # Release + windeployqt + Inno Setup
 ```
 
-Результат: `dist\installer\MessengerApp-Setup-1.7.1.exe` (≈21 МБ). Что делает установщик:
+Результат: `dist\installer\MessengerApp-Setup-1.8.0.exe` (≈21 МБ). Что делает установщик:
 
 - ставит приложение в `Program Files\MessengerApp` (или в профиль при `/CURRENTUSER`);
 - добавляет ярлыки «MessengerApp» и «Сервер MessengerApp» в меню «Пуск» (и на рабочий стол по желанию);
@@ -89,7 +89,7 @@ sudo apt install build-essential cmake ninja-build \
 Тихая установка для проверки:
 
 ```powershell
-MessengerApp-Setup-1.7.1.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
+MessengerApp-Setup-1.8.0.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
 ```
 
 **Проверка на двух компьютерах и в разных сетях** — пошаговая инструкция:
@@ -193,6 +193,18 @@ tls=true
 «в сети», роли (владелец, администратор, участник), поиск по именам.
 Владелец и администраторы могут добавлять людей; «Покинуть группу» передаёт роль
 следующему участнику.
+
+## Обновления
+
+Клиент проверяет обновления сам через несколько секунд после входа; вручную —
+**Настройки → Обновления**. Скачиваются только изменённые файлы (сравнение sha256),
+недокачанное продолжается с того же места. Применяет обновление
+`MessengerUpdater.exe`: ждёт выхода клиента, делает бэкап, заменяет файлы и
+перезапускает приложение.
+
+Сервер раздаёт обновления из каталога `updates/` (`--updates-dir`); манифест
+собирается скриптом `scripts\make-manifest.ps1 -Version 1.8.0`. Подробности —
+[docs/UPDATER.md](docs/UPDATER.md).
 
 ## Голос
 

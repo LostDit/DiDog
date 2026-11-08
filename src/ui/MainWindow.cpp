@@ -15,6 +15,7 @@
 #include "ui/SearchDialog.h"
 #include "ui/SettingsDialog.h"
 #include "ui/VideoPlayerDialog.h"
+#include "app/UpdateService.h"
 #include "voice/VoiceService.h"
 
 #include <QAction>
@@ -78,6 +79,8 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
     , m_theme(theme)
     , m_billing(billing)
     , m_voice(voice)
+    , m_updater(new app::UpdateService(connection, this))
+    , m_connection(connection)
 {
     setObjectName(QStringLiteral("Root"));
     setWindowTitle(QStringLiteral("MessengerApp"));
@@ -104,8 +107,7 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
                 m_speakingUserId = 0;
             updateVoiceUi();
             updateHeader();
-        });
-        connect(m_voice, &app::VoiceService::mutedChanged, this,
+        });        connect(m_voice, &app::VoiceService::mutedChanged, this,
                 [this](bool) { updateVoiceUi(); });
         connect(m_voice, &app::VoiceService::errorOccurred, this, &MainWindow::onError);
         connect(m_voice, &app::VoiceService::incomingCall, this, &MainWindow::onIncomingCall);
@@ -175,6 +177,21 @@ void MainWindow::setUser(const data::User &user)
     m_profileName->setText(user.displayName);
     m_profileSub->setText(QStringLiteral("@%1").arg(user.username));
     m_messageView->setCurrentUserId(user.id);
+
+    if (m_updater) {
+        connect(m_updater, &app::UpdateService::checkFinished, this,
+                [this](bool available, const QString &version, qint64) {
+                    if (available)
+                        showToast(tr("Доступно обновление %1 — Настройки → Обновления")
+                                      .arg(version));
+                });
+
+        // Автопроверка через несколько секунд после входа.
+        QTimer::singleShot(8000, this, [this]() {
+            if (m_updater && m_connection && m_connection->isConnected())
+                m_updater->checkForUpdates();
+        });
+    }
 }
 
 void MainWindow::buildUi()
@@ -956,7 +973,10 @@ void MainWindow::onPresenceChanged(qint64 userId, bool online)
 
 void MainWindow::openSettings()
 {
-    ui::SettingsDialog dialog(m_settings, m_theme, m_billing, this);
+    if (!m_updater)
+        m_updater = new app::UpdateService(m_connection ? m_connection : nullptr, this);
+
+    ui::SettingsDialog dialog(m_settings, m_theme, m_billing, m_updater, this);
     dialog.exec();
 }
 

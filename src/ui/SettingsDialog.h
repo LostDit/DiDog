@@ -11,11 +11,14 @@ class QCheckBox;
 class QComboBox;
 class QLabel;
 class QLineEdit;
+class QProgressBar;
+class QPushButton;
 
 namespace app {
 class BillingService;
 class SettingsStore;
 class ThemeManager;
+class UpdateService;
 } // namespace app
 
 namespace ui {
@@ -27,7 +30,8 @@ class SettingsDialog : public QDialog
 
 public:
     SettingsDialog(app::SettingsStore *settings, app::ThemeManager *theme,
-                   app::BillingService *billing = nullptr, QWidget *parent = nullptr);
+                   app::BillingService *billing = nullptr,
+                   app::UpdateService *updater = nullptr, QWidget *parent = nullptr);
 
 private slots:
     void onThemeChanged(int index);
@@ -41,6 +45,10 @@ private slots:
     void onThemeReady(const QString &id, const QHash<QString, QString> &tokens);
     void onThemeFailed(const QString &message);
     void updatePlanLabel();
+    void onCheckUpdatesClicked();
+    void onUpdateCheckFinished(bool available, const QString &version, qint64 totalBytes);
+    void onUpdateProgress(int percent, const QString &file);
+    void onUpdateFailed(const QString &message);
 
 private:
     void buildUi();
@@ -59,6 +67,12 @@ private:
     QLabel *m_planLabel = nullptr;
     QLineEdit *m_promo = nullptr;
     QLabel *m_promoStatus = nullptr;
+
+    app::UpdateService *m_updater = nullptr;
+    QLabel *m_updateStatus = nullptr;
+    QPushButton *m_updateButton = nullptr;
+    QProgressBar *m_updateProgress = nullptr;
+    bool m_updateReady = false;
 };
 
 } // namespace ui

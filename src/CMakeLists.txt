@@ -13,6 +13,7 @@ set(MESSENGER_CORE_SOURCES
     app/SessionService.h        app/SessionService.cpp
     app/SingleInstance.h        app/SingleInstance.cpp
     app/ThemeManager.h          app/ThemeManager.cpp
+    app/UpdateService.h         app/UpdateService.cpp
 
     core/Error.h                core/Error.cpp
     core/FrameCodec.h           core/FrameCodec.cpp
@@ -149,3 +150,12 @@ set_target_properties(MessengerClient MessengerServer PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}"
 )
+
+# Отдельный updater: ждёт выхода клиента, копирует файлы и перезапускает приложение.
+if(WIN32)
+    add_executable(MessengerUpdater main_updater.cpp
+        ${CMAKE_SOURCE_DIR}/resources/windows/updater.rc)
+    target_link_libraries(MessengerUpdater PRIVATE Qt5::Core)
+    set_target_properties(MessengerUpdater PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+endif()

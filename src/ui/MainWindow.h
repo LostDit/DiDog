@@ -21,6 +21,7 @@ class BillingService;
 class SessionService;
 class SettingsStore;
 class ThemeManager;
+class UpdateService;
 class VoiceService;
 } // namespace app
 
@@ -113,6 +114,8 @@ private:
     app::ThemeManager *m_theme = nullptr;
     app::BillingService *m_billing = nullptr;
     app::VoiceService *m_voice = nullptr;
+    app::UpdateService *m_updater = nullptr;
+    net::ClientConnection *m_connection = nullptr;
     data::User m_user;
 
     AvatarWidget *m_profileAvatar = nullptr;
