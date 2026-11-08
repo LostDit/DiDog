@@ -79,7 +79,7 @@ sudo apt install build-essential cmake ninja-build \
 .\scripts\build-installer.ps1          # Release + windeployqt + Inno Setup
 ```
 
-Результат: `dist\installer\MessengerApp-Setup-1.6.1.exe` (≈21 МБ). Что делает установщик:
+Результат: `dist\installer\MessengerApp-Setup-1.7.0.exe` (≈21 МБ). Что делает установщик:
 
 - ставит приложение в `Program Files\MessengerApp` (или в профиль при `/CURRENTUSER`);
 - добавляет ярлыки «MessengerApp» и «Сервер MessengerApp» в меню «Пуск» (и на рабочий стол по желанию);
@@ -89,7 +89,7 @@ sudo apt install build-essential cmake ninja-build \
 Тихая установка для проверки:
 
 ```powershell
-MessengerApp-Setup-1.6.1.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
+MessengerApp-Setup-1.7.0.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
 ```
 
 **Проверка на двух компьютерах и в разных сетях** — пошаговая инструкция:
@@ -196,12 +196,14 @@ tls=true
 
 ## Голос
 
-Кнопка **«Голос»** в шапке личного или группового чата запускает голосовой канал:
-микрофон → Opus → сервер → Opus → динамики. Рядом появляется **«Микрофон»** (mute),
-а статус в шапке показывает «Голос: в эфире». Звук идёт через существующее
-TCP/TLS-соединение, поэтому отдельный порт и настройки не нужны.
+Кнопка **«Голос»** в шапке чата звонит собеседнику: у него появляется окно
+**«Принять / Отклонить»**, у звонящего — статус «Звоним…» и кнопка «Отменить».
+После принятия звук идёт по **UDP** через сервер (Opus, 48 кГц, 20 мс кадры),
+кнопка **«Микрофон»** выключает микрофон.
 
-Нужен `libopus.dll` рядом с клиентом — он входит в установщик и портативный пакет.
+Для работы голоса на сервере должны быть открыты **TCP 45000** и **UDP 45001**
+(в Yandex Cloud — правило в группе безопасности, на VPS — `ufw`). Порт UDP
+меняется флагом `--voice-port`.
 
 ## Действия с сообщениями
 

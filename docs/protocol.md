@@ -181,13 +181,27 @@ server → client : auth.ok {token, user} | error
 премиальный пакет без подписки → `BAD_REQUEST` «Требуется подписка».
 
 ### `voice.join`
-`{chat_id}` → `{chat_id, codec:"opus", sample_rate:48000, frame_ms:20}`;
-сервер добавляет сессию в голосовую комнату чата и рассылает `ev.voice`
-остальным участникам. Ошибки: `NOT_MEMBER`.
+`{chat_id}` → `{chat_id, codec:"opus", sample_rate:48000, frame_ms:20,
+udp_port, udp_token}`; сервер добавляет сессию в голосовую комнату, выдаёт токен
+для UDP и рассылает `ev.voice`. Ошибки: `NOT_MEMBER`.
 
 ### `voice.leave`
-`{chat_id}` → `{}`; выход из комнаты, событие `ev.voice` с `joined:false`.
-При обрыве соединения сервер снимает сессию с комнаты автоматически.
+`{chat_id}` → `{}`; выход из комнаты, событие `ev.voice` с `joined:false`,
+токен UDP освобождается.
+
+### `voice.invite` / `voice.accept` / `voice.decline` / `voice.cancel`
+- `voice.invite {chat_id}` → `{}`; остальным участникам чата приходит
+  `ev.voice.invite {chat_id, caller_id, caller_name}`.
+- `voice.accept {chat_id, caller_id}` → `{}`; вызывающему приходит
+  `ev.voice.accepted {chat_id, user_id}`.
+- `voice.decline {chat_id, caller_id}` → `ev.voice.declined`.
+- `voice.cancel {chat_id}` → `ev.voice.cancelled` остальным участникам.
+
+### UDP-голос
+Клиент → сервер: `"MV01" (4) | udp_token (4) | seq (4) | Opus`.
+Сервер → клиент: `"MV01" (4) | user_id (4) | seq (4) | Opus`.
+Пустой payload — keepalive/«привет», регистрирует адрес клиента для NAT.
+Дейтаграмма до 4 КБ; потери маскируются PLC Opus.
 
 ### Голосовые кадры (`type=3`)
 Бинарный кадр: `chat_id (uint32) | user_id (uint32) | seq (uint32) | Opus-данные`
@@ -232,6 +246,10 @@ server → client : auth.ok {token, user} | error
 | `ev.presence` | `{user_id, online, last_seen}` | подключение/отключение |
 | `ev.typing` | `{chat_id, user_id, on}` | набор текста |
 | `ev.voice` | `{chat_id, user_id, joined}` | вход/выход участника из голосового канала |
+| `ev.voice.invite` | `{chat_id, caller_id, caller_name}` | входящий вызов |
+| `ev.voice.accepted` | `{chat_id, user_id}` | вызов принят |
+| `ev.voice.declined` | `{chat_id, user_id}` | вызов отклонён |
+| `ev.voice.cancelled` | `{chat_id, caller_id}` | звонящий отменил вызов |
 
 `message`:
 ```json

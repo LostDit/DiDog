@@ -79,6 +79,10 @@ private slots:
     void onVoiceClicked();
     void onMuteClicked();
     void updateVoiceUi();
+    void onIncomingCall(qint64 chatId, qint64 callerId, const QString &callerName);
+    void onCallAccepted(qint64 chatId, qint64 userId);
+    void onCallDeclined(qint64 chatId, qint64 userId);
+    void onCallCancelled(qint64 chatId);
     void onSendRequested(const QString &text);
     void onThemeToggleClicked();
     void onNewChatClicked();

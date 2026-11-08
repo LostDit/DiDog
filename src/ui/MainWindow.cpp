@@ -33,6 +33,7 @@
 #include <QListView>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QShortcut>
 #include <QSortFilterProxyModel>
 #include <QStackedWidget>
@@ -98,13 +99,17 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
             [this](qint64 chatId) { openChatById(chatId); });
 
     if (m_voice) {
-        connect(m_voice, &app::VoiceService::activeChanged, this, [this](bool) {
+        connect(m_voice, &app::VoiceService::stateChanged, this, [this](app::VoiceService::State) {
             updateVoiceUi();
             updateHeader();
         });
         connect(m_voice, &app::VoiceService::mutedChanged, this,
                 [this](bool) { updateVoiceUi(); });
         connect(m_voice, &app::VoiceService::errorOccurred, this, &MainWindow::onError);
+        connect(m_voice, &app::VoiceService::incomingCall, this, &MainWindow::onIncomingCall);
+        connect(m_voice, &app::VoiceService::callAccepted, this, &MainWindow::onCallAccepted);
+        connect(m_voice, &app::VoiceService::callDeclined, this, &MainWindow::onCallDeclined);
+        connect(m_voice, &app::VoiceService::callCancelled, this, &MainWindow::onCallCancelled);
     }
     connect(m_chats, &app::ChatService::messagesChanged, this, &MainWindow::onMessagesChanged);
     connect(m_chats, &app::ChatService::errorOccurred, this, &MainWindow::onError);
@@ -606,8 +611,10 @@ void MainWindow::openChat(qint64 chatId)
     if (chatId <= 0)
         return;
 
-    if (m_voice && m_voice->isActive() && m_voice->chatId() != chatId)
-        m_voice->stop();
+    if (m_voice && m_voice->state() == app::VoiceService::State::Active
+        && m_voice->chatId() != chatId) {
+        m_voice->hangup();
+    }
 
     m_currentChatId = chatId;
     m_chats->setActiveChat(chatId);
@@ -659,8 +666,14 @@ void MainWindow::updateHeader()
         m_membersButton->setVisible(isGroup);
 
     QString status;
-    if (m_voice && m_voice->isActive() && m_voice->chatId() == m_currentChatId) {
-        status = m_voice->isMuted() ? tr("Голос: микрофон выключен") : tr("Голос: в эфире");
+    if (m_voice && m_voice->chatId() == m_currentChatId
+        && m_voice->state() != app::VoiceService::State::Idle) {
+        if (m_voice->state() == app::VoiceService::State::Calling)
+            status = tr("Звоним…");
+        else if (m_voice->state() == app::VoiceService::State::Ringing)
+            status = tr("Входящий вызов");
+        else
+            status = m_voice->isMuted() ? tr("Голос: микрофон выключен") : tr("Голос: в эфире");
     } else if (m_typingUserId > 0) {
         status = tr("печатает…");
     } else if (isGroup) {
@@ -679,12 +692,22 @@ void MainWindow::onVoiceClicked()
     if (!m_voice || m_currentChatId <= 0)
         return;
 
-    if (m_voice->isActive() && m_voice->chatId() == m_currentChatId)
-        m_voice->stop();
-    else
-        m_voice->start(m_currentChatId);
+    switch (m_voice->state()) {
+    case app::VoiceService::State::Idle:
+        m_voice->call(m_currentChatId);
+        break;
+    case app::VoiceService::State::Calling:
+        m_voice->cancel(m_currentChatId);
+        break;
+    case app::VoiceService::State::Active:
+        m_voice->hangup();
+        break;
+    case app::VoiceService::State::Ringing:
+        break;
+    }
 
     updateVoiceUi();
+    updateHeader();
 }
 
 void MainWindow::onMuteClicked()
@@ -699,19 +722,71 @@ void MainWindow::onMuteClicked()
 
 void MainWindow::updateVoiceUi()
 {
-    const bool active = m_voice && m_voice->isActive()
-                        && m_voice->chatId() == m_currentChatId;
+    const app::VoiceService::State state =
+        m_voice ? m_voice->state() : app::VoiceService::State::Idle;
+    const bool inCurrentChat = m_voice && m_voice->chatId() == m_currentChatId;
 
     if (m_voiceButton) {
         m_voiceButton->setVisible(m_currentChatId > 0);
-        m_voiceButton->setText(active ? tr("Завершить голос") : tr("Голос"));
+        if (state == app::VoiceService::State::Calling && inCurrentChat)
+            m_voiceButton->setText(tr("Отменить"));
+        else if (state == app::VoiceService::State::Active && inCurrentChat)
+            m_voiceButton->setText(tr("Завершить голос"));
+        else
+            m_voiceButton->setText(tr("Голос"));
     }
 
     if (m_muteButton) {
+        const bool active = state == app::VoiceService::State::Active && inCurrentChat;
         m_muteButton->setVisible(active);
         m_muteButton->setText(m_voice && m_voice->isMuted() ? tr("Включить микрофон")
                                                            : tr("Выключить микрофон"));
     }
+}
+
+void MainWindow::onIncomingCall(qint64 chatId, qint64 callerId, const QString &callerName)
+{
+    auto *box = new QMessageBox(this);
+    box->setWindowTitle(tr("Входящий вызов"));
+    box->setText(tr("%1 звонит.").arg(callerName.isEmpty() ? tr("Собеседник") : callerName));
+    box->setIcon(QMessageBox::Information);
+    QPushButton *acceptButton = box->addButton(tr("Принять"), QMessageBox::AcceptRole);
+    QPushButton *declineButton = box->addButton(tr("Отклонить"), QMessageBox::RejectRole);
+    box->setAttribute(Qt::WA_DeleteOnClose);
+
+    connect(acceptButton, &QPushButton::clicked, this, [this, chatId, callerId, box]() {
+        box->close();
+        m_voice->accept(chatId, callerId);
+    });
+    connect(declineButton, &QPushButton::clicked, this, [this, chatId, callerId, box]() {
+        box->close();
+        m_voice->decline(chatId, callerId);
+    });
+
+    box->open();
+}
+
+void MainWindow::onCallAccepted(qint64 chatId, qint64 userId)
+{
+    Q_UNUSED(chatId)
+    Q_UNUSED(userId)
+    showToast(tr("Вызов принят"));
+    updateHeader();
+}
+
+void MainWindow::onCallDeclined(qint64 chatId, qint64 userId)
+{
+    Q_UNUSED(chatId)
+    Q_UNUSED(userId)
+    showToast(tr("Вызов отклонён"));
+    updateHeader();
+}
+
+void MainWindow::onCallCancelled(qint64 chatId)
+{
+    Q_UNUSED(chatId)
+    showToast(tr("Вызов отменён"));
+    updateHeader();
 }
 
 void MainWindow::onSendRequested(const QString &text)

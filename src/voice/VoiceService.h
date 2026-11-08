@@ -1,13 +1,18 @@
 #pragma once
 
 #include <QByteArray>
+#include <QHostAddress>
 #include <QJsonObject>
+#include <QMap>
 #include <QObject>
 #include <QString>
 
 class QAudioInput;
 class QAudioOutput;
 class QIODevice;
+class QTcpSocket;
+class QTimer;
+class QUdpSocket;
 class OpusCodec;
 
 namespace net {
@@ -16,42 +21,62 @@ class ClientConnection;
 
 namespace app {
 
-// Голосовой канал: захват микрофона → Opus → серверный релей → Opus → динамик.
+// Голосовой канал: вызов (invite/accept/decline), Opus и UDP-релей через сервер.
 class VoiceService : public QObject
 {
     Q_OBJECT
 
 public:
+    enum class State {
+        Idle,
+        Calling,  // исходящий вызов, ждём ответа
+        Ringing,  // входящий вызов
+        Active    // разговор
+    };
+    Q_ENUM(State)
+
     VoiceService(net::ClientConnection *connection, QObject *parent = nullptr);
     ~VoiceService() override;
 
-    void start(qint64 chatId);
-    void stop();
+    void call(qint64 chatId);
+    void accept(qint64 chatId, qint64 callerId);
+    void decline(qint64 chatId, qint64 callerId);
+    void cancel(qint64 chatId);
+    void hangup();
 
     void setMuted(bool muted);
     bool isMuted() const { return m_muted; }
 
-    bool isActive() const { return m_active; }
+    State state() const { return m_state; }
+    bool isActive() const { return m_state == State::Active; }
     qint64 chatId() const { return m_chatId; }
 
     static bool isSupported(QString *error = nullptr);
 
 signals:
-    void activeChanged(bool active);
+    void stateChanged(app::VoiceService::State state);
     void mutedChanged(bool muted);
     void errorOccurred(const QString &message);
-    void peerJoined(qint64 chatId, qint64 userId);
-    void peerLeft(qint64 chatId, qint64 userId);
+    void incomingCall(qint64 chatId, qint64 callerId, const QString &callerName);
+    void callAccepted(qint64 chatId, qint64 userId);
+    void callDeclined(qint64 chatId, qint64 userId);
+    void callCancelled(qint64 chatId);
 
 private slots:
     void onAudioReady();
-    void onVoiceFrame(quint32 chatId, quint32 userId, quint32 sequence, const QByteArray &data);
+    void onUdpDatagrams();
     void onSocketDisconnected();
     void onEvent(const QString &name, const QJsonObject &data);
+    void flushJitter();
 
 private:
+    void startRoom(qint64 chatId);
     void openAudio();
     void closeAudio();
+    void openUdp(quint16 port, quint32 token);
+    void closeUdp();
+    void sendDatagram(const QByteArray &payload);
+    void setState(State state);
 
     net::ClientConnection *m_connection = nullptr;
     OpusCodec *m_codec = nullptr;
@@ -61,13 +86,25 @@ private:
     QIODevice *m_inputDevice = nullptr;
     QIODevice *m_outputDevice = nullptr;
 
-    QByteArray m_captureBuffer;
-    QByteArray m_playbackBuffer;
+    QUdpSocket *m_udp = nullptr;
+    QTimer *m_keepalive = nullptr;
+    QTimer *m_jitterTimer = nullptr;
 
+    QHostAddress m_serverAddress;
+    quint16 m_serverVoicePort = 0;
+    quint32 m_token = 0;
+
+    QByteArray m_captureBuffer;
+    QMap<quint32, QByteArray> m_jitter;
+    quint32 m_expectedSequence = 0;
+    quint32 m_sendSequence = 0;
+
+    State m_state = State::Idle;
     qint64 m_chatId = 0;
-    quint32 m_sequence = 0;
-    bool m_active = false;
+    qint64 m_callerId = 0;
     bool m_muted = false;
 };
 
 } // namespace app
+
+Q_DECLARE_METATYPE(app::VoiceService::State)

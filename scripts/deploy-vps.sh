@@ -83,7 +83,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now messengerapp
 
 if command -v ufw >/dev/null 2>&1 && sudo ufw status | grep -q "Status: active"; then
-    sudo ufw allow "${PORT}/tcp"
+    sudo ufw allow "${PORT}/tcp"; sudo ufw allow 45001/udp
     echo "== ufw: порт ${PORT}/tcp открыт"
 fi
 
