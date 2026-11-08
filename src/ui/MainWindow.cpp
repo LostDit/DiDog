@@ -11,7 +11,7 @@
 #include "ui/GroupDialog.h"
 #include "ui/ImageViewerDialog.h"
 #include "ui/MessageView.h"
-#include "ui/ParticipantsDialog.h"
+#include "ui/ParticipantsPanel.h"
 #include "ui/ProfileCardDialog.h"
 #include "ui/SearchDialog.h"
 #include "ui/SettingsDialog.h"
@@ -368,7 +368,12 @@ QWidget *MainWindow::buildConversationPane()
 {
     auto *page = new QWidget;
 
-    auto *layout = new QVBoxLayout(page);
+    auto *outer = new QHBoxLayout(page);
+    outer->setContentsMargins(0, 0, 0, 0);
+    outer->setSpacing(0);
+
+    auto *column = new QWidget(page);
+    auto *layout = new QVBoxLayout(column);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
@@ -492,6 +497,19 @@ QWidget *MainWindow::buildConversationPane()
                                          tr("Не удалось скопировать файл в выбранное место."));
                 }
             });
+
+    outer->addWidget(column, 1);
+
+    m_participantsPanel = new ParticipantsPanel(m_chats, page);
+    m_participantsPanel->hide();
+    connect(m_participantsPanel, &ParticipantsPanel::closeRequested, this, [this]() {
+        m_panelVisible = false;
+        if (m_participantsPanel)
+            m_participantsPanel->hide();
+    });
+    connect(m_participantsPanel, &ParticipantsPanel::profileRequested,
+            this, &MainWindow::openProfile);
+    outer->addWidget(m_participantsPanel);
 
     return page;
 }
@@ -652,6 +670,17 @@ void MainWindow::openChat(qint64 chatId)
     }
 
     m_currentChatId = chatId;
+
+    const data::ChatSummary openSummary = m_chats->chat(chatId);
+    m_panelVisible = openSummary.chat.kind == QLatin1String("group");
+    if (m_participantsPanel) {
+        if (m_panelVisible) {
+            m_participantsPanel->setChat(chatId, m_user.id);
+            m_participantsPanel->show();
+        } else {
+            m_participantsPanel->hide();
+        }
+    }
     m_speakingUserId = 0;
     m_chats->setActiveChat(chatId);
 
@@ -700,6 +729,16 @@ void MainWindow::updateHeader()
     const bool isGroup = summary.chat.kind == QLatin1String("group");
     if (m_membersButton)
         m_membersButton->setVisible(isGroup);
+
+    if (m_participantsPanel && m_participantsPanel->isVisible()) {
+        if (isGroup)
+            m_participantsPanel->setChat(m_currentChatId, m_user.id);
+        else
+            m_participantsPanel->hide();
+    } else if (m_participantsPanel && isGroup && m_panelVisible) {
+        m_participantsPanel->setChat(m_currentChatId, m_user.id);
+        m_participantsPanel->show();
+    }
 
     QString status;
     if (m_voice && m_voice->chatId() == m_currentChatId
@@ -1001,8 +1040,22 @@ void MainWindow::onMembersClicked()
     if (m_currentChatId <= 0)
         return;
 
-    ParticipantsDialog dialog(m_chats, m_currentChatId, m_user.id, this);
-    dialog.exec();
+    const data::ChatSummary summary = m_chats->chat(m_currentChatId);
+    const bool isGroup = summary.chat.kind == QLatin1String("group");
+
+    if (!isGroup) {
+        if (summary.peerId > 0)
+            openProfile(summary.peerId);
+        return;
+    }
+
+    if (!m_participantsPanel)
+        return;
+
+    const bool show = !m_panelVisible;
+    m_panelVisible = show;
+    m_participantsPanel->setChat(m_currentChatId, m_user.id);
+    m_participantsPanel->setVisible(show);
 }
 
 void MainWindow::onTypingChanged(qint64 chatId, qint64 userId, bool typing)

@@ -600,3 +600,26 @@ QComboBox#SettingsCombo QAbstractItemView {
     padding: 8px 14px;
     font-size: 9pt;
 }
+
+#ParticipantsPanel {
+    background-color: {{surface}};
+    border-left: 1px solid {{border}};
+}
+
+#ParticipantRow {
+    border-radius: 8px;
+}
+
+#ParticipantRow:hover {
+    background-color: {{hover}};
+}
+
+#ParticipantName {
+    font-weight: 600;
+    font-size: 10pt;
+}
+
+#ParticipantStatus {
+    color: {{text-muted}};
+    font-size: 8pt;
+}

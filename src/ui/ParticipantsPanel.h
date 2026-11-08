@@ -2,12 +2,13 @@
 
 #include "data/Models.h"
 
-#include <QDialog>
-#include <QHash>
 #include <QList>
+#include <QWidget>
 
+class QLabel;
 class QLineEdit;
 class QListWidget;
+class QPushButton;
 
 namespace app {
 class ChatService;
@@ -15,15 +16,21 @@ class ChatService;
 
 namespace ui {
 
-// Панель «Участники» группового чата в духе макета: аватары, статусы, роли,
-// поиск по именам и действия владельца/администратора.
-class ParticipantsDialog : public QDialog
+// Правая панель участников группового чата (в духе Discord):
+// аватары, статусы, роли, поиск и действия владельца.
+class ParticipantsPanel : public QWidget
 {
     Q_OBJECT
 
 public:
-    ParticipantsDialog(app::ChatService *chats, qint64 chatId, qint64 currentUserId,
-                       QWidget *parent = nullptr);
+    explicit ParticipantsPanel(app::ChatService *chats, QWidget *parent = nullptr);
+
+    void setChat(qint64 chatId, qint64 currentUserId);
+    void refresh();
+
+signals:
+    void closeRequested();
+    void profileRequested(qint64 userId);
 
 private slots:
     void onMembersLoaded(qint64 chatId, const QList<data::ChatMember> &members);
@@ -31,6 +38,9 @@ private slots:
     void onSearchChanged(const QString &text);
     void onAddClicked();
     void onLeaveClicked();
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     void rebuild();
@@ -42,9 +52,10 @@ private:
     QString m_myRole;
     QList<data::ChatMember> m_members;
 
+    QLabel *m_count = nullptr;
     QLineEdit *m_search = nullptr;
     QListWidget *m_list = nullptr;
-    QWidget *m_addButton = nullptr;
+    QPushButton *m_addButton = nullptr;
 };
 
 } // namespace ui

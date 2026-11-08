@@ -35,6 +35,8 @@ class AvatarWidget;
 class ChatListModel;
 class ComposerWidget;
 class MessageView;
+class ParticipantsPanel;
+class ProfileCardDialog;
 class SearchDialog;
 
 // Главное окно: список чатов и переписка.
@@ -136,6 +138,8 @@ private:
     QToolButton *m_membersButton = nullptr;
     QToolButton *m_voiceButton = nullptr;
     QToolButton *m_muteButton = nullptr;
+    ParticipantsPanel *m_participantsPanel = nullptr;
+    bool m_panelVisible = false;
     qint64 m_speakingUserId = 0;
     int m_groupMemberCount = 0;
     MessageView *m_messageView = nullptr;
