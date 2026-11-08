@@ -36,6 +36,7 @@ inline constexpr const char kVoiceInvite[] = "voice.invite";
 inline constexpr const char kVoiceAccept[] = "voice.accept";
 inline constexpr const char kVoiceDecline[] = "voice.decline";
 inline constexpr const char kVoiceCancel[] = "voice.cancel";
+inline constexpr const char kVoiceSpeaking[] = "voice.speaking";
 inline constexpr const char kMsgSend[] = "msg.send";
 inline constexpr const char kMsgEdit[] = "msg.edit";
 inline constexpr const char kMsgDelete[] = "msg.delete";
@@ -65,6 +66,7 @@ inline constexpr const char kVoiceInvite[] = "ev.voice.invite";
 inline constexpr const char kVoiceAccepted[] = "ev.voice.accepted";
 inline constexpr const char kVoiceDeclined[] = "ev.voice.declined";
 inline constexpr const char kVoiceCancelled[] = "ev.voice.cancelled";
+inline constexpr const char kVoiceSpeaking[] = "ev.voice.speaking";
 } // namespace event
 
 // Запрос: {"v":1,"id":"…","type":"…","data":{…}}. Пустой id генерируется.

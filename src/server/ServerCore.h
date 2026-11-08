@@ -65,6 +65,7 @@ private:
     HandlerResult handleVoiceAccept(const QJsonObject &data, ClientSession *session);
     HandlerResult handleVoiceDecline(const QJsonObject &data, ClientSession *session);
     HandlerResult handleVoiceCancel(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleVoiceSpeaking(const QJsonObject &data, ClientSession *session);
 
     void leaveVoiceRoom(ClientSession *session);
 

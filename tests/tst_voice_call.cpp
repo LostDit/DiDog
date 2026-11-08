@@ -179,6 +179,18 @@ void TestVoiceCall::inviteAcceptDeclineCancel()
     QVERIFY(ok);
     QTRY_VERIFY_WITH_TIMEOUT(hasEvent(calleeEvents, QStringLiteral("ev.voice.cancelled")), 5000);
 
+    // Индикатор «говорит»: второй получает событие с user_id первого.
+    request(caller, QStringLiteral("voice.speaking"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId},
+                        {QStringLiteral("on"), true}},
+            &ok);
+    QVERIFY(ok);
+    QTRY_VERIFY_WITH_TIMEOUT(hasEvent(calleeEvents, QStringLiteral("ev.voice.speaking")), 5000);
+    const QJsonObject speaking =
+        eventData(calleeEvents, QStringLiteral("ev.voice.speaking"));
+    QCOMPARE(speaking.value(QStringLiteral("user_id")).toDouble(), callerId);
+    QVERIFY(speaking.value(QStringLiteral("on")).toBool(false));
+
     caller.disconnectFromServer();
     callee.disconnectFromServer();
 }

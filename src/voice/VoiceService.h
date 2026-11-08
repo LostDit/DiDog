@@ -61,6 +61,7 @@ signals:
     void callAccepted(qint64 chatId, qint64 userId);
     void callDeclined(qint64 chatId, qint64 userId);
     void callCancelled(qint64 chatId);
+    void speakingChanged(qint64 chatId, qint64 userId, bool speaking);
 
 private slots:
     void onAudioReady();
@@ -77,6 +78,7 @@ private:
     void closeUdp();
     void sendDatagram(const QByteArray &payload);
     void setState(State state);
+    void updateSpeaking(const QByteArray &pcm);
 
     net::ClientConnection *m_connection = nullptr;
     OpusCodec *m_codec = nullptr;
@@ -103,6 +105,8 @@ private:
     qint64 m_chatId = 0;
     qint64 m_callerId = 0;
     bool m_muted = false;
+    bool m_speaking = false;
+    qint64 m_lastLoudMs = 0;
 };
 
 } // namespace app

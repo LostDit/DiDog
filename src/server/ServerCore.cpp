@@ -208,6 +208,8 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleVoiceDecline(data, session);
     if (type == QLatin1String(core::proto::type::kVoiceCancel))
         return handleVoiceCancel(data, session);
+    if (type == QLatin1String(core::proto::type::kVoiceSpeaking))
+        return handleVoiceSpeaking(data, session);
 
     if (type == QLatin1String(core::proto::type::kMsgSend))
         return handleMessageSend(data, session);
@@ -947,6 +949,28 @@ HandlerResult ServerCore::handleVoiceCancel(const QJsonObject &data, ClientSessi
     event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
     event.insert(QStringLiteral("caller_id"), static_cast<double>(session->userId()));
     broadcastToChat(chatId, core::proto::event::kVoiceCancelled, event, session);
+
+    return HandlerResult::success();
+}
+
+HandlerResult ServerCore::handleVoiceSpeaking(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+    const bool on = data.value(QStringLiteral("on")).toBool(false);
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    bool member = false;
+    if (!chats.isMember(chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    event.insert(QStringLiteral("user_id"), static_cast<double>(session->userId()));
+    event.insert(QStringLiteral("on"), on);
+    broadcastToChat(chatId, core::proto::event::kVoiceSpeaking, event, session);
 
     return HandlerResult::success();
 }

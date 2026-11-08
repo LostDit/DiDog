@@ -99,7 +99,9 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
             [this](qint64 chatId) { openChatById(chatId); });
 
     if (m_voice) {
-        connect(m_voice, &app::VoiceService::stateChanged, this, [this](app::VoiceService::State) {
+        connect(m_voice, &app::VoiceService::stateChanged, this, [this](app::VoiceService::State state) {
+            if (state == app::VoiceService::State::Idle)
+                m_speakingUserId = 0;
             updateVoiceUi();
             updateHeader();
         });
@@ -110,6 +112,13 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
         connect(m_voice, &app::VoiceService::callAccepted, this, &MainWindow::onCallAccepted);
         connect(m_voice, &app::VoiceService::callDeclined, this, &MainWindow::onCallDeclined);
         connect(m_voice, &app::VoiceService::callCancelled, this, &MainWindow::onCallCancelled);
+        connect(m_voice, &app::VoiceService::speakingChanged, this,
+                [this](qint64 chatId, qint64 userId, bool speaking) {
+                    if (chatId != m_currentChatId)
+                        return;
+                    m_speakingUserId = speaking ? userId : 0;
+                    updateHeader();
+                });
     }
     connect(m_chats, &app::ChatService::messagesChanged, this, &MainWindow::onMessagesChanged);
     connect(m_chats, &app::ChatService::errorOccurred, this, &MainWindow::onError);
@@ -617,6 +626,7 @@ void MainWindow::openChat(qint64 chatId)
     }
 
     m_currentChatId = chatId;
+    m_speakingUserId = 0;
     m_chats->setActiveChat(chatId);
 
     m_chatStack->setCurrentIndex(1);
@@ -672,6 +682,11 @@ void MainWindow::updateHeader()
             status = tr("Звоним…");
         else if (m_voice->state() == app::VoiceService::State::Ringing)
             status = tr("Входящий вызов");
+        else if (m_speakingUserId > 0)
+            status = tr("Говорит: %1")
+                         .arg(summary.chat.kind == QLatin1String("direct")
+                                  ? summary.peerDisplayName
+                                  : tr("участник"));
         else
             status = m_voice->isMuted() ? tr("Голос: микрофон выключен") : tr("Голос: в эфире");
     } else if (m_typingUserId > 0) {

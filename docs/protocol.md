@@ -197,6 +197,11 @@ udp_port, udp_token}`; сервер добавляет сессию в голо�
 - `voice.decline {chat_id, caller_id}` → `ev.voice.declined`.
 - `voice.cancel {chat_id}` → `ev.voice.cancelled` остальным участникам.
 
+### `voice.speaking`
+`{chat_id, on}` → `{}`; сервер рассылает `ev.voice.speaking {chat_id, user_id, on}`
+остальным участникам. Клиент отправляет событие при появлении/пропадании
+уровня микрофона (гистерезис ~400 мс).
+
 ### UDP-голос
 Клиент → сервер: `"MV01" (4) | udp_token (4) | seq (4) | Opus`.
 Сервер → клиент: `"MV01" (4) | user_id (4) | seq (4) | Opus`.
@@ -250,6 +255,7 @@ udp_port, udp_token}`; сервер добавляет сессию в голо�
 | `ev.voice.accepted` | `{chat_id, user_id}` | вызов принят |
 | `ev.voice.declined` | `{chat_id, user_id}` | вызов отклонён |
 | `ev.voice.cancelled` | `{chat_id, caller_id}` | звонящий отменил вызов |
+| `ev.voice.speaking` | `{chat_id, user_id, on}` | участник начал/закончил говорить |
 
 `message`:
 ```json

@@ -8,6 +8,7 @@
 #include <QAudioFormat>
 #include <QAudioInput>
 #include <QAudioOutput>
+#include <QDateTime>
 #include <QDebug>
 #include <QHostInfo>
 #include <QJsonObject>
@@ -234,8 +235,17 @@ void VoiceService::setMuted(bool muted)
         return;
 
     m_muted = muted;
-    if (muted)
+    if (muted) {
         m_captureBuffer.clear();
+        if (m_speaking && m_connection && m_connection->isConnected()) {
+            m_speaking = false;
+            m_connection->request(
+                QStringLiteral("voice.speaking"),
+                QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(m_chatId)},
+                            {QStringLiteral("on"), false}},
+                nullptr, 3000);
+        }
+    }
 
     emit mutedChanged(muted);
 }
@@ -339,6 +349,42 @@ void VoiceService::sendDatagram(const QByteArray &payload)
     m_udp->writeDatagram(datagram, m_serverAddress, m_serverVoicePort);
 }
 
+void VoiceService::updateSpeaking(const QByteArray &pcm)
+{
+    if (pcm.size() < 2)
+        return;
+
+    const auto *samples = reinterpret_cast<const qint16 *>(pcm.constData());
+    const int count = pcm.size() / 2;
+    qint64 sum = 0;
+    for (int i = 0; i < count; ++i)
+        sum += qAbs(samples[i]);
+
+    const int average = count > 0 ? static_cast<int>(sum / count) : 0;
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+
+    if (average > 500)
+        m_lastLoudMs = now;
+
+    bool shouldSpeak = !m_muted && average > 500;
+    if (m_speaking && !shouldSpeak && now - m_lastLoudMs > 400)
+        shouldSpeak = false;
+    else if (m_speaking && !shouldSpeak)
+        shouldSpeak = true; // гистерезис: не мигаем между слогами
+
+    if (shouldSpeak == m_speaking)
+        return;
+
+    m_speaking = shouldSpeak;
+    if (m_connection && m_connection->isConnected()) {
+        m_connection->request(
+            QStringLiteral("voice.speaking"),
+            QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(m_chatId)},
+                        {QStringLiteral("on"), m_speaking}},
+            nullptr, 3000);
+    }
+}
+
 void VoiceService::onAudioReady()
 {
     if (!m_inputDevice || m_state != State::Active)
@@ -349,6 +395,8 @@ void VoiceService::onAudioReady()
     while (m_captureBuffer.size() >= kFrameBytes) {
         const QByteArray frame = m_captureBuffer.left(kFrameBytes);
         m_captureBuffer.remove(0, kFrameBytes);
+
+        updateSpeaking(frame);
 
         if (m_muted)
             continue;
@@ -461,6 +509,13 @@ void VoiceService::onEvent(const QString &name, const QJsonObject &data)
             emit callDeclined(chatId, static_cast<qint64>(
                                         data.value(QStringLiteral("user_id")).toDouble()));
         }
+        return;
+    }
+
+    if (name == QLatin1String(core::proto::event::kVoiceSpeaking)) {
+        emit speakingChanged(chatId,
+                             static_cast<qint64>(data.value(QStringLiteral("user_id")).toDouble()),
+                             data.value(QStringLiteral("on")).toBool(false));
         return;
     }
 

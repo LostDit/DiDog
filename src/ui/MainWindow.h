@@ -131,6 +131,7 @@ private:
     QToolButton *m_membersButton = nullptr;
     QToolButton *m_voiceButton = nullptr;
     QToolButton *m_muteButton = nullptr;
+    qint64 m_speakingUserId = 0;
     int m_groupMemberCount = 0;
     MessageView *m_messageView = nullptr;
     ComposerWidget *m_composer = nullptr;
