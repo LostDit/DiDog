@@ -16,6 +16,10 @@
 #include <QTimer>
 #include <QDebug>
 
+#ifdef Q_OS_WIN
+#  include <windows.h>
+#endif
+
 namespace app {
 namespace {
 
@@ -273,6 +277,13 @@ bool UpdateService::launchUpdater(QString *error)
         return false;
     }
 
+    // Запускаем копию: тогда updater сможет заменить свой же exe в каталоге установки.
+    QString runner = updater;
+    const QString staged = appDirectory() + QStringLiteral("/MessengerUpdater.new.exe");
+    QFile::remove(staged);
+    if (QFile::copy(updater, staged))
+        runner = staged;
+
     QJsonObject apply;
     apply.insert(QStringLiteral("version"), m_version);
     QJsonArray files;
@@ -294,12 +305,29 @@ bool UpdateService::launchUpdater(QString *error)
         QStringLiteral("--pid"), QString::number(QCoreApplication::applicationPid()),
     };
 
-    if (!QProcess::startDetached(updater, arguments)) {
+    if (!QProcess::startDetached(runner, arguments)) {
+        // Программа установлена в Program Files: нужен UAC.
+#ifdef Q_OS_WIN
+        QStringList quoted;
+        for (const QString &argument : arguments)
+            quoted.append(QStringLiteral("\"%1\"").arg(argument));
+
+        const HINSTANCE result = ShellExecuteW(
+            nullptr, L"runas", reinterpret_cast<LPCWSTR>(runner.utf16()),
+            reinterpret_cast<LPCWSTR>(quoted.join(QLatin1Char(' ')).utf16()),
+            reinterpret_cast<LPCWSTR>(appDirectory().utf16()), SW_SHOWNORMAL);
+
+        if (reinterpret_cast<qintptr>(result) > 32)
+            goto started;
+#endif
         if (error)
             *error = tr("Не удалось запустить программу обновления.");
         return false;
     }
 
+#ifdef Q_OS_WIN
+started:
+#endif
     emit downloaded();
     QTimer::singleShot(200, QCoreApplication::instance(), &QCoreApplication::quit);
     return true;

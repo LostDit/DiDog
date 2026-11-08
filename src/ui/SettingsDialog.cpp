@@ -160,6 +160,14 @@ void SettingsDialog::buildUi()
     connect(m_outputCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, saveDevices);
 
+    layout->addWidget(sectionTitle(tr("Окно"), this));
+
+    m_trayCheck = new QCheckBox(tr("Сворачивать в трей при закрытии"), this);
+    m_trayCheck->setChecked(m_settings->closeToTray());
+    connect(m_trayCheck, &QCheckBox::toggled, this,
+            [this](bool enabled) { m_settings->setCloseToTray(enabled); });
+    layout->addWidget(m_trayCheck);
+
     layout->addWidget(sectionTitle(tr("Обновления"), this));
 
     m_updateStatus = new QLabel(tr("Версия %1").arg(QStringLiteral(MESSENGER_VERSION)), this);

@@ -331,6 +331,16 @@ void SettingsStore::setVoiceDevices(const QString &input, const QString &output)
     m_settings.setValue(QStringLiteral("voice/outputDevice"), output);
 }
 
+bool SettingsStore::closeToTray() const
+{
+    return m_settings.value(QStringLiteral("window/closeToTray"), true).toBool();
+}
+
+void SettingsStore::setCloseToTray(bool enabled)
+{
+    m_settings.setValue(QStringLiteral("window/closeToTray"), enabled);
+}
+
 QString SettingsStore::filePath() const
 {
     return m_settings.fileName();

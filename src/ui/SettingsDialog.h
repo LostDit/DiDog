@@ -75,6 +75,7 @@ private:
     bool m_updateReady = false;
 
     QCheckBox *m_pttCheck = nullptr;
+    QCheckBox *m_trayCheck = nullptr;
     QComboBox *m_inputCombo = nullptr;
     QComboBox *m_outputCombo = nullptr;
 };

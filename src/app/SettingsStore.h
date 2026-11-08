@@ -77,6 +77,10 @@ public:
     QString voiceOutputDevice() const;
     void setVoiceDevices(const QString &input, const QString &output);
 
+    // Сворачивать окно в трей при закрытии (по умолчанию включено).
+    bool closeToTray() const;
+    void setCloseToTray(bool enabled);
+
     QString filePath() const;
 
 private:

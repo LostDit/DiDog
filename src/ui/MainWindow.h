@@ -16,6 +16,9 @@ class QStackedWidget;
 class QTimer;
 class QToolButton;
 
+class QSystemTrayIcon;
+class QTimer;
+
 namespace app {
 class BillingService;
 class SessionService;
@@ -70,6 +73,9 @@ protected:
     void closeEvent(QCloseEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
 
+private:
+    void setupTray();
+
 private slots:
     void onChatsChanged();
     void onMessagesChanged(qint64 chatId);
@@ -88,6 +94,8 @@ private slots:
     void onCallDeclined(qint64 chatId, qint64 userId);
     void onCallCancelled(qint64 chatId);
     void openProfile(qint64 userId);
+    void checkForUpdatesNow();
+    void restoreFromTray();
     void onSendRequested(const QString &text);
     void onThemeToggleClicked();
     void onNewChatClicked();
@@ -141,6 +149,13 @@ private:
     QToolButton *m_talkButton = nullptr;
     ParticipantsPanel *m_participantsPanel = nullptr;
     bool m_panelVisible = false;
+
+    QSystemTrayIcon *m_tray = nullptr;
+    QTimer *m_updateTimer = nullptr;
+    bool m_quitting = false;
+    bool m_trayHintShown = false;
+    bool m_updateWired = false;
+    QString m_notifiedVersion;
     qint64 m_speakingUserId = 0;
     int m_groupMemberCount = 0;
     MessageView *m_messageView = nullptr;

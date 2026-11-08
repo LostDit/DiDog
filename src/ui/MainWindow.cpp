@@ -20,10 +20,14 @@
 #include "voice/VoiceService.h"
 
 #include <QAction>
+#include <QAction>
+#include <QApplication>
 #include <QCloseEvent>
 #include <QCursor>
 #include <QDebug>
 #include <QEvent>
+#include <QMenu>
+#include <QSystemTrayIcon>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -91,6 +95,7 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
 
     buildUi();
     restoreWindowState();
+    setupTray();
 
     connect(m_chats, &app::ChatService::chatsChanged, this, &MainWindow::onChatsChanged);
     connect(m_chats, &app::ChatService::membersLoaded, this,
@@ -180,19 +185,37 @@ void MainWindow::setUser(const data::User &user)
     m_profileSub->setText(QStringLiteral("@%1").arg(user.username));
     m_messageView->setCurrentUserId(user.id);
 
-    if (m_updater) {
+    if (m_updater && !m_updateWired) {
+        m_updateWired = true;
+
         connect(m_updater, &app::UpdateService::checkFinished, this,
                 [this](bool available, const QString &version, qint64) {
-                    if (available)
-                        showToast(tr("Доступно обновление %1 — Настройки → Обновления")
-                                      .arg(version));
+                    if (!available || m_notifiedVersion == version)
+                        return;
+                    m_notifiedVersion = version;
+                    showToast(tr("Доступно обновление %1 — Настройки → Обновления")
+                                  .arg(version));
+                    if (m_tray && m_tray->isVisible()) {
+                        m_tray->showMessage(tr("Доступно обновление"),
+                                            tr("Версия %1. Откройте Настройки → Обновления.")
+                                                .arg(version),
+                                            QSystemTrayIcon::Information, 4000);
+                    }
                 });
 
-        // Автопроверка через несколько секунд после входа.
-        QTimer::singleShot(8000, this, [this]() {
-            if (m_updater && m_connection && m_connection->isConnected())
-                m_updater->checkForUpdates();
-        });
+        // Первая проверка после входа и далее каждые 6 часов.
+        QTimer::singleShot(3000, this, &MainWindow::checkForUpdatesNow);
+
+        m_updateTimer = new QTimer(this);
+        m_updateTimer->setInterval(6 * 60 * 60 * 1000);
+        connect(m_updateTimer, &QTimer::timeout, this, &MainWindow::checkForUpdatesNow);
+        m_updateTimer->start();
+
+        if (m_connection) {
+            connect(m_connection, &net::ClientConnection::socketConnected, this, [this]() {
+                QTimer::singleShot(5000, this, &MainWindow::checkForUpdatesNow);
+            });
+        }
     }
 }
 
@@ -1158,12 +1181,83 @@ void MainWindow::restoreWindowState()
         restoreGeometry(geometry);
 }
 
+void MainWindow::setupTray()
+{
+    if (!QSystemTrayIcon::isSystemTrayAvailable())
+        return;
+
+    m_tray = new QSystemTrayIcon(QIcon(QStringLiteral(":/icons/logo.svg")), this);
+    m_tray->setToolTip(QStringLiteral("MessengerApp"));
+
+    auto *menu = new QMenu(this);
+    auto *openAction = menu->addAction(tr("Открыть"));
+    connect(openAction, &QAction::triggered, this, &MainWindow::restoreFromTray);
+
+    auto *checkAction = menu->addAction(tr("Проверить обновления"));
+    connect(checkAction, &QAction::triggered, this, [this]() {
+        checkForUpdatesNow();
+        if (m_updater && m_updater->hasUpdate())
+            showToast(tr("Доступно обновление %1").arg(m_updater->availableVersion()));
+        else
+            showToast(tr("Проверяем обновления…"));
+    });
+
+    menu->addSeparator();
+    auto *quitAction = menu->addAction(tr("Выход"));
+    connect(quitAction, &QAction::triggered, this, [this]() {
+        m_quitting = true;
+        close();
+    });
+
+    m_tray->setContextMenu(menu);
+    connect(m_tray, &QSystemTrayIcon::activated, this,
+            [this](QSystemTrayIcon::ActivationReason reason) {
+                if (reason == QSystemTrayIcon::Trigger
+                    || reason == QSystemTrayIcon::DoubleClick) {
+                    restoreFromTray();
+                }
+            });
+    m_tray->show();
+}
+
+void MainWindow::restoreFromTray()
+{
+    showNormal();
+    raise();
+    activateWindow();
+}
+
+void MainWindow::checkForUpdatesNow()
+{
+    if (!m_updater || m_updater->isBusy())
+        return;
+    if (!m_connection || !m_connection->isConnected())
+        return;
+
+    m_updater->checkForUpdates();
+}
+
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     if (m_settings) {
         m_settings->setWindowGeometry(saveGeometry());
         m_settings->sync();
     }
+    // Крестик сворачивает в трей; выход — только через меню трея.
+    if (!m_quitting && m_tray && m_tray->isVisible()
+        && (!m_settings || m_settings->closeToTray())) {
+        hide();
+        event->ignore();
+
+        if (!m_trayHintShown) {
+            m_tray->showMessage(tr("MessengerApp"),
+                                tr("Свёрнуто в трей. Двойной клик — открыть."),
+                                QSystemTrayIcon::Information, 2500);
+            m_trayHintShown = true;
+        }
+        return;
+    }
+
     QMainWindow::closeEvent(event);
 }
 

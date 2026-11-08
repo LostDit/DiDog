@@ -11,7 +11,9 @@ param(
     [string]$Version,
 
     [string]$Dist = 'dist\MessengerApp',
-    [string]$Output = ''
+    [string]$Output = '',
+    # Файлы, которые не попадают в манифест (например, MessengerUpdater.exe).
+    [string[]]$Exclude = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -29,7 +31,7 @@ if (-not $Output) {
 
 $files = @()
 Get-ChildItem $Dist -Recurse -File |
-    Where-Object { $_.Name -ne 'manifest.json' } |
+    Where-Object { $_.Name -ne 'manifest.json' -and ($Exclude -notcontains $_.Name) } |
     ForEach-Object {
         $relative = $_.FullName.Substring($Dist.Length + 1).Replace('\', '/')
         $hash = (Get-FileHash -Algorithm SHA256 -Path $_.FullName).Hash.ToLowerInvariant()
