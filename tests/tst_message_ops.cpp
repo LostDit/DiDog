@@ -45,6 +45,7 @@ private slots:
 
     void editAndDeleteReachBothSides();
     void foreignMessageCannotBeChanged();
+    void replyIsStoredAndValidated();
 
 private:
     QJsonObject request(net::ClientConnection &connection, const QString &type,
@@ -196,6 +197,78 @@ void TestMessageOps::editAndDeleteReachBothSides()
 
     first.disconnectFromServer();
     second.disconnectFromServer();
+}
+
+void TestMessageOps::replyIsStoredAndValidated()
+{
+    net::ClientConnection client;
+    client.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    QSignalSpy connected(&client, &net::ClientConnection::socketConnected);
+    QSignalSpy events(&client, &net::ClientConnection::eventReceived);
+    client.connectToServer();
+    QTRY_COMPARE_WITH_TIMEOUT(connected.count(), 1, 15000);
+
+    bool ok = false;
+    request(client, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("replier")},
+                        {QStringLiteral("display_name"), QStringLiteral("Replier")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+
+    const QJsonObject chatsReply = request(client, QStringLiteral("chat.list"), QJsonObject(), &ok);
+    QVERIFY(ok);
+    const double chatId = chatsReply.value(QStringLiteral("data")).toObject()
+                             .value(QStringLiteral("chats")).toArray()
+                             .first().toObject().value(QStringLiteral("id")).toDouble();
+
+    const QJsonObject sent = request(
+        client, QStringLiteral("msg.send"),
+        QJsonObject{{QStringLiteral("chat_id"), chatId},
+                    {QStringLiteral("client_msg_id"), QUuid::createUuid().toString(QUuid::WithoutBraces)},
+                    {QStringLiteral("kind"), QStringLiteral("text")},
+                    {QStringLiteral("body"), QStringLiteral("первое")}},
+        &ok);
+    QVERIFY(ok);
+    const double firstId = sent.value(QStringLiteral("data")).toObject()
+                               .value(QStringLiteral("message_id")).toDouble();
+    QVERIFY(firstId > 0);
+
+    const QJsonObject reply = request(
+        client, QStringLiteral("msg.send"),
+        QJsonObject{{QStringLiteral("chat_id"), chatId},
+                    {QStringLiteral("client_msg_id"), QUuid::createUuid().toString(QUuid::WithoutBraces)},
+                    {QStringLiteral("kind"), QStringLiteral("text")},
+                    {QStringLiteral("body"), QStringLiteral("ответ")},
+                    {QStringLiteral("reply_to"), firstId}},
+        &ok);
+    QVERIFY(ok);
+
+    const QJsonObject opened = request(client, QStringLiteral("chat.open"),
+                                       QJsonObject{{QStringLiteral("chat_id"), chatId},
+                                                   {QStringLiteral("limit"), 10}},
+                                       &ok);
+    QVERIFY(ok);
+    bool found = false;
+    for (const QJsonValue &value : opened.value(QStringLiteral("data")).toObject()
+                                        .value(QStringLiteral("messages")).toArray()) {
+        const QJsonObject message = value.toObject();
+        if (message.value(QStringLiteral("body")).toString() != QStringLiteral("ответ"))
+            continue;
+        QCOMPARE(message.value(QStringLiteral("reply_to_id")).toDouble(), firstId);
+        found = true;
+    }
+    QVERIFY(found);
+
+    // Ответ на несуществующее сообщение отклоняется.
+    request(client, QStringLiteral("msg.send"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId},
+                        {QStringLiteral("client_msg_id"), QUuid::createUuid().toString(QUuid::WithoutBraces)},
+                        {QStringLiteral("kind"), QStringLiteral("text")},
+                        {QStringLiteral("body"), QStringLiteral("плохой ответ")},
+                        {QStringLiteral("reply_to"), 999999}},
+            &ok);
+    QVERIFY(!ok);
 }
 
 void TestMessageOps::foreignMessageCannotBeChanged()

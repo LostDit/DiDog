@@ -11,7 +11,9 @@
 #include <QHBoxLayout>
 #include <QImageReader>
 #include <QLabel>
+#include <QGraphicsOpacityEffect>
 #include <QMenu>
+#include <QToolButton>
 #include <QMouseEvent>
 #include <QMovie>
 #include <QPainter>
@@ -91,6 +93,32 @@ MessageBubble::MessageBubble(const data::Message &message, bool own, bool showAv
         bubbleLayout->addWidget(sender);
     }
 
+    if (message.replyToId > 0) {
+        auto *quote = new QFrame(m_bubble);
+        quote->setObjectName(QStringLiteral("ReplyQuote"));
+        auto *quoteLayout = new QVBoxLayout(quote);
+        quoteLayout->setContentsMargins(8, 5, 8, 5);
+        quoteLayout->setSpacing(1);
+
+        auto *quoteName = new QLabel(
+            message.replySenderName.isEmpty() ? tr("Сообщение") : message.replySenderName, quote);
+        quoteName->setObjectName(QStringLiteral("ReplyQuoteName"));
+        quoteLayout->addWidget(quoteName);
+
+        QString snippet = message.replyBody;
+        if (message.replyKind != data::MessageKind::Text || snippet.isEmpty())
+            snippet = tr("Вложение");
+        if (snippet.size() > 90)
+            snippet = snippet.left(90) + QStringLiteral("…");
+
+        auto *quoteBody = new QLabel(snippet, quote);
+        quoteBody->setObjectName(QStringLiteral("ReplyQuoteBody"));
+        quoteBody->setTextFormat(Qt::PlainText);
+        quoteLayout->addWidget(quoteBody);
+
+        bubbleLayout->addWidget(quote);
+    }
+
     m_text = new QLabel(m_bubble);
     m_text->setObjectName(QStringLiteral("MessageText"));
     m_text->setTextFormat(Qt::RichText);
@@ -106,6 +134,21 @@ MessageBubble::MessageBubble(const data::Message &message, bool own, bool showAv
     auto *footer = new QHBoxLayout;
     footer->setSpacing(6);
     footer->addStretch(1);
+
+    m_replyButton = new QToolButton(m_bubble);
+    m_replyButton->setText(tr("Ответить"));
+    m_replyButton->setObjectName(QStringLiteral("BubbleAction"));
+    m_replyButton->setCursor(Qt::PointingHandCursor);
+    m_replyButton->setVisible(true);
+    m_replyEffect = new QGraphicsOpacityEffect(m_replyButton);
+    m_replyEffect->setOpacity(0.0);
+    m_replyButton->setGraphicsEffect(m_replyEffect);
+    footer->addWidget(m_replyButton);
+    connect(m_replyButton, &QToolButton::clicked, this, [this]() {
+        if (m_message.id > 0) {
+            emit replyRequested(m_message.id, m_message.senderDisplayName, m_message.body);
+        }
+    });
 
     m_time = new QLabel(format::clockTime(message.createdAt)
                             + (message.editedAt > 0 ? QStringLiteral(" · ") + tr("изм.")
@@ -141,6 +184,20 @@ MessageBubble::MessageBubble(const data::Message &message, bool own, bool showAv
 
     adjustTextWidth();
     updateStatus();
+}
+
+void MessageBubble::enterEvent(QEvent *event)
+{
+    if (m_replyEffect)
+        m_replyEffect->setOpacity(1.0);
+    QWidget::enterEvent(event);
+}
+
+void MessageBubble::leaveEvent(QEvent *event)
+{
+    if (m_replyEffect)
+        m_replyEffect->setOpacity(0.0);
+    QWidget::leaveEvent(event);
 }
 
 void MessageBubble::setMaxBubbleWidth(int width)
@@ -230,6 +287,10 @@ void MessageBubble::showContextMenu(const QPoint &position)
 
     QMenu menu(this);
 
+    QAction *reply = nullptr;
+    if (m_message.id > 0 && !m_message.deleted)
+        reply = menu.addAction(tr("Ответить"));
+
     QAction *copy = nullptr;
     if (!m_message.deleted && !m_message.body.isEmpty())
         copy = menu.addAction(tr("Копировать текст"));
@@ -240,7 +301,6 @@ void MessageBubble::showContextMenu(const QPoint &position)
 
     if (copy || edit)
         menu.addSeparator();
-
     QAction *removeAll = nullptr;
     if (m_own && !m_message.deleted)
         removeAll = menu.addAction(tr("Удалить у всех"));
@@ -253,6 +313,10 @@ void MessageBubble::showContextMenu(const QPoint &position)
 
     if (chosen == copy) {
         QGuiApplication::clipboard()->setText(m_message.body);
+        return;
+    }
+    if (chosen == reply) {
+        emit replyRequested(m_message.id, m_message.senderDisplayName, m_message.body);
         return;
     }
     if (chosen == edit) {

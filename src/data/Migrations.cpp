@@ -155,6 +155,12 @@ const char *const kSchemaV5[] = {
     ")",
 };
 
+// Схема v6: ответы на сообщения.
+const char *const kSchemaV6[] = {
+    "ALTER TABLE messages ADD COLUMN reply_to_id INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE outbox ADD COLUMN reply_to_id INTEGER NOT NULL DEFAULT 0",
+};
+
 bool exec(QSqlDatabase &db, const QString &sql, QString *error)
 {
     QSqlQuery query(db);
@@ -302,6 +308,31 @@ bool applyV3(QSqlDatabase &db, QString *error)
 
 
 
+bool applyV6(QSqlDatabase &db, QString *error)
+{
+    if (!db.transaction()) {
+        if (error)
+            *error = QStringLiteral("Не удалось начать транзакцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+
+    for (const char *statement : kSchemaV6) {
+        if (!exec(db, QString::fromLatin1(statement), error)) {
+            db.rollback();
+            return false;
+        }
+    }
+
+    if (!db.commit()) {
+        if (error)
+            *error = QStringLiteral("Не удалось зафиксировать миграцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+    return true;
+}
+
 int version(QSqlDatabase &db)
 {
     QSqlQuery query(db);
@@ -345,6 +376,9 @@ bool apply(QSqlDatabase &db, QString *error)
         return false;
 
     if (current < 5 && !applyV5(db, error))
+        return false;
+
+    if (current < 6 && !applyV6(db, error))
         return false;
 
     if (!exec(db, QStringLiteral("PRAGMA user_version = %1").arg(kCurrentVersion), error))

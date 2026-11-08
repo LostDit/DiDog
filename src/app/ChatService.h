@@ -53,7 +53,7 @@ public:
     void loadChats();
     void openChat(qint64 chatId);
     void loadOlder(qint64 chatId);
-    void sendText(qint64 chatId, const QString &text);
+    void sendText(qint64 chatId, const QString &text, qint64 replyToId = 0);
     void sendFile(qint64 chatId, const QString &filePath);
     void markRead(qint64 chatId);
     void createDirect(const QString &username);
@@ -110,6 +110,7 @@ private:
     void sendPending(const data::Message &message);
     void persistChats();
     void persistOutbox(qint64 chatId, const QString &clientMsgId);
+    void resolveReplyPreview(qint64 chatId, data::Message *message) const;
     void hydrateAttachments(qint64 chatId);
     void unhideChat(qint64 chatId);
     void saveHiddenChats();

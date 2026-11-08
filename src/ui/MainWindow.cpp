@@ -525,6 +525,11 @@ QWidget *MainWindow::buildConversationPane()
     connect(m_messageView, &MessageView::deleteForMeRequested, this,
             &MainWindow::onDeleteMessageForMe);
     connect(m_messageView, &MessageView::avatarActivated, this, &MainWindow::openProfile);
+    connect(m_messageView, &MessageView::replyRequested, this,
+            [this](qint64 messageId, const QString &senderName, const QString &body) {
+                if (m_composer)
+                    m_composer->setReplyTarget(messageId, senderName, body);
+            });
 
     connect(m_messageView, &MessageView::imageActivated, this, [this](const QString &filePath) {
         ui::ImageViewerDialog viewer(filePath, this);
@@ -729,6 +734,9 @@ void MainWindow::openChat(qint64 chatId)
     }
 
     m_currentChatId = chatId;
+
+    if (m_composer)
+        m_composer->clearReply();
 
     if (m_messageView)
         m_messageView->setAnimationsEnabled(m_settings && m_settings->animationsEnabled());
@@ -993,7 +1001,8 @@ void MainWindow::onSendRequested(const QString &text)
     if (m_currentChatId <= 0 || text.trimmed().isEmpty())
         return;
 
-    m_chats->sendText(m_currentChatId, text);
+    const qint64 replyTo = m_composer ? m_composer->replyTargetId() : 0;
+    m_chats->sendText(m_currentChatId, text, replyTo);
 }
 
 void MainWindow::sendFile(const QString &filePath)

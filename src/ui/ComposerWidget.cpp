@@ -65,6 +65,29 @@ ComposerWidget::ComposerWidget(QWidget *parent)
     root->setContentsMargins(12, 8, 12, 12);
     root->setSpacing(6);
 
+    // Плашка «ответ на сообщение».
+    m_replyRow = new QWidget(this);
+    m_replyRow->setObjectName(QStringLiteral("ComposerReply"));
+    auto *replyLayout = new QHBoxLayout(m_replyRow);
+    replyLayout->setContentsMargins(8, 4, 8, 4);
+    replyLayout->setSpacing(6);
+
+    m_replyLabel = new QLabel(m_replyRow);
+    m_replyLabel->setObjectName(QStringLiteral("ComposerReplyText"));
+    m_replyLabel->setTextFormat(Qt::PlainText);
+    replyLayout->addWidget(m_replyLabel, 1);
+
+    auto *replyCancel = new QToolButton(m_replyRow);
+    replyCancel->setText(QStringLiteral("×"));
+    replyCancel->setObjectName(QStringLiteral("AttachmentChipRemove"));
+    replyCancel->setCursor(Qt::PointingHandCursor);
+    replyCancel->setFixedSize(20, 20);
+    replyLayout->addWidget(replyCancel);
+    connect(replyCancel, &QToolButton::clicked, this, &ComposerWidget::clearReply);
+
+    m_replyRow->hide();
+    root->addWidget(m_replyRow);
+
     // Превью выбранных вложений (скрыто, пока ничего не выбрано).
     m_previewRow = new QWidget(this);
     m_previewRow->setObjectName(QStringLiteral("ComposerPreview"));
@@ -138,8 +161,37 @@ void ComposerWidget::clear()
 {
     m_edit->clear();
     m_pendingFiles.clear();
+    clearReply();
     rebuildPreview();
     updateSendState();
+}
+
+void ComposerWidget::setReplyTarget(qint64 messageId, const QString &senderName,
+                                    const QString &snippet)
+{
+    if (messageId <= 0)
+        return;
+
+    m_replyToId = messageId;
+
+    QString preview = snippet.simplified();
+    if (preview.size() > 80)
+        preview = preview.left(80) + QStringLiteral("…");
+    if (preview.isEmpty())
+        preview = tr("Вложение");
+
+    m_replyLabel->setText(tr("Ответ %1: %2").arg(senderName, preview));
+    m_replyRow->setVisible(true);
+    m_edit->setFocus();
+}
+
+void ComposerWidget::clearReply()
+{
+    m_replyToId = 0;
+    if (m_replyLabel)
+        m_replyLabel->clear();
+    if (m_replyRow)
+        m_replyRow->hide();
 }
 
 void ComposerWidget::onAttachClicked()
@@ -176,6 +228,7 @@ void ComposerWidget::onSendClicked()
 
     m_edit->clear();
     m_pendingFiles.clear();
+    clearReply();
     rebuildPreview();
     updateSendState();
     m_edit->setFocus();

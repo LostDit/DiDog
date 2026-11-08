@@ -85,6 +85,12 @@ struct Message {
     Attachment attachment;
     DeliveryState state = DeliveryState::Sent;
 
+    // Ответ на сообщение (0 — обычное сообщение). Превью заполняется локально.
+    qint64 replyToId = 0;
+    QString replySenderName;
+    QString replyBody;
+    MessageKind replyKind = MessageKind::Text;
+
     // Локальная копия файла (у отправителя — исходник, у получателя — кэш)
     // и прогресс загрузки (-1, если не загружается).
     QString localPath;
@@ -123,6 +129,7 @@ struct OutboxEntry {
     DeliveryState state = DeliveryState::Pending;
     int attempts = 0;
     qint64 createdAt = 0;
+    qint64 replyToId = 0;
 };
 
 } // namespace data

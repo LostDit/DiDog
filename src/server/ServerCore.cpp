@@ -1329,6 +1329,20 @@ HandlerResult ServerCore::handleMessageSend(const QJsonObject &data, ClientSessi
     message.createdAt = QDateTime::currentMSecsSinceEpoch();
 
     data::MessageRepository messages(m_database.handle());
+
+    const qint64 replyToId = int64Value(data, "reply_to");
+    if (replyToId > 0) {
+        data::Message original;
+        bool found = false;
+        if (!messages.byId(replyToId, &original, &found, &error))
+            return HandlerResult::failure(core::ErrorCode::Internal, error);
+        if (!found || original.chatId != chatId) {
+            return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                          QStringLiteral("Ответ на сообщение из другого чата"));
+        }
+        message.replyToId = replyToId;
+    }
+
     data::Message stored;
     if (!messages.append(message, &stored, &error))
         return HandlerResult::failure(core::ErrorCode::Internal, error);

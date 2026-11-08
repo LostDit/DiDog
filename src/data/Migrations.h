@@ -6,7 +6,7 @@
 namespace data::migrations {
 
 // Версия схемы, которую понимает этот бинарник. Увеличивается при изменении DDL.
-constexpr int kCurrentVersion = 5;
+constexpr int kCurrentVersion = 6;
 
 // Текущая версия БД (PRAGMA user_version).
 int version(QSqlDatabase &db);

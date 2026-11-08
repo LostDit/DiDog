@@ -400,6 +400,8 @@ void ChatService::openChat(qint64 chatId)
                               }
 
                               current.messages = visible + pending;
+                              for (data::Message &message : current.messages)
+                                  resolveReplyPreview(chatId, &message);
                               current.loaded = true;
                               current.hasMore = data.value(QStringLiteral("has_more")).toBool();
 
@@ -463,7 +465,7 @@ void ChatService::loadOlder(qint64 chatId)
                           });
 }
 
-void ChatService::sendText(qint64 chatId, const QString &text)
+void ChatService::sendText(qint64 chatId, const QString &text, qint64 replyToId)
 {
     const QString body = text.trimmed();
     if (body.isEmpty())
@@ -479,8 +481,20 @@ void ChatService::sendText(qint64 chatId, const QString &text)
     pending.state = data::DeliveryState::Pending;
     pending.senderDisplayName = m_currentUser.displayName;
     pending.senderHue = m_currentUser.avatarHue;
+    pending.replyToId = replyToId;
 
     ChatState &state = m_states[chatId];
+    if (replyToId > 0) {
+        for (const data::Message &original : qAsConst(state.messages)) {
+            if (original.id == replyToId) {
+                pending.replySenderName = original.senderDisplayName;
+                pending.replyBody = original.body;
+                pending.replyKind = original.kind;
+                break;
+            }
+        }
+    }
+
     state.messages.append(pending);
 
     updateSummaryForMessage(chatId, pending);
@@ -563,6 +577,8 @@ void ChatService::sendPending(const data::Message &message)
     request.insert(QStringLiteral("client_msg_id"), clientMsgId);
     request.insert(QStringLiteral("kind"), data::messageKindToString(message.kind));
     request.insert(QStringLiteral("body"), message.body);
+    if (message.replyToId > 0)
+        request.insert(QStringLiteral("reply_to"), static_cast<double>(message.replyToId));
 
     m_connection->request(QStringLiteral("msg.send"), request,
                           [this, chatId, clientMsgId](const QJsonObject &reply) {
@@ -617,8 +633,29 @@ void ChatService::sendPending(const data::Message &message)
                           });
 }
 
-void ChatService::persistOutbox(qint64 chatId, const QString &clientMsgId)
+void ChatService::resolveReplyPreview(qint64 chatId, data::Message *message) const
 {
+    if (!message || message->replyToId <= 0)
+        return;
+    if (!message->replySenderName.isEmpty() || !message->replyBody.isEmpty())
+        return;
+
+    const auto it = m_states.constFind(chatId);
+    if (it == m_states.constEnd())
+        return;
+
+    for (const data::Message &original : it->messages) {
+        if (original.id != message->replyToId)
+            continue;
+
+        message->replySenderName = original.senderDisplayName;
+        message->replyBody = original.body;
+        message->replyKind = original.kind;
+        return;
+    }
+}
+
+void ChatService::persistOutbox(qint64 chatId, const QString &clientMsgId){
     if (!m_history)
         return;
 
@@ -634,6 +671,7 @@ void ChatService::persistOutbox(qint64 chatId, const QString &clientMsgId)
         entry.body = message.body;
         entry.createdAt = message.createdAt;
         entry.state = data::DeliveryState::Pending;
+        entry.replyToId = message.replyToId;
         m_history->addOutbox(entry);
         return;
     }
@@ -1044,8 +1082,9 @@ void ChatService::onEvent(const QString &event, const QJsonObject &data)
     }
 
     if (event == QLatin1String(core::proto::event::kMsg)) {
-        const data::Message message =
+        data::Message message =
             data::json::messageFromJson(data.value(QStringLiteral("message")).toObject());
+        resolveReplyPreview(message.chatId, &message);
         if (message.id > 0)
             handleNewMessage(message);
         return;

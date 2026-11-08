@@ -9,7 +9,7 @@ namespace data {
 namespace {
 
 const char kSelectOutbox[] =
-    "SELECT client_msg_id, chat_id, kind, body, attach_path, state, attempts, created_at "
+    "SELECT client_msg_id, chat_id, kind, body, attach_path, state, attempts, created_at, reply_to_id "
     "FROM outbox ";
 
 OutboxEntry readEntry(const QSqlQuery &query)
@@ -22,6 +22,7 @@ OutboxEntry readEntry(const QSqlQuery &query)
     entry.attachPath = query.value(4).toString();
     entry.attempts = query.value(6).toInt();
     entry.createdAt = query.value(7).toLongLong();
+    entry.replyToId = query.value(8).toLongLong();
 
     const QString state = query.value(5).toString();
     if (state == QLatin1String("failed"))
@@ -46,7 +47,7 @@ bool OutboxRepository::add(const OutboxEntry &entry, QString *error)
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
         "INSERT OR REPLACE INTO outbox(client_msg_id, chat_id, kind, body, attach_path, state, "
-        "attempts, created_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)"));
+        "attempts, created_at, reply_to_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)"));
     query.addBindValue(entry.clientMsgId);
     query.addBindValue(entry.chatId);
     query.addBindValue(messageKindToString(entry.kind));
@@ -55,6 +56,7 @@ bool OutboxRepository::add(const OutboxEntry &entry, QString *error)
     query.addBindValue(deliveryStateToString(entry.state));
     query.addBindValue(entry.attempts);
     query.addBindValue(entry.createdAt);
+    query.addBindValue(entry.replyToId);
 
     if (!query.exec())
         return sql::failQuery(error, query, QStringLiteral("Постановка в очередь"));

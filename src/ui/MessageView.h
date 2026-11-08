@@ -47,6 +47,7 @@ signals:
     void deleteForEveryoneRequested(qint64 messageId);
     void deleteForMeRequested(qint64 messageId);
     void avatarActivated(qint64 userId);
+    void replyRequested(qint64 messageId, const QString &senderName, const QString &body);
     void imageActivated(const QString &filePath);
     void videoActivated(const QString &filePath);
     void fileActivated(const QString &fileName, const QString &filePath);

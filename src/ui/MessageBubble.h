@@ -7,6 +7,8 @@
 class QFrame;
 class QLabel;
 class QPushButton;
+class QToolButton;
+class QGraphicsOpacityEffect;
 
 namespace ui {
 
@@ -38,9 +40,12 @@ signals:
     void imageActivated(const QString &filePath);
     void videoActivated(const QString &filePath);
     void fileActivated(const QString &fileName, const QString &filePath);
+    void replyRequested(qint64 messageId, const QString &senderName, const QString &body);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
+    void enterEvent(QEvent *event) override;
+    void leaveEvent(QEvent *event) override;
 
 private:
     void rebuild();
@@ -64,6 +69,8 @@ private:
     QLabel *m_time = nullptr;
     QLabel *m_status = nullptr;
     QPushButton *m_retry = nullptr;
+    QToolButton *m_replyButton = nullptr;
+    QGraphicsOpacityEffect *m_replyEffect = nullptr;
 };
 
 } // namespace ui

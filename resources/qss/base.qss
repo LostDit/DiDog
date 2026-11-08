@@ -673,3 +673,45 @@ QComboBox#SettingsCombo QAbstractItemView {
     border-radius: 6px;
     padding: 6px 8px;
 }
+#ReplyQuote {
+    background-color: {{surface-2}};
+    border-left: 3px solid {{accent}};
+    border-radius: 6px;
+}
+
+#ReplyQuoteName {
+    color: {{accent}};
+    font-size: 8.5pt;
+    font-weight: 600;
+}
+
+#ReplyQuoteBody {
+    color: {{text-muted}};
+    font-size: 8.5pt;
+}
+
+#BubbleAction {
+    background: transparent;
+    border: none;
+    color: {{text-muted}};
+    font-size: 8pt;
+    padding: 0 4px;
+}
+
+#BubbleAction:hover {
+    color: {{accent}};
+}
+
+#ComposerReply {
+    background-color: {{surface-2}};
+    border-radius: 6px;
+}
+
+#ComposerReplyText {
+    color: {{text-muted}};
+    font-size: 8.5pt;
+}
+
+#MessageStatus[state="read"] {
+    color: {{accent}};
+}

@@ -14,7 +14,7 @@ namespace {
 
 const char kSelectMessage[] =
     "SELECT m.id, m.chat_id, m.sender_id, m.seq, m.client_msg_id, m.kind, m.body, m.created_at, "
-    "       m.deleted AS deleted, m.edited_at AS edited_at, "
+    "       m.deleted AS deleted, m.edited_at AS edited_at, m.reply_to_id AS reply_to_id, "
     "       u.display_name AS sender_name, u.avatar_hue AS sender_hue, "
     "       a.id AS att_id, a.file_name AS att_name, a.mime AS att_mime, "
     "       a.byte_size AS att_size, a.sha256 AS att_sha, a.rel_path AS att_path, "
@@ -37,6 +37,7 @@ Message readMessage(const QSqlQuery &query)
     message.createdAt = query.value(QStringLiteral("created_at")).toLongLong();
     message.deleted = query.value(QStringLiteral("deleted")).toBool();
     message.editedAt = query.value(QStringLiteral("edited_at")).toLongLong();
+    message.replyToId = query.value(QStringLiteral("reply_to_id")).toLongLong();
     message.senderDisplayName = query.value(QStringLiteral("sender_name")).toString();
     message.senderHue = query.value(QStringLiteral("sender_hue")).toInt();
 
@@ -97,8 +98,8 @@ bool MessageRepository::append(const Message &message, Message *stored, QString 
 
     QSqlQuery insert(m_db);
     insert.prepare(QStringLiteral(
-        "INSERT INTO messages(chat_id, sender_id, seq, client_msg_id, kind, body, created_at) "
-        "VALUES(?, ?, ?, ?, ?, ?, ?)"));
+        "INSERT INTO messages(chat_id, sender_id, seq, client_msg_id, kind, body, created_at, reply_to_id) "
+        "VALUES(?, ?, ?, ?, ?, ?, ?, ?)"));
     insert.addBindValue(message.chatId);
     insert.addBindValue(message.senderId);
     insert.addBindValue(seq);
@@ -107,6 +108,7 @@ bool MessageRepository::append(const Message &message, Message *stored, QString 
     insert.addBindValue(message.body);
     insert.addBindValue(message.createdAt > 0 ? message.createdAt
                                               : QDateTime::currentMSecsSinceEpoch());
+    insert.addBindValue(message.replyToId);
 
     if (!insert.exec()) {
         m_db.rollback();
@@ -158,9 +160,10 @@ bool MessageRepository::store(const Message &message, bool *inserted, QString *e
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
         "INSERT INTO messages(id, chat_id, sender_id, seq, client_msg_id, kind, body, "
-        "created_at, deleted, edited_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+        "created_at, deleted, edited_at, reply_to_id) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT(id) DO UPDATE SET body = excluded.body, "
-        "deleted = excluded.deleted, edited_at = excluded.edited_at"));
+        "deleted = excluded.deleted, edited_at = excluded.edited_at, "
+        "reply_to_id = excluded.reply_to_id"));
     query.addBindValue(message.id);
     query.addBindValue(message.chatId);
     query.addBindValue(message.senderId);
@@ -171,6 +174,7 @@ bool MessageRepository::store(const Message &message, bool *inserted, QString *e
     query.addBindValue(message.createdAt);
     query.addBindValue(message.deleted ? 1 : 0);
     query.addBindValue(message.editedAt);
+    query.addBindValue(message.replyToId);
 
     if (!query.exec())
         return sql::failQuery(error, query, QStringLiteral("Сохранение сообщения"));

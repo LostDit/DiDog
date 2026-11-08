@@ -5,6 +5,7 @@
 #include <QTextEdit>
 
 class QHBoxLayout;
+class QLabel;
 class QToolButton;
 class QVBoxLayout;
 class QWidget;
@@ -39,6 +40,10 @@ public:
     void setInputEnabled(bool enabled);
     void clear();
 
+    void setReplyTarget(qint64 messageId, const QString &senderName, const QString &snippet);
+    void clearReply();
+    qint64 replyTargetId() const { return m_replyToId; }
+
 signals:
     void sendRequested(const QString &text);
     void attachRequested(const QString &filePath);
@@ -70,6 +75,10 @@ private:
     QWidget *m_previewRow = nullptr;
     QHBoxLayout *m_previewLayout = nullptr;
     QStringList m_pendingFiles;
+
+    QWidget *m_replyRow = nullptr;
+    QLabel *m_replyLabel = nullptr;
+    qint64 m_replyToId = 0;
 };
 
 } // namespace ui

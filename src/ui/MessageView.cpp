@@ -122,6 +122,8 @@ void MessageView::setMessages(const QList<data::Message> &messages)
                 this, &MessageView::retryRequested);
         connect(bubble, &MessageBubble::avatarActivated,
                 this, &MessageView::avatarActivated);
+        connect(bubble, &MessageBubble::replyRequested,
+                this, &MessageView::replyRequested);
         connect(bubble, &MessageBubble::attachmentRetryRequested,
                 this, &MessageView::attachmentRetryRequested);
         connect(bubble, &MessageBubble::editRequested,

@@ -79,6 +79,7 @@ QJsonObject messageToJson(const Message &message)
     object.insert(QStringLiteral("created_at"), static_cast<double>(message.createdAt));
     object.insert(QStringLiteral("deleted"), message.deleted);
     object.insert(QStringLiteral("edited_at"), static_cast<double>(message.editedAt));
+    object.insert(QStringLiteral("reply_to_id"), static_cast<double>(message.replyToId));
 
     QJsonObject sender;
     sender.insert(QStringLiteral("id"), static_cast<double>(message.senderId));
@@ -105,6 +106,7 @@ Message messageFromJson(const QJsonObject &object)
     message.createdAt = toInt64(object.value(QStringLiteral("created_at")));
     message.deleted = object.value(QStringLiteral("deleted")).toBool(false);
     message.editedAt = toInt64(object.value(QStringLiteral("edited_at")));
+    message.replyToId = toInt64(object.value(QStringLiteral("reply_to_id")));
 
     const QJsonObject sender = object.value(QStringLiteral("sender")).toObject();
     message.senderId = toInt64(sender.value(QStringLiteral("id")));
