@@ -168,6 +168,12 @@ void SettingsDialog::buildUi()
             [this](bool enabled) { m_settings->setCloseToTray(enabled); });
     layout->addWidget(m_trayCheck);
 
+    m_animationsCheck = new QCheckBox(tr("Анимации интерфейса"), this);
+    m_animationsCheck->setChecked(m_settings->animationsEnabled());
+    connect(m_animationsCheck, &QCheckBox::toggled, this,
+            [this](bool enabled) { m_settings->setAnimationsEnabled(enabled); });
+    layout->addWidget(m_animationsCheck);
+
     layout->addWidget(sectionTitle(tr("Обновления"), this));
 
     m_updateStatus = new QLabel(tr("Версия %1").arg(QStringLiteral(MESSENGER_VERSION)), this);

@@ -24,6 +24,7 @@ public:
     void setCurrentUserId(qint64 userId) { m_currentUserId = userId; }
     void setHasMore(bool hasMore) { m_hasMore = hasMore; }
     void setShowSenderNames(bool show) { m_showSenderNames = show; }
+    void setAnimationsEnabled(bool enabled) { m_animationsEnabled = enabled; }
 
     // Полная перестройка ленты. При добавлении нового сообщения в конец —
     // анимирует его появление, если пользователь у нижней границы.
@@ -66,6 +67,7 @@ private:
     qint64 m_currentUserId = 0;
     bool m_hasMore = false;
     bool m_showSenderNames = false;
+    bool m_animationsEnabled = true;
     QString m_lastKey;
     bool m_firstLoad = true;
 };

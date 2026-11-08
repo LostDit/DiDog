@@ -59,6 +59,7 @@ set(MESSENGER_CORE_SOURCES
     ui/ChatListModel.h          ui/ChatListModel.cpp
     ui/ComposerWidget.h         ui/ComposerWidget.cpp
     ui/Formatting.h             ui/Formatting.cpp
+    ui/EmojiPicker.h            ui/EmojiPicker.cpp
     ui/ImageViewerDialog.h      ui/ImageViewerDialog.cpp
     ui/LoginWindow.h            ui/LoginWindow.cpp
     ui/MainWindow.h             ui/MainWindow.cpp

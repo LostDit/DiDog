@@ -623,3 +623,53 @@ QComboBox#SettingsCombo QAbstractItemView {
     color: {{text-muted}};
     font-size: 8pt;
 }
+#ComposerPreview {
+    background: transparent;
+}
+
+#AttachmentChip {
+    background-color: {{surface-3}};
+    border: 1px solid {{border}};
+    border-radius: 8px;
+}
+
+#AttachmentChipName {
+    color: {{text}};
+    font-size: 9pt;
+}
+
+#AttachmentChipRemove {
+    background: transparent;
+    border: none;
+    color: {{text-muted}};
+    font-size: 13pt;
+    padding: 0;
+}
+
+#AttachmentChipRemove:hover {
+    color: {{danger}};
+}
+
+#EmojiButton {
+    background: transparent;
+    border: none;
+    font-size: 16pt;
+    padding: 0;
+}
+
+#EmojiButton:hover {
+    background-color: {{hover}};
+    border-radius: 6px;
+}
+
+#EmojiPicker {
+    background-color: {{surface}};
+    border: 1px solid {{border}};
+}
+
+#EmojiPicker QLineEdit {
+    background-color: {{surface-2}};
+    border: 1px solid {{border}};
+    border-radius: 6px;
+    padding: 6px 8px;
+}

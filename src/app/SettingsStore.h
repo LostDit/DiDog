@@ -81,6 +81,10 @@ public:
     bool closeToTray() const;
     void setCloseToTray(bool enabled);
 
+    // Анимации интерфейса (появление сообщений, hover-эффекты).
+    bool animationsEnabled() const;
+    void setAnimationsEnabled(bool enabled);
+
     QString filePath() const;
 
 private:

@@ -134,6 +134,25 @@ void MessageView::setMessages(const QList<data::Message> &messages)
         connect(bubble, &MessageBubble::videoActivated, this, &MessageView::videoActivated);
         connect(bubble, &MessageBubble::fileActivated, this, &MessageView::fileActivated);
         m_layout->addWidget(bubble);
+
+        // Появление последнего нового сообщения — мягкий fade.
+        if (appended && m_animationsEnabled && i == messages.size() - 1) {
+            auto *effect = new QGraphicsOpacityEffect(bubble);
+            bubble->setGraphicsEffect(effect);
+
+            auto *animation = new QPropertyAnimation(effect, "opacity", bubble);
+            animation->setDuration(180);
+            animation->setStartValue(0.0);
+            animation->setEndValue(1.0);
+            animation->setEasingCurve(QEasingCurve::OutCubic);
+
+            connect(animation, &QPropertyAnimation::finished, bubble, [bubble, effect, animation]() {
+                bubble->setGraphicsEffect(nullptr);
+                effect->deleteLater();
+                animation->deleteLater();
+            });
+            animation->start();
+        }
         m_bubbles.append(bubble);
 
         previousTime = message.createdAt;

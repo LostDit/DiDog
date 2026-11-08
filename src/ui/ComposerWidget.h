@@ -1,11 +1,17 @@
 #pragma once
 
 #include <QFrame>
+#include <QStringList>
 #include <QTextEdit>
 
+class QHBoxLayout;
 class QToolButton;
+class QVBoxLayout;
+class QWidget;
 
 namespace ui {
+
+class EmojiPicker;
 
 // Многострочное поле ввода: Enter — отправить, Shift+Enter — перенос строки.
 class ComposerEdit : public QTextEdit
@@ -22,7 +28,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
 };
 
-// Панель ввода сообщения: прикрепление, текст, отправка.
+// Панель ввода: вложения с превью, эмодзи, текст и отправка.
 class ComposerWidget : public QFrame
 {
     Q_OBJECT
@@ -37,17 +43,33 @@ signals:
     void sendRequested(const QString &text);
     void attachRequested(const QString &filePath);
 
+protected:
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
+
 private slots:
     void onSendClicked();
     void onAttachClicked();
     void onTextChanged();
+    void onEmojiSelected(const QString &symbol);
 
 private:
     void adjustHeight();
+    void addAttachment(const QString &path);
+    void removeAttachment(const QString &path);
+    void rebuildPreview();
+    void updateSendState();
+    bool hasContent() const;
 
     ComposerEdit *m_edit = nullptr;
     QToolButton *m_attachButton = nullptr;
+    QToolButton *m_emojiButton = nullptr;
     QToolButton *m_sendButton = nullptr;
+    EmojiPicker *m_emojiPicker = nullptr;
+
+    QWidget *m_previewRow = nullptr;
+    QHBoxLayout *m_previewLayout = nullptr;
+    QStringList m_pendingFiles;
 };
 
 } // namespace ui

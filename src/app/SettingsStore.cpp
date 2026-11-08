@@ -341,6 +341,16 @@ void SettingsStore::setCloseToTray(bool enabled)
     m_settings.setValue(QStringLiteral("window/closeToTray"), enabled);
 }
 
+bool SettingsStore::animationsEnabled() const
+{
+    return m_settings.value(QStringLiteral("ui/animations"), true).toBool();
+}
+
+void SettingsStore::setAnimationsEnabled(bool enabled)
+{
+    m_settings.setValue(QStringLiteral("ui/animations"), enabled);
+}
+
 QString SettingsStore::filePath() const
 {
     return m_settings.fileName();

@@ -730,6 +730,9 @@ void MainWindow::openChat(qint64 chatId)
 
     m_currentChatId = chatId;
 
+    if (m_messageView)
+        m_messageView->setAnimationsEnabled(m_settings && m_settings->animationsEnabled());
+
     const data::ChatSummary openSummary = m_chats->chat(chatId);
     m_panelVisible = openSummary.chat.kind == QLatin1String("group");
     if (m_participantsPanel) {

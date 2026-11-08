@@ -76,6 +76,7 @@ private:
 
     QCheckBox *m_pttCheck = nullptr;
     QCheckBox *m_trayCheck = nullptr;
+    QCheckBox *m_animationsCheck = nullptr;
     QComboBox *m_inputCombo = nullptr;
     QComboBox *m_outputCombo = nullptr;
 };
