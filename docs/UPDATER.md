@@ -110,3 +110,32 @@ $env:MESSENGER_SIGN_PASSWORD = "…"
 ожидаемо для самоподписанного сертификата. После покупки сертификата УЦ тот же
 скрипт даёт `Valid` и «проверенного издателя» в SmartScreen. Если сеть доступна,
 уберите `-TimestampUrl ""`, чтобы добавить метку времени.
+
+## 8. Выкладка обновления на сервер
+
+1. Соберите Release и установщик (`scripts\build-installer.ps1` или
+   `package-windows.ps1` + ISCC).
+2. Сгенерируйте манифест **после** сборки:
+
+   ```powershell
+   .\scripts\make-manifest.ps1 -Version 2.0.0 -Dist dist\MessengerApp
+   ```
+
+   Получится `dist\MessengerApp\manifest.json` с версией, размерами и sha256.
+   Для 2.0.0 готовый манифест также приложен к релизу (`manifest.json`).
+
+3. Скопируйте содержимое `dist\MessengerApp` в каталог обновлений сервера
+   (по умолчанию `/var/lib/messengerapp/updates`):
+
+   ```bash
+   rsync -av --delete dist/MessengerApp/ lostdead@51.250.76.250:/tmp/messenger-updates/
+   ssh lostdead@51.250.76.250 'sudo rm -rf /var/lib/messengerapp/updates \
+     && sudo mv /tmp/messenger-updates /var/lib/messengerapp/updates \
+     && sudo chown -R messengerapp:messengerapp /var/lib/messengerapp/updates'
+   ```
+
+4. Перезапуск сервера не нужен: манифест читается при каждом `update.manifest`.
+   Если служба запущена с `--updates-dir`, используйте этот каталог.
+
+5. Проверьте обновление клиентом предыдущей версии: Настройки → Обновления →
+   «Проверить обновления». Должны скачаться только изменённые файлы.
