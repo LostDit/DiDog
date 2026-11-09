@@ -79,7 +79,7 @@ sudo apt install build-essential cmake ninja-build \
 .\scripts\build-installer.ps1          # Release + windeployqt + Inno Setup
 ```
 
-Результат: `dist\installer\MessengerApp-Setup-2.1.2.exe` (≈21 МБ). Что делает установщик:
+Результат: `dist\installer\MessengerApp-Setup-2.1.3.exe` (≈21 МБ). Что делает установщик:
 
 - ставит приложение в `Program Files\MessengerApp` (или в профиль при `/CURRENTUSER`);
 - добавляет ярлыки «MessengerApp» и «Сервер MessengerApp» в меню «Пуск» (и на рабочий стол по желанию);
@@ -89,7 +89,7 @@ sudo apt install build-essential cmake ninja-build \
 Тихая установка для проверки:
 
 ```powershell
-MessengerApp-Setup-2.1.2.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
+MessengerApp-Setup-2.1.3.exe /VERYSILENT /CURRENTUSER /DIR="$env:LOCALAPPDATA\Programs\MessengerApp"
 ```
 
 **Проверка на двух компьютерах и в разных сетях** — пошаговая инструкция:

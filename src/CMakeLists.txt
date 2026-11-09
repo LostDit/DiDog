@@ -70,6 +70,7 @@ set(MESSENGER_CORE_SOURCES
     ui/ParticipantsPanel.h      ui/ParticipantsPanel.cpp
     ui/SearchDialog.h           ui/SearchDialog.cpp
     ui/SettingsDialog.h         ui/SettingsDialog.cpp
+    ui/StartupSplash.h          ui/StartupSplash.cpp
     ui/GroupDialog.h            ui/GroupDialog.cpp
     ui/VideoPlayerDialog.h      ui/VideoPlayerDialog.cpp
 )

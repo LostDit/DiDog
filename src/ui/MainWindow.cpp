@@ -1244,6 +1244,11 @@ void MainWindow::setupTray()
     });
 
     m_tray->setContextMenu(menu);
+    connect(m_tray, &QSystemTrayIcon::messageClicked, this, [this]() {
+        restoreFromTray();
+        if (m_trayChatId > 0)
+            openChatById(m_trayChatId);
+    });
     connect(m_tray, &QSystemTrayIcon::activated, this,
             [this](QSystemTrayIcon::ActivationReason reason) {
                 if (reason == QSystemTrayIcon::Trigger
@@ -1259,6 +1264,23 @@ void MainWindow::restoreFromTray()
     showNormal();
     raise();
     activateWindow();
+}
+
+void MainWindow::showTrayNotification(const QString &title, const QString &body, qint64 chatId)
+{
+    m_trayChatId = chatId;
+    if (m_tray && m_tray->isVisible())
+        m_tray->showMessage(title, body, QSystemTrayIcon::Information, 5000);
+}
+
+void MainWindow::setTrayUnread(int count)
+{
+    if (!m_tray)
+        return;
+
+    m_tray->setToolTip(count > 0
+                           ? tr("MessengerApp — %1 непрочитанных").arg(count)
+                           : QStringLiteral("MessengerApp"));
 }
 
 void MainWindow::checkForUpdatesNow()

@@ -1,4 +1,5 @@
 #include "ui/ButtonFx.h"
+#include "ui/StartupSplash.h"
 #include "app/AppPaths.h"
 #include "app/ClientController.h"
 #include "app/Localization.h"
@@ -135,6 +136,10 @@ int main(int argc, char *argv[])
 
     app::ThemeManager theme(&settings);
     theme.apply();
+
+    ui::StartupSplash splash;
+    splash.show();
+    splash.start();
 
     app::ClientController controller(&settings, &theme, instanceName);
     controller.start();

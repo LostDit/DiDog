@@ -69,6 +69,10 @@ public:
     // Открыть глобальный поиск (Ctrl+F).
     void openSearch();
 
+    // Уведомление через трей главного окна (единственная иконка в системе).
+    void showTrayNotification(const QString &title, const QString &body, qint64 chatId);
+    void setTrayUnread(int count);
+
 protected:
     void closeEvent(QCloseEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -156,6 +160,7 @@ private:
     bool m_trayHintShown = false;
     bool m_updateWired = false;
     QString m_notifiedVersion;
+    qint64 m_trayChatId = 0;
     qint64 m_speakingUserId = 0;
     int m_groupMemberCount = 0;
     MessageView *m_messageView = nullptr;

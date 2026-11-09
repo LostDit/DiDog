@@ -3,15 +3,14 @@
 #include <QObject>
 #include <QString>
 
-class QMenu;
-class QSystemTrayIcon;
 class QWidget;
 
 namespace app {
 
 class SettingsStore;
 
-// Иконка в системном трее, счётчик непрочитанных и всплывающие уведомления.
+// Всплывающие уведомления. Своей иконки в трее не имеет: показывает их через
+// трей главного окна, чтобы в системе была ровно одна иконка MessengerApp.
 class NotificationService : public QObject
 {
     Q_OBJECT
@@ -27,20 +26,13 @@ public:
     void setUnreadCount(int count);
 
 signals:
-    void showRequested();
-    void openChatRequested(qint64 chatId);
-    void quitRequested();
+    void notificationRequested(const QString &title, const QString &body, qint64 chatId);
+    void unreadChanged(int count);
 
 private:
-    void updateTooltip();
-
-    QSystemTrayIcon *m_tray = nullptr;
-    QMenu *m_menu = nullptr;
     SettingsStore *m_settings = nullptr;
     QWidget *m_window = nullptr;
     int m_unread = 0;
-    qint64 m_lastChatId = 0;
-    bool m_available = false;
 };
 
 } // namespace app

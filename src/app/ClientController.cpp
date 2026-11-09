@@ -63,27 +63,16 @@ ClientController::ClientController(SettingsStore *settings, ThemeManager *theme,
 
     m_notifications = new NotificationService(m_settings, this);
 
-    connect(m_notifications, &NotificationService::showRequested, this, [this]() {
-        if (m_mainWindow) {
-            m_mainWindow->show();
-            m_mainWindow->activate();
-        } else if (m_loginWindow) {
-            m_loginWindow->show();
-            m_loginWindow->raise();
-        }
-    });
-
-    connect(m_notifications, &NotificationService::openChatRequested, this,
-            [this](qint64 chatId) {
-                if (!m_mainWindow)
-                    return;
-                m_mainWindow->show();
-                m_mainWindow->activate();
-                m_mainWindow->openChatById(chatId);
+    connect(m_notifications, &NotificationService::notificationRequested, this,
+            [this](const QString &title, const QString &body, qint64 chatId) {
+                if (m_mainWindow)
+                    m_mainWindow->showTrayNotification(title, body, chatId);
             });
 
-    connect(m_notifications, &NotificationService::quitRequested, this,
-            []() { QCoreApplication::quit(); });
+    connect(m_notifications, &NotificationService::unreadChanged, this, [this](int count) {
+        if (m_mainWindow)
+            m_mainWindow->setTrayUnread(count);
+    });
 
     m_history = new HistoryStore(this);
     QString historyError;
