@@ -348,6 +348,7 @@ void VoiceService::setTransmitting(bool transmitting)
 
 void VoiceService::openAudio()
 {
+    qInfo("VOICE: открытие аудио");
     const QAudioFormat format = voiceFormat();
 
     QAudioDeviceInfo inputDevice = QAudioDeviceInfo::defaultInputDevice();
@@ -415,6 +416,7 @@ void VoiceService::closeAudio()
 void VoiceService::beginE2ee(const QJsonObject &data)
 {
     m_participants = data.value(QStringLiteral("participants")).toInt(2);
+    qInfo("VOICE: вход в E2EE, участников=%d", m_participants);
     m_roomKey = m_key;
     m_pendingPeerKeys.clear();
     m_peerSenderKeys.clear();
@@ -471,6 +473,7 @@ void VoiceService::applyPeerKey(qint64 userId, const QString &pubkeyBase64)
     const QByteArray pairwiseKey =
         VoiceCrypto::hkdfSha256(secret, QByteArrayLiteral("didog-voice"), info);
     m_pairwiseKeys.insert(userId, pairwiseKey);
+    qInfo("VOICE: получен ключ участника %lld", userId);
 
     if (m_participants <= 2) {
         m_key = pairwiseKey;
@@ -609,8 +612,11 @@ void VoiceService::updateSpeaking(const QByteArray &pcm)
 
 void VoiceService::onAudioReady()
 {
-    if (!m_inputDevice || m_state != State::Active)
+    if (!m_inputDevice || m_state != State::Active) {
+        if (!m_inputDevice)
+            qWarning("VOICE: нет устройства ввода");
         return;
+    }
 
     m_captureBuffer.append(m_inputDevice->readAll());
 
@@ -674,8 +680,16 @@ void VoiceService::onUdpDatagrams()
                                        &decrypted);
         if (!decrypted)
             opus = VoiceCrypto::decrypt(m_key, sequence, payload, &decrypted);
-        if (!decrypted)
+        if (!decrypted && !m_roomKey.isEmpty() && m_roomKey != m_key) {
+            // Одна из сторон могла ещё не перейти на парный ключ.
+            opus = VoiceCrypto::decrypt(m_roomKey, sequence, payload, &decrypted);
+            if (decrypted)
+                qInfo("VOICE: пакет расшифрован ключом комнаты (fallback)");
+        }
+        if (!decrypted) {
+            qWarning("VOICE: не удалось расшифровать пакет от пользователя %u", userId);
             continue;
+        }
 
         const quint64 key = (static_cast<quint64>(userId) << 32) | sequence;
         m_jitter.insert(key, opus);
@@ -786,6 +800,7 @@ void VoiceService::onEvent(const QString &name, const QJsonObject &data)
             return;
         stopCallTimer();
         setState(State::Active);
+        qInfo("VOICE: вызов принят, разговор начат");
         emit callAccepted(chatId, static_cast<qint64>(
                                     data.value(QStringLiteral("user_id")).toDouble()));
         return;
