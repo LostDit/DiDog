@@ -14,7 +14,9 @@
 #include <QDebug>
 #include <QDir>
 #include <QIcon>
+#include <QEventLoop>
 #include <QLocalSocket>
+#include <QTimer>
 #include <QMessageBox>
 #include <QRegularExpression>
 #include <QStyleFactory>
@@ -137,9 +139,18 @@ int main(int argc, char *argv[])
     app::ThemeManager theme(&settings);
     theme.apply();
 
+    // Сначала только заставка: окно входа появится после её исчезновения.
+    QApplication::setQuitOnLastWindowClosed(false);
+
     ui::StartupSplash splash;
-    splash.show();
     splash.start();
+
+    QEventLoop splashLoop;
+    QObject::connect(&splash, &ui::StartupSplash::finished, &splashLoop, &QEventLoop::quit);
+    QTimer::singleShot(3000, &splashLoop, &QEventLoop::quit);
+    splashLoop.exec();
+
+    QApplication::setQuitOnLastWindowClosed(true);
 
     app::ClientController controller(&settings, &theme, instanceName);
     controller.start();

@@ -147,8 +147,10 @@ void StartupSplash::fadeOut()
     m_fade->setEndValue(0.0);
     m_fade->start();
 
-    QObject::connect(m_fade, &QPropertyAnimation::finished, this, [this]() { close(); },
-                     Qt::UniqueConnection);
+    QObject::connect(m_fade, &QPropertyAnimation::finished, this, [this]() {
+        emit finished();
+        close();
+    }, Qt::UniqueConnection);
 }
 
 void StartupSplash::mousePressEvent(QMouseEvent *event)

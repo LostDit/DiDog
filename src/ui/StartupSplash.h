@@ -21,6 +21,9 @@ public:
     void start();
     void finish();
 
+signals:
+    void finished();
+
 protected:
     void mousePressEvent(QMouseEvent *event) override;
 
