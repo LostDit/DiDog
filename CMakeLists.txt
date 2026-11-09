@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(MessengerApp
-    VERSION 2.3.2
+    VERSION 2.4.0
     DESCRIPTION "Cross-platform desktop messenger built with Qt Widgets"
     LANGUAGES CXX)
 

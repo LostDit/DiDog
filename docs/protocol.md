@@ -349,3 +349,24 @@ C: attach.ack {transfer_id: 12}      // только после проверки
 `ev.read {chat_id, user_id, up_to_seq}`; свои сообщения с `seq <= up_to_seq`
 помечаются прочитанными. Схема БД: v6, `messages.reply_to_id`,
 `outbox.reply_to_id`.
+## 2.4.0: реакции, пересылка, закрепления, настройки чата
+
+| Запрос | Поля | Ответ |
+|---|---|---|
+| `msg.react` | `chat_id`, `message_id`, `emoji` (1–16), `on` | `{}` |
+| `msg.forward` | `message_id`, `chat_id` (целевой) | `message_id`, `seq` |
+| `msg.pin` | `chat_id`, `message_id`, `on` | `{}` |
+| `chat.update` | `chat_id`, `pinned`/`muted`/`archived` | `{}` |
+
+События:
+
+| Событие | Поля |
+|---|---|
+| `ev.reaction` | `chat_id`, `message_id`, `emoji`, `user_id`, `on` |
+| `ev.pin` | `chat_id`, `message_id`, `on`, `pinned_by`, `message` (при `on`) |
+
+Сообщение в ответах `chat.open`/`msg.*` может содержать `reactions`:
+`[{ "emoji": "👍", "count": 2, "me": true }]`; `chat.open` возвращает `pinned` —
+массив закреплённых сообщений. Список чатов отдаёт `pinned`, `muted`, `archived`.
+
+Миграции: v7 — `reactions`, v8 — `pins`, v9 — `chat_members.pinned/muted/archived`.
