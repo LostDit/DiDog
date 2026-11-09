@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     Готовит манифест обновления, упаковывает dist в tar.gz и отправляет на сервер.
@@ -49,7 +49,7 @@ if (-not $IncludeUpdater) {
 Write-Host "== Манифест =="
 & (Join-Path $PSScriptRoot 'make-manifest.ps1') `
     -Version $Version -Dist $distPath -Exclude $exclude
-if ($LASTEXITCODE -ne 0) {
+if (-not $?) {
     throw "make-manifest.ps1 завершился с ошибкой."
 }
 
