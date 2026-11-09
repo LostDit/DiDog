@@ -15,7 +15,9 @@
 #include <QHostInfo>
 #include <QJsonObject>
 #include <QRandomGenerator>
+#include <QCoreApplication>
 #include <QNetworkDatagram>
+#include <QProcess>
 #include <QTimer>
 #include <QUdpSocket>
 #include <QVector>
@@ -240,6 +242,7 @@ void VoiceService::call(qint64 chatId)
     m_chatId = chatId;
     m_callerId = 0;
     m_callerName.clear();
+    m_livekit = m_settings && m_settings->voiceBackend() == QLatin1String("livekit");
     setState(State::Calling);
     startCallTimer();
 
@@ -250,6 +253,16 @@ void VoiceService::call(qint64 chatId)
             if (!reply.value(QStringLiteral("ok")).toBool(false)) {
                 emit errorOccurred(core::proto::errorMessageOf(reply));
                 setState(State::Idle);
+                return;
+            }
+
+            if (m_livekit) {
+                openAudio();
+                startLiveKitBridge(m_chatId);
+                m_connection->request(
+                    QStringLiteral("voice.invite"),
+                    QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(m_chatId)}},
+                    nullptr, 5000);
                 return;
             }
 
@@ -300,6 +313,7 @@ void VoiceService::accept(qint64 chatId, qint64 callerId)
 
     m_chatId = chatId;
     m_callerId = callerId;
+    m_livekit = m_settings && m_settings->voiceBackend() == QLatin1String("livekit");
     setState(State::Active);
     stopCallTimer();
 
@@ -310,6 +324,17 @@ void VoiceService::accept(qint64 chatId, qint64 callerId)
             if (!reply.value(QStringLiteral("ok")).toBool(false)) {
                 emit errorOccurred(core::proto::errorMessageOf(reply));
                 setState(State::Idle);
+                return;
+            }
+
+            if (m_livekit) {
+                openAudio();
+                startLiveKitBridge(chatId);
+                m_connection->request(
+                    QStringLiteral("voice.accept"),
+                    QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(chatId)},
+                                {QStringLiteral("caller_id"), static_cast<double>(callerId)}},
+                    nullptr, 5000);
                 return;
             }
 
@@ -388,6 +413,7 @@ void VoiceService::hangup()
 
     closeAudio();
     closeUdp();
+    stopLiveKit();
     m_jitter.clear();
     m_jitterPrimed = false;
     m_chatId = 0;
@@ -633,6 +659,100 @@ void VoiceService::applyPeerKey(qint64 userId, const QString &pubkeyBase64)
         nullptr, 10000);
 }
 
+void VoiceService::startLiveKitBridge(qint64 chatId)
+{
+    if (m_bridge || !m_connection)
+        return;
+
+    m_connection->request(
+        QStringLiteral("voice.token"),
+        QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(chatId)}},
+        [this](const QJsonObject &reply) {
+            if (!reply.value(QStringLiteral("ok")).toBool(false)) {
+                emit errorOccurred(core::proto::errorMessageOf(reply));
+                setState(State::Idle);
+                return;
+            }
+
+            const QJsonObject data = reply.value(QStringLiteral("data")).toObject();
+            const QString url = data.value(QStringLiteral("url")).toString();
+            const QString token = data.value(QStringLiteral("token")).toString();
+            if (url.isEmpty() || token.isEmpty()) {
+                emit errorOccurred(tr("Сервер не выдал параметры LiveKit."));
+                setState(State::Idle);
+                return;
+            }
+
+            m_bridgePort = 46000 + QRandomGenerator::global()->bounded(1000);
+            m_bridgeSocket = new QUdpSocket(this);
+            if (!m_bridgeSocket->bind(QHostAddress(QHostAddress::LocalHost), 0)) {
+                emit errorOccurred(tr("Не удалось открыть локальный UDP-порт для моста."));
+                stopLiveKit();
+                setState(State::Idle);
+                return;
+            }
+            connect(m_bridgeSocket, &QUdpSocket::readyRead, this,
+                    &VoiceService::onBridgeDatagrams);
+
+            m_bridge = new QProcess(this);
+            m_bridge->setProcessChannelMode(QProcess::MergedChannels);
+            connect(m_bridge, &QProcess::readyReadStandardOutput, this, [this]() {
+                const QByteArray line = m_bridge->readAllStandardOutput().trimmed();
+                if (!line.isEmpty())
+                    qInfo().noquote() << QString::fromLocal8Bit(line);
+            });
+            connect(m_bridge, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this,
+                    [this](int code, QProcess::ExitStatus) {
+                        qWarning("VOICE: LiveKit-мост завершился с кодом %d", code);
+                    });
+
+            m_bridge->setWorkingDirectory(QCoreApplication::applicationDirPath());
+            m_bridge->start(QStringLiteral("node"),
+                            {QStringLiteral("bridge/index.js"),
+                             QStringLiteral("--url"), url,
+                             QStringLiteral("--token"), token,
+                             QStringLiteral("--port"), QString::number(m_bridgePort)});
+            if (!m_bridge->waitForStarted(3000)) {
+                emit errorOccurred(tr("Не удалось запустить LiveKit-мост (нужен Node.js и bridge/)."));
+                stopLiveKit();
+                setState(State::Idle);
+                return;
+            }
+            qInfo("VOICE: LiveKit-мост запущен, UDP %d", m_bridgePort);
+        },
+        10000);
+}
+
+void VoiceService::onBridgeDatagrams()
+{
+    if (!m_bridgeSocket)
+        return;
+
+    while (m_bridgeSocket->hasPendingDatagrams()) {
+        const QNetworkDatagram datagram = m_bridgeSocket->receiveDatagram();
+        const QByteArray pcm = datagram.data();
+        if (pcm.isEmpty() || !m_outputDevice)
+            continue;
+        m_outputDevice->write(convertPcm(pcm, voiceFormat(), m_outputFormat));
+    }
+}
+
+void VoiceService::stopLiveKit()
+{
+    if (m_bridgeSocket) {
+        m_bridgeSocket->close();
+        m_bridgeSocket->deleteLater();
+        m_bridgeSocket = nullptr;
+    }
+    if (m_bridge) {
+        m_bridge->kill();
+        m_bridge->deleteLater();
+        m_bridge = nullptr;
+    }
+    m_bridgePort = 0;
+    m_livekit = false;
+}
+
 void VoiceService::openUdp(quint16 port, quint32 token, const QByteArray &key)
 {
     closeUdp();
@@ -753,7 +873,7 @@ void VoiceService::updateSpeaking(const QByteArray &pcm)
 
 void VoiceService::onAudioReady()
 {
-    if (!m_inputDevice || m_state != State::Active) {
+    if (!m_inputDevice || (m_state != State::Active && !m_livekit)) {
         if (!m_inputDevice)
             qWarning("VOICE: нет устройства ввода");
         return;
@@ -789,6 +909,14 @@ void VoiceService::onAudioReady()
         QByteArray processed = frame;
         m_processor.process(reinterpret_cast<qint16 *>(processed.data()),
                             processed.size() / 2);
+
+        if (m_livekit) {
+            if (m_bridgeSocket && m_bridgePort > 0)
+                m_bridgeSocket->writeDatagram(processed, QHostAddress::LocalHost,
+                                              static_cast<quint16>(m_bridgePort));
+            continue;
+        }
+
         const QByteArray packet = m_codec->encode(processed);
         if (!packet.isEmpty())
             sendDatagram(packet);
@@ -894,6 +1022,7 @@ void VoiceService::onSocketDisconnected()
 
     closeAudio();
     closeUdp();
+    stopLiveKit();
     m_jitter.clear();
     m_jitterPrimed = false;
     m_chatId = 0;

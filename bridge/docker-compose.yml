@@ -1,0 +1,10 @@
+# LiveKit для DiDog (пилот). Порты: 7880/tcp API+WS, 7881/tcp WebRTC, 7882/udp медиа.
+# Использование: docker compose up -d
+services:
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: unless-stopped
+    command: --config /etc/livekit/livekit.yaml
+    network_mode: host
+    volumes:
+      - ./livekit.yaml:/etc/livekit/livekit.yaml:ro

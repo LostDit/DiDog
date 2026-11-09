@@ -45,6 +45,9 @@ public:
 
     bool notificationsEnabled() const;
     void setNotificationsEnabled(bool enabled);
+    QString voiceBackend() const;
+    void setVoiceBackend(const QString &backend);
+
     bool voiceAgc() const;
     void setVoiceAgc(bool enabled);
     bool voiceNoiseSuppression() const;

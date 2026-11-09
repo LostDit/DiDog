@@ -13,6 +13,7 @@ class QAudioInput;
 class QAudioOutput;
 class QIODevice;
 class QTcpSocket;
+class QProcess;
 class QTimer;
 class QUdpSocket;
 class OpusCodec;
@@ -83,6 +84,9 @@ private slots:
 private:
     void startRoom(qint64 chatId);
     void beginE2ee(const QJsonObject &data);
+    void startLiveKitBridge(qint64 chatId);
+    void onBridgeDatagrams();
+    void stopLiveKit();
     void applyPeerKey(qint64 userId, const QString &pubkeyBase64);
     void openAudio();
     void closeAudio();
@@ -127,6 +131,10 @@ private:
     QByteArray m_captureBuffer;
     QMap<quint64, QByteArray> m_jitter;
     voice::AudioProcessor m_processor;
+    bool m_livekit = false;
+    QProcess *m_bridge = nullptr;
+    QUdpSocket *m_bridgeSocket = nullptr;
+    int m_bridgePort = 0;
     int m_packetsSent = 0;
     int m_packetsReceived = 0;
     qint64 m_captureBytes = 0;

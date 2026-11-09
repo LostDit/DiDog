@@ -65,6 +65,7 @@ private:
     QCheckBox *m_notifications = nullptr;
     QCheckBox *m_soundCheck = nullptr;
     QComboBox *m_soundQualityCombo = nullptr;
+    QComboBox *m_backendCombo = nullptr;
     QCheckBox *m_e2eeCheck = nullptr;
     QCheckBox *m_noiseCheck = nullptr;
     QCheckBox *m_agcCheck = nullptr;

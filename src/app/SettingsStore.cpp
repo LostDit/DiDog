@@ -52,6 +52,7 @@ constexpr auto kNotificationsKey = "ui/notifications";
 constexpr auto kSoundKey = "ui/sound";
 constexpr auto kVoiceBitrateKey = "voice/bitrate";
 constexpr auto kVoiceE2eeKey = "voice/e2ee";
+constexpr auto kBackendKey = "voice/backend";
 constexpr auto kAgcKey = "voice/agc";
 constexpr auto kNoiseSuppressionKey = "voice/noise_suppression";
 constexpr auto kTlsKey = "network/tls";
@@ -173,6 +174,16 @@ void SettingsStore::setLanguage(const QString &language)
 bool SettingsStore::notificationsEnabled() const
 {
     return m_settings.value(kNotificationsKey, true).toBool();
+}
+
+QString SettingsStore::voiceBackend() const
+{
+    return m_settings.value(kBackendKey, QStringLiteral("relay")).toString();
+}
+
+void SettingsStore::setVoiceBackend(const QString &backend)
+{
+    m_settings.setValue(kBackendKey, backend);
 }
 
 bool SettingsStore::voiceAgc() const

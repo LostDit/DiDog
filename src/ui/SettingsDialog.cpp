@@ -209,6 +209,26 @@ void SettingsDialog::buildUi()
             [this](bool enabled) { m_settings->setVoicePushToTalk(enabled); });
     layout->addWidget(m_pttCheck);
 
+    m_backendCombo = new QComboBox(this);
+    m_backendCombo->setObjectName(QStringLiteral("VoiceBackendCombo"));
+    m_backendCombo->addItem(tr("Встроенный релей"), QStringLiteral("relay"));
+    m_backendCombo->addItem(tr("LiveKit (пилот)"), QStringLiteral("livekit"));
+    if (m_settings) {
+        const int index = m_backendCombo->findData(m_settings->voiceBackend());
+        if (index >= 0)
+            m_backendCombo->setCurrentIndex(index);
+    }
+    connect(m_backendCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [this](int) {
+                if (m_settings)
+                    m_settings->setVoiceBackend(m_backendCombo->currentData().toString());
+            });
+    auto *backendRow = new QHBoxLayout;
+    backendRow->setSpacing(8);
+    backendRow->addWidget(new QLabel(tr("Голосовой сервер"), this));
+    backendRow->addWidget(m_backendCombo, 1);
+    layout->addLayout(backendRow);
+
     m_e2eeCheck = new QCheckBox(tr("Шифрование голоса (E2EE, выключите для диагностики)"), this);
     m_e2eeCheck->setObjectName(QStringLiteral("E2eeCheck"));
     m_e2eeCheck->setChecked(!m_settings || m_settings->voiceE2ee());
