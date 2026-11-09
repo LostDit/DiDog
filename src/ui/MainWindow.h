@@ -179,6 +179,7 @@ private:
     QTimer *m_callTimer = nullptr;
     qint64 m_callStartedAt = 0;
     bool m_showArchived = false;
+    int m_chatKindFilter = 0; // 0 — все, 1 — личные, 2 — группы
     QHash<qint64, QString> m_memberNames;
     qint64 m_profileUserId = 0;
     QString m_profileUsername;

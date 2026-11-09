@@ -20,7 +20,9 @@
 #include "voice/VoiceService.h"
 
 #include <QAction>
+#include <QActionGroup>
 #include <QAction>
+#include <QActionGroup>
 #include <QApplication>
 #include <QCloseEvent>
 #include <QCursor>
@@ -945,6 +947,10 @@ void MainWindow::onChatsChanged()
     for (const data::ChatSummary &summary : m_chats->chats()) {
         if (!m_showArchived && summary.archived)
             continue;
+        if (m_chatKindFilter == 1 && summary.chat.kind != QLatin1String("direct"))
+            continue;
+        if (m_chatKindFilter == 2 && summary.chat.kind != QLatin1String("group"))
+            continue;
         visible.append(summary);
     }
     std::stable_sort(visible.begin(), visible.end(),
@@ -988,6 +994,26 @@ void MainWindow::showChatMenu(const QPoint &pos)
     QAction *toggleArchive = menu.addAction(tr("Показать архив"));
     toggleArchive->setCheckable(true);
     toggleArchive->setChecked(m_showArchived);
+
+    QMenu *kindMenu = menu.addMenu(tr("Показывать"));
+    QAction *allChats = kindMenu->addAction(tr("Все чаты"));
+    QAction *directChats = kindMenu->addAction(tr("Личные"));
+    QAction *groupChats = kindMenu->addAction(tr("Группы"));
+    allChats->setCheckable(true);
+    directChats->setCheckable(true);
+    groupChats->setCheckable(true);
+    allChats->setChecked(m_chatKindFilter == 0);
+    directChats->setChecked(m_chatKindFilter == 1);
+    groupChats->setChecked(m_chatKindFilter == 2);
+
+    auto *kindGroup = new QActionGroup(this);
+    kindGroup->addAction(allChats);
+    kindGroup->addAction(directChats);
+    kindGroup->addAction(groupChats);
+
+    connect(allChats, &QAction::triggered, this, [this]() { m_chatKindFilter = 0; onChatsChanged(); });
+    connect(directChats, &QAction::triggered, this, [this]() { m_chatKindFilter = 1; onChatsChanged(); });
+    connect(groupChats, &QAction::triggered, this, [this]() { m_chatKindFilter = 2; onChatsChanged(); });
 
     QAction *chosen = menu.exec(m_chatList->viewport()->mapToGlobal(pos));
     if (!chosen)
