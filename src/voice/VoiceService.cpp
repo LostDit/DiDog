@@ -125,6 +125,27 @@ VoiceService::VoiceService(net::ClientConnection *connection, SettingsStore *set
     m_jitterTimer->setInterval(20);
     connect(m_jitterTimer, &QTimer::timeout, this, &VoiceService::flushJitter);
 
+    m_audioWatch = new QTimer(this);
+    m_audioWatch->setInterval(1000);
+    connect(m_audioWatch, &QTimer::timeout, this, [this]() {
+        if (m_state != State::Active)
+            return;
+        ++m_watchTicks;
+        if (m_inputDevice && m_readyReadCount == m_watchLastReadyRead) {
+            qWarning("VOICE: микрофон не отдаёт данные — перезапуск");
+            m_input->stop();
+            m_inputDevice = m_input->start();
+            if (m_inputDevice)
+                connect(m_inputDevice, &QIODevice::readyRead, this, &VoiceService::onAudioReady);
+        }
+        m_watchLastReadyRead = m_readyReadCount;
+        if (m_watchTicks % 5 == 0) {
+            qInfo("VOICE: захват=%lld Б, воспроизведено=%lld Б, readyRead=%d, отправлено=%d, получено=%d",
+                  m_captureBytes, m_outputBytes, m_readyReadCount, m_packetsSent,
+                  m_packetsReceived);
+        }
+    });
+
     m_callTimer = new QTimer(this);
     m_callTimer->setSingleShot(true);
     m_callTimer->setInterval(30000);
@@ -465,6 +486,11 @@ void VoiceService::openAudio()
         return;
     }
     connect(m_inputDevice, &QIODevice::readyRead, this, &VoiceService::onAudioReady);
+    connect(m_input, &QAudioInput::stateChanged, this, [this](QAudio::State state) {
+        qInfo("VOICE: состояние микрофона изменилось: %d", int(state));
+        if (m_state == State::Active && (state == QAudio::IdleState || state == QAudio::SuspendedState))
+            m_input->resume();
+    });
 
     m_outputFormat = format;
     if (!outputDevice.isFormatSupported(m_outputFormat))
@@ -476,13 +502,27 @@ void VoiceService::openAudio()
 
     m_output = new QAudioOutput(outputDevice, m_outputFormat, this);
     m_outputDevice = m_output->start();
+    connect(m_output, &QAudioOutput::stateChanged, this, [this](QAudio::State state) {
+        qInfo("VOICE: состояние динамиков изменилось: %d", int(state));
+        if (m_state == State::Active && state == QAudio::SuspendedState)
+            m_output->resume();
+    });
     qInfo("VOICE: состояние динамиков=%d, ошибка=%d", int(m_output->state()),
           int(m_output->error()));
     m_jitterTimer->start();
+    if (m_audioWatch)
+        m_audioWatch->start();
 }
 
 void VoiceService::closeAudio()
 {
+    if (m_audioWatch)
+        m_audioWatch->stop();
+    m_captureBytes = 0;
+    m_outputBytes = 0;
+    m_readyReadCount = 0;
+    m_watchTicks = 0;
+    m_watchLastReadyRead = 0;
     if (m_packetsSent > 0 || m_packetsReceived > 0) {
         qInfo("VOICE: отправлено пакетов=%d, получено=%d", m_packetsSent,
               m_packetsReceived);
@@ -662,7 +702,8 @@ void VoiceService::sendDatagram(const QByteArray &payload)
             return;
     }
 
-    ++m_packetsSent;
+    if (!payload.isEmpty())
+        ++m_packetsSent;
 
     const QByteArray datagram =
         core::proto::encodeVoiceDatagram(m_token, sequence, body);
@@ -714,6 +755,8 @@ void VoiceService::onAudioReady()
     }
 
     const QByteArray raw = m_inputDevice->readAll();
+    ++m_readyReadCount;
+    m_captureBytes += raw.size();
     m_captureBuffer.append(convertPcm(raw, m_inputFormat, voiceFormat()));
 
     while (m_captureBuffer.size() >= kFrameBytes) {
@@ -821,7 +864,7 @@ void VoiceService::flushJitter()
     const QByteArray pcm = m_codec->decode(packet);
     if (!pcm.isEmpty()) {
         const QByteArray converted = convertPcm(pcm, voiceFormat(), m_outputFormat);
-        m_outputDevice->write(converted);
+        m_outputBytes += m_outputDevice->write(converted);
     }
 }
 

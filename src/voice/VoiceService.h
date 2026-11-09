@@ -127,6 +127,12 @@ private:
     QMap<quint64, QByteArray> m_jitter;
     int m_packetsSent = 0;
     int m_packetsReceived = 0;
+    qint64 m_captureBytes = 0;
+    qint64 m_outputBytes = 0;
+    int m_readyReadCount = 0;
+    QTimer *m_audioWatch = nullptr;
+    int m_watchTicks = 0;
+    int m_watchLastReadyRead = 0;
     bool m_jitterPrimed = false;
     quint32 m_sendSequence = 0;
 
