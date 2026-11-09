@@ -893,3 +893,17 @@ QToolButton#ReactionChip:checked {
     color: {{text-muted}};
     font-size: 8.5pt;
 }
+#CallPanel {
+    background-color: {{accent-soft}};
+    border-bottom: 1px solid {{border}};
+}
+
+#CallStatus {
+    font-weight: 600;
+    color: {{accent}};
+}
+
+#CallSpeaker {
+    color: {{text-muted}};
+    font-size: 8.5pt;
+}

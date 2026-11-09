@@ -35,6 +35,7 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QInputDialog>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -94,6 +95,11 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
     setMinimumSize(900, 600);
 
     buildUi();
+
+    m_callTimer = new QTimer(this);
+    connect(m_callTimer, &QTimer::timeout, this, &MainWindow::updateCallPanel);
+    qApp->installEventFilter(this);
+
     restoreWindowState();
     setupTray();
 
@@ -103,6 +109,9 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
                 if (chatId != m_currentChatId)
                     return;
                 m_groupMemberCount = members.size();
+                m_memberNames.clear();
+                for (const data::ChatMember &member : members)
+                    m_memberNames.insert(member.userId, member.displayName);
                 updateHeader();
 
                 if (m_profileUserId <= 0 || m_profileUserId == m_user.id)
@@ -133,8 +142,19 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
         connect(m_voice, &app::VoiceService::stateChanged, this, [this](app::VoiceService::State state) {
             if (state == app::VoiceService::State::Idle)
                 m_speakingUserId = 0;
+            if (state == app::VoiceService::State::Active && m_callStartedAt == 0)
+                m_callStartedAt = QDateTime::currentMSecsSinceEpoch();
+            if (state == app::VoiceService::State::Idle)
+                m_callStartedAt = 0;
+            if (m_callTimer) {
+                if (state == app::VoiceService::State::Active)
+                    m_callTimer->start(1000);
+                else
+                    m_callTimer->stop();
+            }
             updateVoiceUi();
             updateHeader();
+            updateCallPanel();
         });        connect(m_voice, &app::VoiceService::mutedChanged, this,
                 [this](bool) { updateVoiceUi(); });
         connect(m_voice, &app::VoiceService::errorOccurred, this, &MainWindow::onError);
@@ -628,6 +648,47 @@ QWidget *MainWindow::buildConversationPane()
 
     layout->addWidget(header);
 
+    m_callPanel = new QFrame;
+    m_callPanel->setObjectName(QStringLiteral("CallPanel"));
+    m_callPanel->hide();
+
+    auto *callLayout = new QHBoxLayout(m_callPanel);
+    callLayout->setContentsMargins(12, 6, 8, 6);
+    callLayout->setSpacing(10);
+
+    m_callStatus = new QLabel(m_callPanel);
+    m_callStatus->setObjectName(QStringLiteral("CallStatus"));
+    callLayout->addWidget(m_callStatus);
+
+    m_callSpeaker = new QLabel(m_callPanel);
+    m_callSpeaker->setObjectName(QStringLiteral("CallSpeaker"));
+    callLayout->addWidget(m_callSpeaker, 1);
+
+    m_callMuteButton = new QToolButton(m_callPanel);
+    m_callMuteButton->setObjectName(QStringLiteral("LinkButton"));
+    m_callMuteButton->setCursor(Qt::PointingHandCursor);
+    connect(m_callMuteButton, &QToolButton::clicked, this, [this]() {
+        if (m_voice)
+            m_voice->setMuted(!m_voice->isMuted());
+    });
+    callLayout->addWidget(m_callMuteButton);
+
+    auto *hangupButton = new QToolButton(m_callPanel);
+    hangupButton->setText(tr("Завершить"));
+    hangupButton->setObjectName(QStringLiteral("GhostButton"));
+    hangupButton->setCursor(Qt::PointingHandCursor);
+    connect(hangupButton, &QToolButton::clicked, this, [this]() {
+        if (!m_voice)
+            return;
+        if (m_voice->state() == app::VoiceService::State::Calling)
+            m_voice->cancel(m_voice->chatId());
+        else
+            m_voice->hangup();
+    });
+    callLayout->addWidget(hangupButton);
+
+    layout->addWidget(m_callPanel);
+
     m_pinnedBanner = new QFrame;
     m_pinnedBanner->setObjectName(QStringLiteral("PinnedBanner"));
     m_pinnedBanner->hide();
@@ -1104,6 +1165,45 @@ void MainWindow::openProfile(qint64 userId)
     refreshProfilePage();
 }
 
+void MainWindow::updateCallPanel()
+{
+    if (!m_callPanel || !m_voice)
+        return;
+
+    const app::VoiceService::State state = m_voice->state();
+    if (state == app::VoiceService::State::Idle) {
+        m_callPanel->hide();
+        return;
+    }
+
+    m_callPanel->show();
+
+    if (state == app::VoiceService::State::Calling) {
+        m_callStatus->setText(tr("Вызов…"));
+    } else if (state == app::VoiceService::State::Ringing) {
+        m_callStatus->setText(tr("Входящий звонок"));
+    } else {
+        const qint64 seconds = m_callStartedAt > 0
+                                   ? (QDateTime::currentMSecsSinceEpoch() - m_callStartedAt) / 1000
+                                   : 0;
+        m_callStatus->setText(tr("Звонок · %1:%2")
+                                  .arg(seconds / 60, 2, 10, QLatin1Char('0'))
+                                  .arg(seconds % 60, 2, 10, QLatin1Char('0')));
+    }
+
+    if (m_speakingUserId > 0) {
+        m_callSpeaker->setText(
+            tr("Говорит: %1").arg(m_memberNames.value(m_speakingUserId, tr("участник"))));
+    } else if (m_voice->pushToTalk() && m_voice->isActive()) {
+        m_callSpeaker->setText(tr("Удерживайте F8, чтобы говорить"));
+    } else {
+        m_callSpeaker->clear();
+    }
+
+    m_callMuteButton->setText(m_voice->isMuted() ? tr("Включить микрофон")
+                                                : tr("Выключить микрофон"));
+}
+
 void MainWindow::updatePinnedBanner()
 {
     if (!m_pinnedBanner || !m_pinnedText)
@@ -1176,6 +1276,16 @@ void MainWindow::refreshProfilePage()
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event)
 {
+    if (watched == qApp && (event->type() == QEvent::KeyPress
+                            || event->type() == QEvent::KeyRelease)) {
+        auto *key = static_cast<QKeyEvent *>(event);
+        if (!key->isAutoRepeat() && key->key() == Qt::Key_F8 && m_voice
+            && m_voice->isActive() && m_voice->pushToTalk()) {
+            m_voice->setTransmitting(event->type() == QEvent::KeyPress);
+            return true;
+        }
+    }
+
     if (event->type() == QEvent::MouseButtonRelease) {
         if (watched == m_topAvatar) {
             if (m_rightTabs)

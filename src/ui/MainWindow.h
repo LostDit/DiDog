@@ -79,6 +79,7 @@ public:
     void refreshProfilePage();
     void updatePinnedBanner();
     void showChatMenu(const QPoint &pos);
+    void updateCallPanel();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -171,7 +172,14 @@ private:
     QFrame *m_pinnedBanner = nullptr;
     QLabel *m_pinnedText = nullptr;
     qint64 m_pinnedMessageId = 0;
+    QFrame *m_callPanel = nullptr;
+    QLabel *m_callStatus = nullptr;
+    QLabel *m_callSpeaker = nullptr;
+    QToolButton *m_callMuteButton = nullptr;
+    QTimer *m_callTimer = nullptr;
+    qint64 m_callStartedAt = 0;
     bool m_showArchived = false;
+    QHash<qint64, QString> m_memberNames;
     qint64 m_profileUserId = 0;
     QString m_profileUsername;
     QLabel *m_profileStatus = nullptr;
