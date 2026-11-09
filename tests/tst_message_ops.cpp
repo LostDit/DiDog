@@ -49,6 +49,7 @@ private slots:
     void reactionsReachBothSides();
     void forwardCopiesTextToAnotherChat();
     void pinnedMessageAppearsInChat();
+    void chatFlagsArePersisted();
 
 private:
     QJsonObject request(net::ClientConnection &connection, const QString &type,
@@ -510,6 +511,56 @@ void TestMessageOps::pinnedMessageAppearsInChat()
                         {QStringLiteral("on"), false}},
             &ok);
     QVERIFY(ok);
+}
+
+void TestMessageOps::chatFlagsArePersisted()
+{
+    net::ClientConnection client;
+    client.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    QSignalSpy connected(&client, &net::ClientConnection::socketConnected);
+    client.connectToServer();
+    QTRY_COMPARE_WITH_TIMEOUT(connected.count(), 1, 15000);
+
+    bool ok = false;
+    request(client, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("flags_user")},
+                        {QStringLiteral("display_name"), QStringLiteral("Flags User")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+
+    const QJsonObject chatsReply = request(client, QStringLiteral("chat.list"), QJsonObject(), &ok);
+    QVERIFY(ok);
+    const double chatId = chatsReply.value(QStringLiteral("data")).toObject()
+                             .value(QStringLiteral("chats")).toArray()
+                             .first().toObject().value(QStringLiteral("id")).toDouble();
+
+    request(client, QStringLiteral("chat.update"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId},
+                        {QStringLiteral("pinned"), true},
+                        {QStringLiteral("muted"), true}},
+            &ok);
+    QVERIFY(ok);
+
+    const QJsonObject after = request(client, QStringLiteral("chat.list"), QJsonObject(), &ok);
+    QVERIFY(ok);
+    const QJsonObject summary = after.value(QStringLiteral("data")).toObject()
+                                    .value(QStringLiteral("chats")).toArray()
+                                    .first().toObject();
+    QVERIFY(summary.value(QStringLiteral("pinned")).toBool());
+    QVERIFY(summary.value(QStringLiteral("muted")).toBool());
+
+    request(client, QStringLiteral("chat.update"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId},
+                        {QStringLiteral("archived"), true}},
+            &ok);
+    QVERIFY(ok);
+
+    const QJsonObject archived = request(client, QStringLiteral("chat.list"), QJsonObject(), &ok);
+    QVERIFY(ok);
+    QVERIFY(archived.value(QStringLiteral("data")).toObject()
+                .value(QStringLiteral("chats")).toArray()
+                .first().toObject().value(QStringLiteral("archived")).toBool());
 }
 
 void TestMessageOps::foreignMessageCannotBeChanged()

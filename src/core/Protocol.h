@@ -20,6 +20,7 @@ inline constexpr const char kAuthLogout[] = "auth.logout";
 inline constexpr const char kChatList[] = "chat.list";
 inline constexpr const char kChatOpen[] = "chat.open";
 inline constexpr const char kChatDirect[] = "chat.direct";
+inline constexpr const char kChatUpdate[] = "chat.update";
 inline constexpr const char kChatRead[] = "chat.read";
 inline constexpr const char kChatCreate[] = "chat.create";
 inline constexpr const char kChatMembers[] = "chat.members";

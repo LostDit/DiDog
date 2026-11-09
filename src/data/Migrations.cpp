@@ -185,6 +185,13 @@ const char *const kSchemaV8[] = {
     "CREATE INDEX IF NOT EXISTS ix_pins_chat ON pins(chat_id, created_at DESC)",
 };
 
+// Схема v9: закрепление чата, mute и архив (на участника).
+const char *const kSchemaV9[] = {
+    "ALTER TABLE chat_members ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE chat_members ADD COLUMN muted INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE chat_members ADD COLUMN archived INTEGER NOT NULL DEFAULT 0",
+};
+
 bool exec(QSqlDatabase &db, const QString &sql, QString *error)
 {
     QSqlQuery query(db);
@@ -407,6 +414,31 @@ bool applyV8(QSqlDatabase &db, QString *error)
     return true;
 }
 
+bool applyV9(QSqlDatabase &db, QString *error)
+{
+    if (!db.transaction()) {
+        if (error)
+            *error = QStringLiteral("Не удалось начать транзакцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+
+    for (const char *statement : kSchemaV9) {
+        if (!exec(db, QString::fromLatin1(statement), error)) {
+            db.rollback();
+            return false;
+        }
+    }
+
+    if (!db.commit()) {
+        if (error)
+            *error = QStringLiteral("Не удалось зафиксировать миграцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+    return true;
+}
+
 int version(QSqlDatabase &db)
 {
     QSqlQuery query(db);
@@ -459,6 +491,9 @@ bool apply(QSqlDatabase &db, QString *error)
         return false;
 
     if (current < 8 && !applyV8(db, error))
+        return false;
+
+    if (current < 9 && !applyV9(db, error))
         return false;
 
     if (!exec(db, QStringLiteral("PRAGMA user_version = %1").arg(kCurrentVersion), error))

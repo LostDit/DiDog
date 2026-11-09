@@ -59,6 +59,7 @@ public:
     void react(qint64 chatId, qint64 messageId, const QString &emoji, bool on);
     void forwardMessage(qint64 messageId, qint64 targetChatId);
     void pinMessage(qint64 chatId, qint64 messageId, bool on);
+    void setChatFlag(qint64 chatId, const QString &flag, bool value);
     QList<data::Message> pinnedMessages(qint64 chatId) const;
     void createDirect(const QString &username);
 

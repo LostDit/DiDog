@@ -183,6 +183,9 @@ QJsonObject chatSummaryToJson(const ChatSummary &summary)
 {
     QJsonObject object = chatToJson(summary.chat);
     object.insert(QStringLiteral("unread_count"), summary.unread);
+    object.insert(QStringLiteral("pinned"), summary.pinned);
+    object.insert(QStringLiteral("muted"), summary.muted);
+    object.insert(QStringLiteral("archived"), summary.archived);
     object.insert(QStringLiteral("last_seq"), static_cast<double>(summary.lastSeq));
     object.insert(QStringLiteral("last_at"), static_cast<double>(summary.lastAt));
 
@@ -205,6 +208,9 @@ ChatSummary chatSummaryFromJson(const QJsonObject &object)
     ChatSummary summary;
     summary.chat = chatFromJson(object);
     summary.unread = object.value(QStringLiteral("unread_count")).toInt();
+    summary.pinned = object.value(QStringLiteral("pinned")).toBool();
+    summary.muted = object.value(QStringLiteral("muted")).toBool();
+    summary.archived = object.value(QStringLiteral("archived")).toBool();
     summary.lastSeq = toInt64(object.value(QStringLiteral("last_seq")));
     summary.lastAt = toInt64(object.value(QStringLiteral("last_at")));
 

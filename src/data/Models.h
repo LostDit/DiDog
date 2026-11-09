@@ -123,6 +123,9 @@ struct ChatSummary {
     qint64 lastAt = 0;
     qint64 lastSeq = 0;
     int unread = 0;
+    bool pinned = false;
+    bool muted = false;
+    bool archived = false;
 };
 
 // Запись офлайн-очереди (только у клиента).

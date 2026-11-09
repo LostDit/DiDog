@@ -187,6 +187,8 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleChatOpen(data, session);
     if (type == QLatin1String(core::proto::type::kChatDirect))
         return handleChatDirect(data, session);
+    if (type == QLatin1String(core::proto::type::kChatUpdate))
+        return handleChatUpdate(data, session);
     if (type == QLatin1String(core::proto::type::kChatRead))
         return handleChatRead(data, session);
     if (type == QLatin1String(core::proto::type::kChatCreate))
@@ -1295,6 +1297,32 @@ HandlerResult ServerCore::handleChatRead(const QJsonObject &data, ClientSession 
     event.insert(QStringLiteral("user_id"), static_cast<double>(session->userId()));
     event.insert(QStringLiteral("up_to_seq"), static_cast<double>(upToSeq));
     broadcastToChat(chatId, core::proto::event::kRead, event);
+
+    return HandlerResult::success();
+}
+
+HandlerResult ServerCore::handleChatUpdate(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    bool member = false;
+    if (!chats.isMember(chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    const QStringList flags{QStringLiteral("pinned"), QStringLiteral("muted"),
+                            QStringLiteral("archived")};
+    for (const QString &flag : flags) {
+        if (!data.contains(flag))
+            continue;
+        if (!chats.setMemberFlag(chatId, session->userId(), flag,
+                                 data.value(flag).toBool(), &error)) {
+            return HandlerResult::failure(core::ErrorCode::Internal, error);
+        }
+    }
 
     return HandlerResult::success();
 }

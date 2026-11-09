@@ -1144,6 +1144,34 @@ void ChatService::pinMessage(qint64 chatId, qint64 messageId, bool on)
         10000);
 }
 
+void ChatService::setChatFlag(qint64 chatId, const QString &flag, bool value)
+{
+    if (!m_connection || !m_connection->isConnected() || chatId <= 0)
+        return;
+
+    for (data::ChatSummary &summary : m_chats) {
+        if (summary.chat.id != chatId)
+            continue;
+        if (flag == QLatin1String("pinned"))
+            summary.pinned = value;
+        else if (flag == QLatin1String("muted"))
+            summary.muted = value;
+        else if (flag == QLatin1String("archived"))
+            summary.archived = value;
+        break;
+    }
+    emit chatsChanged();
+
+    QJsonObject request{{QStringLiteral("chat_id"), static_cast<double>(chatId)},
+                        {flag, value}};
+    m_connection->request(QStringLiteral("chat.update"), request,
+                          [this](const QJsonObject &reply) {
+                              if (!replyOk(reply))
+                                  emit errorOccurred(core::proto::errorMessageOf(reply));
+                          },
+                          10000);
+}
+
 QList<data::Message> ChatService::pinnedMessages(qint64 chatId) const
 {
     return m_states.value(chatId).pinned;

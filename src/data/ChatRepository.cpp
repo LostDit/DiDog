@@ -137,6 +137,28 @@ bool ChatRepository::addMember(qint64 chatId, qint64 userId, const QString &role
     return true;
 }
 
+bool ChatRepository::setMemberFlag(qint64 chatId, qint64 userId, const QString &flag,
+                                   bool value, QString *error)
+{
+    if (flag != QStringLiteral("pinned") && flag != QStringLiteral("muted")
+        && flag != QStringLiteral("archived")) {
+        if (error)
+            *error = QStringLiteral("Неизвестный флаг чата");
+        return false;
+    }
+
+    QSqlQuery query(m_db);
+    query.prepare(QStringLiteral("UPDATE chat_members SET %1 = ? WHERE chat_id = ? AND user_id = ?")
+                      .arg(flag));
+    query.addBindValue(value ? 1 : 0);
+    query.addBindValue(chatId);
+    query.addBindValue(userId);
+
+    if (!query.exec())
+        return sql::failQuery(error, query, QStringLiteral("Настройка чата"));
+    return true;
+}
+
 bool ChatRepository::members(qint64 chatId, QList<ChatMember> *out, QString *error) const
 {
     QSqlQuery query(m_db);
@@ -294,7 +316,8 @@ bool ChatRepository::summaryFor(qint64 chatId, qint64 userId, ChatSummary *out,
 {
     QSqlQuery query(m_db);
     query.prepare(QStringLiteral(
-        "SELECT c.id, c.kind, c.title, c.created_at, cm.last_read_seq "
+        "SELECT c.id, c.kind, c.title, c.created_at, cm.last_read_seq, "
+        "       cm.pinned, cm.muted, cm.archived "
         "FROM chats c JOIN chat_members cm ON cm.chat_id = c.id "
         "WHERE c.id = ? AND cm.user_id = ?"));
     query.addBindValue(chatId);
@@ -308,6 +331,9 @@ bool ChatRepository::summaryFor(qint64 chatId, qint64 userId, ChatSummary *out,
     ChatSummary summary;
     summary.chat = readChat(query);
     const qint64 lastRead = query.value(QStringLiteral("last_read_seq")).toLongLong();
+    summary.pinned = query.value(QStringLiteral("pinned")).toInt() != 0;
+    summary.muted = query.value(QStringLiteral("muted")).toInt() != 0;
+    summary.archived = query.value(QStringLiteral("archived")).toInt() != 0;
 
     if (!fillPeer(&summary, userId)) {
         if (error)

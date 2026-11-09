@@ -78,6 +78,7 @@ public:
     void setTrayUnread(int count);
     void refreshProfilePage();
     void updatePinnedBanner();
+    void showChatMenu(const QPoint &pos);
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -170,6 +171,7 @@ private:
     QFrame *m_pinnedBanner = nullptr;
     QLabel *m_pinnedText = nullptr;
     qint64 m_pinnedMessageId = 0;
+    bool m_showArchived = false;
     qint64 m_profileUserId = 0;
     QString m_profileUsername;
     QLabel *m_profileStatus = nullptr;

@@ -54,6 +54,7 @@ private:
     HandlerResult handleChatList(ClientSession *session);
     HandlerResult handleChatOpen(const QJsonObject &data, ClientSession *session);
     HandlerResult handleChatDirect(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleChatUpdate(const QJsonObject &data, ClientSession *session);
     HandlerResult handleChatRead(const QJsonObject &data, ClientSession *session);
     HandlerResult handleChatCreate(const QJsonObject &data, ClientSession *session);
     HandlerResult handleChatMembers(const QJsonObject &data, ClientSession *session);

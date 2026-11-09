@@ -334,6 +334,9 @@ QWidget *MainWindow::buildSidebar()
     m_chatList->setMouseTracking(true);
     m_chatList->viewport()->setMouseTracking(true);
     m_chatList->setAccessibleName(tr("Список чатов"));
+    m_chatList->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_chatList, &QWidget::customContextMenuRequested, this,
+            &MainWindow::showChatMenu);
     layout->addWidget(m_chatList, 1);
 
     connect(m_chatList->selectionModel(), &QItemSelectionModel::currentChanged, this,
@@ -877,16 +880,73 @@ void MainWindow::onChatListMenu(const QPoint &position)
 
 void MainWindow::onChatsChanged()
 {
-    m_chatModel->setChats(m_chats->chats());
+    QList<data::ChatSummary> visible;
+    for (const data::ChatSummary &summary : m_chats->chats()) {
+        if (!m_showArchived && summary.archived)
+            continue;
+        visible.append(summary);
+    }
+    std::stable_sort(visible.begin(), visible.end(),
+                     [](const data::ChatSummary &left, const data::ChatSummary &right) {
+                         if (left.pinned != right.pinned)
+                             return left.pinned;
+                         return left.lastAt > right.lastAt;
+                     });
+    m_chatModel->setChats(visible);
 
     if (m_currentChatId > 0) {
         selectChatRow(m_currentChatId);
-    } else if (!m_chats->chats().isEmpty()) {
-        openChat(m_chats->chats().first().chat.id);
+    } else if (!visible.isEmpty()) {
+        openChat(visible.first().chat.id);
         selectChatRow(m_currentChatId);
     }
 
     updateHeader();
+}
+
+void MainWindow::showChatMenu(const QPoint &pos)
+{
+    const QModelIndex proxyIndex = m_chatList->indexAt(pos);
+    const int sourceRow = proxyIndex.isValid() ? m_chatProxy->mapToSource(proxyIndex).row() : -1;
+    const data::ChatSummary summary = sourceRow >= 0 ? m_chatModel->chatAt(sourceRow)
+                                                     : data::ChatSummary();
+    const bool hasChat = sourceRow >= 0 && summary.chat.id > 0;
+
+    QMenu menu(this);
+    QAction *pinAction = nullptr;
+    QAction *muteAction = nullptr;
+    QAction *archiveAction = nullptr;
+
+    if (hasChat) {
+        pinAction = menu.addAction(summary.pinned ? tr("Открепить чат") : tr("Закрепить чат"));
+        muteAction = menu.addAction(summary.muted ? tr("Включить звук") : tr("Без звука"));
+        archiveAction = menu.addAction(summary.archived ? tr("Из архива") : tr("В архив"));
+        menu.addSeparator();
+    }
+
+    QAction *toggleArchive = menu.addAction(tr("Показать архив"));
+    toggleArchive->setCheckable(true);
+    toggleArchive->setChecked(m_showArchived);
+
+    QAction *chosen = menu.exec(m_chatList->viewport()->mapToGlobal(pos));
+    if (!chosen)
+        return;
+
+    if (chosen == toggleArchive) {
+        m_showArchived = toggleArchive->isChecked();
+        onChatsChanged();
+        return;
+    }
+
+    if (!hasChat)
+        return;
+
+    if (chosen == pinAction)
+        m_chats->setChatFlag(summary.chat.id, QStringLiteral("pinned"), !summary.pinned);
+    else if (chosen == muteAction)
+        m_chats->setChatFlag(summary.chat.id, QStringLiteral("muted"), !summary.muted);
+    else if (chosen == archiveAction)
+        m_chats->setChatFlag(summary.chat.id, QStringLiteral("archived"), !summary.archived);
 }
 
 void MainWindow::onMessagesChanged(qint64 chatId)

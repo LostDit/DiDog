@@ -24,6 +24,8 @@ public:
     bool isMember(qint64 chatId, qint64 userId, bool *isMember, QString *error) const;
     bool memberIds(qint64 chatId, QList<qint64> *ids, QString *error) const;
     bool members(qint64 chatId, QList<ChatMember> *out, QString *error) const;
+    bool setMemberFlag(qint64 chatId, qint64 userId, const QString &flag, bool value,
+                         QString *error);
     bool memberRole(qint64 chatId, qint64 userId, QString *role, bool *found,
                     QString *error) const;
     bool removeMember(qint64 chatId, qint64 userId, QString *error);
