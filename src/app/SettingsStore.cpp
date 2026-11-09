@@ -49,6 +49,7 @@ constexpr auto kAuthTokenKey = "auth/token";
 constexpr auto kLastUserKey = "auth/lastUser";
 constexpr auto kLanguageKey = "ui/language";
 constexpr auto kNotificationsKey = "ui/notifications";
+constexpr auto kSoundKey = "ui/sound";
 constexpr auto kTlsKey = "network/tls";
 
 } // namespace
@@ -168,6 +169,16 @@ void SettingsStore::setLanguage(const QString &language)
 bool SettingsStore::notificationsEnabled() const
 {
     return m_settings.value(kNotificationsKey, true).toBool();
+}
+
+bool SettingsStore::soundEnabled() const
+{
+    return m_settings.value(kSoundKey, true).toBool();
+}
+
+void SettingsStore::setSoundEnabled(bool enabled)
+{
+    m_settings.setValue(kSoundKey, enabled);
 }
 
 void SettingsStore::setNotificationsEnabled(bool enabled)

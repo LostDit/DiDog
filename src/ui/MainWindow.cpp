@@ -1752,6 +1752,8 @@ void MainWindow::restoreFromTray()
 void MainWindow::showTrayNotification(const QString &title, const QString &body, qint64 chatId)
 {
     m_trayChatId = chatId;
+    if (m_settings && m_settings->soundEnabled())
+        QApplication::beep();
     if (m_tray && m_tray->isVisible())
         m_tray->showMessage(title, body, QSystemTrayIcon::Information, 5000);
 }

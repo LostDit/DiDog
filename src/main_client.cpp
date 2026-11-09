@@ -1,6 +1,7 @@
 #include "ui/ButtonFx.h"
 #include "ui/StartupSplash.h"
 #include "app/AppPaths.h"
+#include "app/CrashHandler.h"
 #include "app/ClientController.h"
 #include "app/Localization.h"
 #include "app/Logging.h"
@@ -102,6 +103,8 @@ int main(int argc, char *argv[])
     app::logging::install(app::paths::logsDir(), options.verbose);
     qInfo().noquote() << QStringLiteral("Клиент %1, данные: %2")
                              .arg(QStringLiteral(MESSENGER_VERSION), app::paths::dataDir());
+
+    app::CrashHandler::install(app::paths::dataDir());
 
     app::SingleInstance instanceGuard(app::paths::dataDir() + QStringLiteral("/client.lock"));
 

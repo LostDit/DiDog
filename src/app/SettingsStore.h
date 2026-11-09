@@ -45,6 +45,8 @@ public:
 
     bool notificationsEnabled() const;
     void setNotificationsEnabled(bool enabled);
+    bool soundEnabled() const;
+    void setSoundEnabled(bool enabled);
 
     bool tlsEnabled() const;
     void setTlsEnabled(bool enabled);

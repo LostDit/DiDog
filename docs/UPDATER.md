@@ -145,3 +145,9 @@ $env:MESSENGER_SIGN_PASSWORD = "…"
   опциональная установка по SSH (`-Deploy -RemoteScript ...`).
 - `scripts/deploy-update.sh` — распаковка, проверка хешей, staging, атомарная
   подмена каталога, откат при сбое; службу не перезапускает.
+### Установщики с 2.5.0
+
+- `DiDog-Client-Setup-<ver>.exe` — только клиент (рекомендуется всем).
+  Не содержит `MessengerServer.exe`, поэтому не требует остановки службы.
+- `DiDog-Setup-<ver>.exe` — клиент + локальный сервер + служба.
+- `DiDog-Server-<ver>.zip` — серверный пакет для VPS/Windows-сервера.

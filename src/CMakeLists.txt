@@ -5,6 +5,7 @@ set(MESSENGER_CORE_SOURCES
     app/BillingService.h        app/BillingService.cpp
     app/ChatService.h           app/ChatService.cpp
     app/ClientController.h      app/ClientController.cpp
+    app/CrashHandler.h          app/CrashHandler.cpp
     app/HistoryStore.h          app/HistoryStore.cpp
     app/Localization.h          app/Localization.cpp
     app/Logging.h               app/Logging.cpp
@@ -82,6 +83,10 @@ add_library(messenger_core STATIC ${MESSENGER_CORE_SOURCES})
 
 target_include_directories(messenger_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(messenger_core PRIVATE ${CMAKE_SOURCE_DIR}/third_party/opus/include)
+
+if (WIN32)
+    target_link_libraries(messenger_core PUBLIC dbghelp)
+endif()
 
 target_link_libraries(messenger_core PUBLIC
     Qt5::Core

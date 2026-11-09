@@ -373,6 +373,10 @@ void SettingsDialog::buildUi()
     connect(m_languageBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &SettingsDialog::onLanguageChanged);
     connect(m_notifications, &QCheckBox::toggled, this, &SettingsDialog::onNotificationsToggled);
+    connect(m_soundCheck, &QCheckBox::toggled, this, [this](bool enabled) {
+        if (m_settings)
+            m_settings->setSoundEnabled(enabled);
+    });
     connect(m_host, &QLineEdit::editingFinished, this, &SettingsDialog::onServerEdited);
     connect(m_port, &QLineEdit::editingFinished, this, &SettingsDialog::onServerEdited);
     connect(openButton, &QPushButton::clicked, this, &SettingsDialog::openDataFolder);

@@ -63,6 +63,7 @@ private:
     QComboBox *m_languageBox = nullptr;
     QLabel *m_languageHint = nullptr;
     QCheckBox *m_notifications = nullptr;
+    QCheckBox *m_soundCheck = nullptr;
     QLineEdit *m_host = nullptr;
     QLineEdit *m_port = nullptr;
 
