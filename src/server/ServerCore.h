@@ -73,6 +73,7 @@ private:
     HandlerResult handleVoiceCancel(const QJsonObject &data, ClientSession *session);
     HandlerResult handleVoiceSpeaking(const QJsonObject &data, ClientSession *session);
     HandlerResult handleVoicePubkey(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleVoiceSenderKey(const QJsonObject &data, ClientSession *session);
     HandlerResult handleUpdateManifest(ClientSession *session);
     HandlerResult handleUpdateDownload(const QJsonObject &data, ClientSession *session);
 

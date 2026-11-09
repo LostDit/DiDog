@@ -379,3 +379,6 @@ C: attach.ack {transfer_id: 12}      // только после проверки
 `voice.join` дополнительно возвращает `participants` и `pubkeys`
 (`{ "<user_id>": "<base64>" }`). Событие `ev.voice_pubkey`:
 `chat_id`, `user_id`, `pubkey`.
+
+Для групповых звонков: `voice.senderkey {chat_id, recipient_id, payload}` →
+событие `ev.voice_senderkey {chat_id, from_user_id, payload}` (только получателю).

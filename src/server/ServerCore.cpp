@@ -225,6 +225,8 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleVoiceSpeaking(data, session);
     if (type == QLatin1String(core::proto::type::kVoicePubkey))
         return handleVoicePubkey(data, session);
+    if (type == QLatin1String(core::proto::type::kVoiceSenderKey))
+        return handleVoiceSenderKey(data, session);
     if (type == QLatin1String(core::proto::type::kUpdateManifest))
         return handleUpdateManifest(session);
     if (type == QLatin1String(core::proto::type::kUpdateDownload))
@@ -1249,6 +1251,50 @@ HandlerResult ServerCore::handleVoicePubkey(const QJsonObject &data, ClientSessi
     event.insert(QStringLiteral("user_id"), static_cast<double>(session->userId()));
     event.insert(QStringLiteral("pubkey"), pubkey);
     broadcastToChat(chatId, core::proto::event::kVoicePubkeyEvent, event, session);
+
+    return HandlerResult::success();
+}
+
+HandlerResult ServerCore::handleVoiceSenderKey(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+    const qint64 recipientId = int64Value(data, "recipient_id");
+    const QString payload = stringValue(data, "payload");
+
+    if (recipientId <= 0 || payload.isEmpty() || payload.size() > 512)
+        return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                      QStringLiteral("Некорректный sender key"));
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    bool member = false;
+    if (!chats.isMember(chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+    if (!chats.isMember(chatId, recipientId, &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotFound);
+
+    // Оба должны быть в голосовой комнате этого чата.
+    const QSet<ClientSession *> room = m_voiceRooms.value(chatId);
+    bool recipientInRoom = false;
+    for (ClientSession *peer : room) {
+        if (peer && peer->userId() == recipientId) {
+            recipientInRoom = true;
+            break;
+        }
+    }
+    if (!recipientInRoom)
+        return HandlerResult::failure(core::ErrorCode::Conflict,
+                                      QStringLiteral("Получатель не в звонке"));
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    event.insert(QStringLiteral("from_user_id"), static_cast<double>(session->userId()));
+    event.insert(QStringLiteral("payload"), payload);
+    sendToUser(recipientId, core::proto::event::kVoiceSenderKeyEvent, event);
 
     return HandlerResult::success();
 }

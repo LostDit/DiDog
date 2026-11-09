@@ -115,6 +115,9 @@ private:
     QByteArray m_publicKey;
     int m_participants = 2;
     QHash<qint64, QString> m_pendingPeerKeys;
+    QByteArray m_senderKey;
+    QHash<qint64, QByteArray> m_peerSenderKeys;
+    QHash<qint64, QByteArray> m_pairwiseKeys;
     QHash<quint32, quint32> m_lastSequenceByUser;
 
     QByteArray m_captureBuffer;

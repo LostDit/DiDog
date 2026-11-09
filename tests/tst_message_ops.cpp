@@ -51,6 +51,7 @@ private slots:
     void pinnedMessageAppearsInChat();
     void chatFlagsArePersisted();
     void voicePubkeysAreRelayed();
+    void voiceSenderKeysAreRelayed();
 
 private:
     QJsonObject request(net::ClientConnection &connection, const QString &type,
@@ -619,6 +620,75 @@ void TestMessageOps::voicePubkeysAreRelayed()
     QTRY_VERIFY_WITH_TIMEOUT(hasEvent(events, QStringLiteral("ev.voice_pubkey")), 10000);
     const QJsonObject event = eventData(events, QStringLiteral("ev.voice_pubkey"));
     QCOMPARE(event.value(QStringLiteral("pubkey")).toString(), encoded);
+}
+
+void TestMessageOps::voiceSenderKeysAreRelayed()
+{
+    net::ClientConnection first;
+    net::ClientConnection second;
+    first.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    second.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    QSignalSpy c1(&first, &net::ClientConnection::socketConnected);
+    QSignalSpy c2(&second, &net::ClientConnection::socketConnected);
+    QSignalSpy events(&second, &net::ClientConnection::eventReceived);
+    first.connectToServer();
+    second.connectToServer();
+    QTRY_COMPARE_WITH_TIMEOUT(c1.count(), 1, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(c2.count(), 1, 15000);
+
+    bool ok = false;
+    request(first, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("skey_a")},
+                        {QStringLiteral("display_name"), QStringLiteral("SKey A")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+    request(second, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("skey_b")},
+                        {QStringLiteral("display_name"), QStringLiteral("SKey B")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+
+    const QJsonObject direct = request(first, QStringLiteral("chat.direct"),
+                                       QJsonObject{{QStringLiteral("username"),
+                                                    QStringLiteral("skey_b")}},
+                                       &ok);
+    QVERIFY(ok);
+    const double chatId = direct.value(QStringLiteral("data")).toObject()
+                              .value(QStringLiteral("chat")).toObject()
+                              .value(QStringLiteral("id")).toDouble();
+
+    request(first, QStringLiteral("voice.join"), QJsonObject{{QStringLiteral("chat_id"), chatId}}, &ok);
+    QVERIFY(ok);
+    request(second, QStringLiteral("voice.join"), QJsonObject{{QStringLiteral("chat_id"), chatId}}, &ok);
+    QVERIFY(ok);
+
+    const QJsonObject chats = request(first, QStringLiteral("chat.list"), QJsonObject(), &ok);
+    QVERIFY(ok);
+    qint64 recipientId = 0;
+    for (const QJsonValue &value : chats.value(QStringLiteral("data")).toObject()
+                                        .value(QStringLiteral("chats")).toArray()) {
+        const QJsonObject chat = value.toObject();
+        if (static_cast<qint64>(chat.value(QStringLiteral("id")).toDouble()) == chatId) {
+            recipientId = static_cast<qint64>(
+                chat.value(QStringLiteral("peer")).toObject().value(QStringLiteral("id")).toDouble());
+            break;
+        }
+    }
+    QVERIFY(recipientId > 0);
+
+    const QString payload = QString::fromLatin1(QByteArray(32, 's').toBase64());
+    request(first, QStringLiteral("voice.senderkey"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId},
+                        {QStringLiteral("recipient_id"), static_cast<double>(recipientId)},
+                        {QStringLiteral("payload"), payload}},
+            &ok);
+    QVERIFY(ok);
+
+    QTRY_VERIFY_WITH_TIMEOUT(hasEvent(events, QStringLiteral("ev.voice_senderkey")), 10000);
+    const QJsonObject senderEvent = eventData(events, QStringLiteral("ev.voice_senderkey"));
+    QCOMPARE(senderEvent.value(QStringLiteral("payload")).toString(), payload);
 }
 
 void TestMessageOps::foreignMessageCannotBeChanged()

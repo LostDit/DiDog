@@ -14,6 +14,7 @@
 #include <QDebug>
 #include <QHostInfo>
 #include <QJsonObject>
+#include <QRandomGenerator>
 #include <QNetworkDatagram>
 #include <QTimer>
 #include <QUdpSocket>
@@ -416,6 +417,15 @@ void VoiceService::beginE2ee(const QJsonObject &data)
     m_participants = data.value(QStringLiteral("participants")).toInt(2);
     m_roomKey = m_key;
     m_pendingPeerKeys.clear();
+    m_peerSenderKeys.clear();
+    m_pairwiseKeys.clear();
+    m_senderKey.clear();
+
+    if (m_participants > 2) {
+        m_senderKey.resize(32);
+        QRandomGenerator::global()->fillRange(
+            reinterpret_cast<quint32 *>(m_senderKey.data()), 8);
+    }
 
     QString error;
     if (!VoiceCrypto::generateKeyPair(&m_privateKey, &m_publicKey, &error)) {
@@ -458,7 +468,28 @@ void VoiceService::applyPeerKey(qint64 userId, const QString &pubkeyBase64)
         return;
 
     const QByteArray info = QByteArrayLiteral("chat-") + QByteArray::number(m_chatId);
-    m_key = VoiceCrypto::hkdfSha256(secret, QByteArrayLiteral("didog-voice"), info);
+    const QByteArray pairwiseKey =
+        VoiceCrypto::hkdfSha256(secret, QByteArrayLiteral("didog-voice"), info);
+    m_pairwiseKeys.insert(userId, pairwiseKey);
+
+    if (m_participants <= 2) {
+        m_key = pairwiseKey;
+        return;
+    }
+
+    if (m_senderKey.isEmpty() || !m_connection)
+        return;
+
+    bool encrypted = false;
+    const QByteArray blob = VoiceCrypto::encrypt(pairwiseKey, 0, m_senderKey, &encrypted);
+    if (!encrypted)
+        return;
+    m_connection->request(
+        QStringLiteral("voice.senderkey"),
+        QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(m_chatId)},
+                    {QStringLiteral("recipient_id"), static_cast<double>(userId)},
+                    {QStringLiteral("payload"), QString::fromLatin1(blob.toBase64())}},
+        nullptr, 10000);
 }
 
 void VoiceService::openUdp(quint16 port, quint32 token, const QByteArray &key)
@@ -511,6 +542,9 @@ void VoiceService::closeUdp()
     m_privateKey.clear();
     m_publicKey.clear();
     m_pendingPeerKeys.clear();
+    m_peerSenderKeys.clear();
+    m_pairwiseKeys.clear();
+    m_senderKey.clear();
     m_participants = 2;
     m_lastSequenceByUser.clear();
 }
@@ -525,7 +559,9 @@ void VoiceService::sendDatagram(const QByteArray &payload)
     QByteArray body = payload;
     if (!payload.isEmpty()) {
         bool encrypted = false;
-        body = VoiceCrypto::encrypt(m_key, sequence, payload, &encrypted);
+        const QByteArray outgoingKey =
+            (m_participants > 2 && !m_senderKey.isEmpty()) ? m_senderKey : m_key;
+        body = VoiceCrypto::encrypt(outgoingKey, sequence, payload, &encrypted);
         if (!encrypted)
             return;
     }
@@ -632,7 +668,12 @@ void VoiceService::onUdpDatagrams()
         m_lastSequenceByUser.insert(userId, sequence);
 
         bool decrypted = false;
-        const QByteArray opus = VoiceCrypto::decrypt(m_key, sequence, payload, &decrypted);
+        QByteArray opus;
+        if (m_participants > 2 && m_peerSenderKeys.contains(userId))
+            opus = VoiceCrypto::decrypt(m_peerSenderKeys.value(userId), sequence, payload,
+                                       &decrypted);
+        if (!decrypted)
+            opus = VoiceCrypto::decrypt(m_key, sequence, payload, &decrypted);
         if (!decrypted)
             continue;
 
@@ -677,6 +718,24 @@ void VoiceService::onEvent(const QString &name, const QJsonObject &data)
 {
     const qint64 chatId = static_cast<qint64>(
         data.value(QStringLiteral("chat_id")).toDouble());
+
+    if (name == QLatin1String(core::proto::event::kVoiceSenderKeyEvent)) {
+        if (chatId == m_chatId) {
+            const qint64 fromUserId = static_cast<qint64>(
+                data.value(QStringLiteral("from_user_id")).toDouble());
+            const QByteArray blob = QByteArray::fromBase64(
+                data.value(QStringLiteral("payload")).toString().toLatin1());
+            const QByteArray pairwise = m_pairwiseKeys.value(fromUserId);
+            if (!pairwise.isEmpty() && !blob.isEmpty()) {
+                bool decrypted = false;
+                const QByteArray senderKey =
+                    VoiceCrypto::decrypt(pairwise, 0, blob, &decrypted);
+                if (decrypted && senderKey.size() == 32)
+                    m_peerSenderKeys.insert(fromUserId, senderKey);
+            }
+        }
+        return;
+    }
 
     if (name == QLatin1String(core::proto::event::kVoicePubkeyEvent)) {
         if (chatId == m_chatId) {
