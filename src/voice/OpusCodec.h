@@ -22,7 +22,7 @@ public:
 
     // PCM 48 кГц, моно, 16 бит, 20 мс = 1920 байт.
     QByteArray encode(const QByteArray &pcm);
-    QByteArray decode(const QByteArray &packet);
+    QByteArray decode(const QByteArray &packet, bool fec = false);
 
     bool isOpen() const { return m_encoder != nullptr && m_decoder != nullptr; }
 

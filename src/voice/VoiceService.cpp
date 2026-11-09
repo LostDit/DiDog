@@ -840,6 +840,17 @@ void VoiceService::onUdpDatagrams()
 
         const quint64 key = (static_cast<quint64>(userId) << 32) | sequence;
         ++m_packetsReceived;
+
+        // Потерян один-два пакета: пробуем восстановить предыдущий кадр по FEC.
+        const quint32 previous = last;
+        if (previous != 0 && sequence > previous + 1 && sequence - previous <= 3) {
+            const QByteArray fec = m_codec->decode(opus, true);
+            if (!fec.isEmpty()) {
+                const quint64 fecKey = (static_cast<quint64>(userId) << 32) | (sequence - 1);
+                m_jitter.insert(fecKey, fec);
+            }
+        }
+
         m_jitter.insert(key, opus);
         while (m_jitter.size() > kMaxJitterPackets)
             m_jitter.erase(m_jitter.begin());

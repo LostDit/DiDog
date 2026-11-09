@@ -138,6 +138,9 @@ bool OpusCodec::open(QString *error)
     api().encoder_ctl(reinterpret_cast<OpusEncoder *>(m_encoder), 4010 /*COMPLEXITY*/, 10);
     api().encoder_ctl(reinterpret_cast<OpusEncoder *>(m_encoder), 4024 /*SIGNAL*/, 3001 /*VOICE*/);
     api().encoder_ctl(reinterpret_cast<OpusEncoder *>(m_encoder), 4016 /*DTX*/, 0);
+    api().encoder_ctl(reinterpret_cast<OpusEncoder *>(m_encoder), 4008 /*BANDWIDTH*/, 1105 /*FULLBAND*/);
+    api().encoder_ctl(reinterpret_cast<OpusEncoder *>(m_encoder), 4020 /*VBR CONSTRAINT*/, 1);
+    api().encoder_ctl(reinterpret_cast<OpusEncoder *>(m_encoder), 4012 /*LSB DEPTH*/, 16);
 
     m_decoder = api().decoder_create(kSampleRate, kChannels, &opusError);
     if (!m_decoder || opusError != OPUS_OK) {
@@ -178,7 +181,7 @@ QByteArray OpusCodec::encode(const QByteArray &pcm)
     return QByteArray(reinterpret_cast<const char *>(buffer), static_cast<int>(length));
 }
 
-QByteArray OpusCodec::decode(const QByteArray &packet)
+QByteArray OpusCodec::decode(const QByteArray &packet, bool fec)
 {
     if (!m_decoder)
         return QByteArray();
@@ -189,7 +192,7 @@ QByteArray OpusCodec::decode(const QByteArray &packet)
     const int decoded = api().decode(
         reinterpret_cast<OpusDecoder *>(m_decoder),
         packet.isEmpty() ? nullptr : reinterpret_cast<const unsigned char *>(packet.constData()),
-        packet.size(), samples, kFrameSamples, 0);
+        packet.size(), samples, kFrameSamples, fec ? 1 : 0);
 
     if (decoded <= 0)
         return QByteArray();
