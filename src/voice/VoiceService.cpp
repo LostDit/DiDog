@@ -18,6 +18,60 @@
 #include <QNetworkDatagram>
 #include <QTimer>
 #include <QUdpSocket>
+#include <QVector>
+
+namespace {
+
+// Приведение PCM между форматом устройства и кодеком (48 кГц, моно, Int16).
+QByteArray convertPcm(const QByteArray &input, const QAudioFormat &from,
+                      const QAudioFormat &to)
+{
+    if (input.isEmpty() || !from.isValid() || !to.isValid() || from == to)
+        return input;
+    if (from.sampleType() != QAudioFormat::SignedInt || from.sampleSize() != 16
+        || to.sampleType() != QAudioFormat::SignedInt || to.sampleSize() != 16) {
+        return input;
+    }
+
+    const int fromChannels = qMax(1, from.channelCount());
+    const int toChannels = qMax(1, to.channelCount());
+    const qint64 frames = input.size() / (2 * fromChannels);
+    if (frames <= 0)
+        return QByteArray();
+
+    QVector<float> mono;
+    mono.reserve(static_cast<int>(frames));
+    const auto *samples = reinterpret_cast<const qint16 *>(input.constData());
+    for (qint64 i = 0; i < frames; ++i) {
+        float sum = 0.0f;
+        for (int channel = 0; channel < fromChannels; ++channel)
+            sum += samples[i * fromChannels + channel] / 32768.0f;
+        mono.append(sum / fromChannels);
+    }
+
+    const double ratio = static_cast<double>(to.sampleRate()) / from.sampleRate();
+    const qint64 outFrames = qMax<qint64>(1, static_cast<qint64>(mono.size() * ratio));
+
+    QByteArray output;
+    output.resize(static_cast<int>(outFrames * toChannels * 2));
+    auto *out = reinterpret_cast<qint16 *>(output.data());
+
+    for (qint64 i = 0; i < outFrames; ++i) {
+        const double source = i / ratio;
+        const qint64 index = static_cast<qint64>(source);
+        const double fraction = source - index;
+        const float first = mono.at(qMin<qint64>(index, mono.size() - 1));
+        const float second = mono.at(qMin<qint64>(index + 1, mono.size() - 1));
+        const float value = first + (second - first) * static_cast<float>(fraction);
+        for (int channel = 0; channel < toChannels; ++channel)
+            out[i * toChannels + channel] =
+                static_cast<qint16>(qBound(-1.0f, value, 1.0f) * 32767.0f);
+    }
+
+    return output;
+}
+
+} // namespace
 
 namespace app {
 namespace {
@@ -308,6 +362,7 @@ void VoiceService::hangup()
     closeAudio();
     closeUdp();
     m_jitter.clear();
+    m_jitterPrimed = false;
     m_chatId = 0;
     m_callerId = 0;
     m_callerName.clear();
@@ -387,7 +442,15 @@ void VoiceService::openAudio()
         return;
     }
 
-    m_input = new QAudioInput(inputDevice, format, this);
+    m_inputFormat = format;
+    if (!inputDevice.isFormatSupported(m_inputFormat))
+        m_inputFormat = inputDevice.nearestFormat(format);
+    if (!m_inputFormat.isValid())
+        m_inputFormat = format;
+    qInfo("VOICE: микрофон %s, %d Гц, каналов %d", qPrintable(inputDevice.deviceName()),
+          m_inputFormat.sampleRate(), m_inputFormat.channelCount());
+
+    m_input = new QAudioInput(inputDevice, m_inputFormat, this);
     m_inputDevice = m_input->start();
     if (!m_inputDevice) {
         emit errorOccurred(tr("Не удалось открыть микрофон."));
@@ -395,13 +458,27 @@ void VoiceService::openAudio()
     }
     connect(m_inputDevice, &QIODevice::readyRead, this, &VoiceService::onAudioReady);
 
-    m_output = new QAudioOutput(outputDevice, format, this);
+    m_outputFormat = format;
+    if (!outputDevice.isFormatSupported(m_outputFormat))
+        m_outputFormat = outputDevice.nearestFormat(format);
+    if (!m_outputFormat.isValid())
+        m_outputFormat = format;
+    qInfo("VOICE: динамики %s, %d Гц, каналов %d", qPrintable(outputDevice.deviceName()),
+          m_outputFormat.sampleRate(), m_outputFormat.channelCount());
+
+    m_output = new QAudioOutput(outputDevice, m_outputFormat, this);
     m_outputDevice = m_output->start();
     m_jitterTimer->start();
 }
 
 void VoiceService::closeAudio()
 {
+    if (m_packetsSent > 0 || m_packetsReceived > 0) {
+        qInfo("VOICE: отправлено пакетов=%d, получено=%d", m_packetsSent,
+              m_packetsReceived);
+        m_packetsSent = 0;
+        m_packetsReceived = 0;
+    }
     m_jitterTimer->stop();
 
     if (m_input) {
@@ -575,6 +652,8 @@ void VoiceService::sendDatagram(const QByteArray &payload)
             return;
     }
 
+    ++m_packetsSent;
+
     const QByteArray datagram =
         core::proto::encodeVoiceDatagram(m_token, sequence, body);
     m_udp->writeDatagram(datagram, m_serverAddress, m_serverVoicePort);
@@ -624,7 +703,8 @@ void VoiceService::onAudioReady()
         return;
     }
 
-    m_captureBuffer.append(m_inputDevice->readAll());
+    const QByteArray raw = m_inputDevice->readAll();
+    m_captureBuffer.append(convertPcm(raw, m_inputFormat, voiceFormat()));
 
     while (m_captureBuffer.size() >= kFrameBytes) {
         const QByteArray frame = m_captureBuffer.left(kFrameBytes);
@@ -698,6 +778,7 @@ void VoiceService::onUdpDatagrams()
         }
 
         const quint64 key = (static_cast<quint64>(userId) << 32) | sequence;
+        ++m_packetsReceived;
         m_jitter.insert(key, opus);
         while (m_jitter.size() > kMaxJitterPackets)
             m_jitter.erase(m_jitter.begin());
@@ -709,6 +790,17 @@ void VoiceService::flushJitter()
     if (!m_outputDevice || m_jitter.isEmpty())
         return;
 
+    // Небольшой буфер против джиттера: копим 3 пакета, затем играем.
+    if (!m_jitterPrimed) {
+        if (m_jitter.size() < 3)
+            return;
+        m_jitterPrimed = true;
+    }
+    if (m_jitter.size() > 12) {
+        while (m_jitter.size() > 6)
+            m_jitter.erase(m_jitter.begin());
+    }
+
     if (m_output && m_output->bytesFree() <= 0)
         return;
 
@@ -717,8 +809,10 @@ void VoiceService::flushJitter()
     m_jitter.erase(m_jitter.begin());
 
     const QByteArray pcm = m_codec->decode(packet);
-    if (!pcm.isEmpty())
-        m_outputDevice->write(pcm);
+    if (!pcm.isEmpty()) {
+        const QByteArray converted = convertPcm(pcm, voiceFormat(), m_outputFormat);
+        m_outputDevice->write(converted);
+    }
 }
 
 void VoiceService::onSocketDisconnected()
@@ -729,6 +823,7 @@ void VoiceService::onSocketDisconnected()
     closeAudio();
     closeUdp();
     m_jitter.clear();
+    m_jitterPrimed = false;
     m_chatId = 0;
     m_callerId = 0;
     setState(State::Idle);
@@ -746,6 +841,7 @@ void VoiceService::onEvent(const QString &name, const QJsonObject &data)
             closeAudio();
             closeUdp();
             m_jitter.clear();
+    m_jitterPrimed = false;
             m_chatId = 0;
             m_callerId = 0;
             m_callerName.clear();

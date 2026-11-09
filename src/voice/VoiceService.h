@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QAudioFormat>
 #include <QByteArray>
 #include <QHostAddress>
 #include <QJsonObject>
@@ -100,6 +101,8 @@ private:
     QAudioOutput *m_output = nullptr;
     QIODevice *m_inputDevice = nullptr;
     QIODevice *m_outputDevice = nullptr;
+    QAudioFormat m_inputFormat;
+    QAudioFormat m_outputFormat;
 
     QUdpSocket *m_udp = nullptr;
     QTimer *m_keepalive = nullptr;
@@ -122,6 +125,9 @@ private:
 
     QByteArray m_captureBuffer;
     QMap<quint64, QByteArray> m_jitter;
+    int m_packetsSent = 0;
+    int m_packetsReceived = 0;
+    bool m_jitterPrimed = false;
     quint32 m_sendSequence = 0;
 
     State m_state = State::Idle;
