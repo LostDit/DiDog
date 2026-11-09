@@ -11,6 +11,7 @@ class QLabel;
 class QLineEdit;
 class QListView;
 class QPoint;
+class QPushButton;
 class QSortFilterProxyModel;
 class QStackedWidget;
 class QTimer;
@@ -73,6 +74,7 @@ public:
     // Уведомление через трей главного окна (единственная иконка в системе).
     void showTrayNotification(const QString &title, const QString &body, qint64 chatId);
     void setTrayUnread(int count);
+    void refreshProfilePage();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -159,6 +161,15 @@ private:
     ParticipantsPanel *m_participantsPanel = nullptr;
     QTabWidget *m_rightTabs = nullptr;
     bool m_panelVisible = false;
+
+    QLabel *m_topStatus = nullptr;
+    qint64 m_profileUserId = 0;
+    QString m_profileUsername;
+    QLabel *m_profileStatus = nullptr;
+    QPushButton *m_profileWriteButton = nullptr;
+    QPushButton *m_profileCallButton = nullptr;
+    QPushButton *m_profileSettingsButton = nullptr;
+    QPushButton *m_profileLogoutButton = nullptr;
 
     QSystemTrayIcon *m_tray = nullptr;
     QTimer *m_updateTimer = nullptr;

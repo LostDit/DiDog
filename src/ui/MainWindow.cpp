@@ -104,6 +104,27 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
                     return;
                 m_groupMemberCount = members.size();
                 updateHeader();
+
+                if (m_profileUserId <= 0 || m_profileUserId == m_user.id)
+                    return;
+
+                for (const data::ChatMember &member : members) {
+                    if (member.userId != m_profileUserId)
+                        continue;
+
+                    m_profileAvatar->setIdentity(member.displayName, member.avatarHue);
+                    m_profileName->setText(member.displayName);
+                    m_profileSub->setText(member.username.isEmpty()
+                                             ? QString()
+                                             : QStringLiteral("@%1").arg(member.username));
+                    m_profileStatus->setText(member.online ? tr("в сети") : tr("не в сети"));
+                    m_profileUsername = member.username;
+                    if (m_profileWriteButton)
+                        m_profileWriteButton->setVisible(!member.username.isEmpty());
+                    if (m_profileCallButton)
+                        m_profileCallButton->setVisible(true);
+                    break;
+                }
             });
     connect(m_chats, &app::ChatService::groupCreated, this,
             [this](qint64 chatId) { openChatById(chatId); });
@@ -194,6 +215,7 @@ void MainWindow::setUser(const data::User &user)
     m_profileAvatar->setIdentity(user.displayName, user.avatarHue);
     if (m_topAvatar)
         m_topAvatar->setIdentity(user.displayName, user.avatarHue);
+    refreshProfilePage();
     m_profileName->setText(user.displayName);
     m_profileSub->setText(QStringLiteral("@%1").arg(user.username));
     m_messageView->setCurrentUserId(user.id);
@@ -343,6 +365,9 @@ QWidget *MainWindow::buildTopBar()
 
     layout->addWidget(makeLabel(QStringLiteral("DiDog"), "TopBarTitle", Qt::AlignLeft));
 
+    m_topStatus = makeLabel(QString(), "TopStatus", Qt::AlignLeft);
+    layout->addWidget(m_topStatus);
+
     m_searchField = new QLineEdit(bar);
     m_searchField->setObjectName(QStringLiteral("SearchField"));
     m_searchField->setPlaceholderText(tr("Поиск"));
@@ -369,6 +394,35 @@ QWidget *MainWindow::buildTopBar()
             m_rightTabs->setCurrentIndex(0);
     });
     layout->addWidget(membersButton);
+
+    m_voiceButton = makeIconButton(QStringLiteral(":/icons/phone.svg"), tr("Голос"));
+    m_voiceButton->setVisible(false);
+    connect(m_voiceButton, &QToolButton::clicked, this, &MainWindow::onVoiceClicked);
+    layout->addWidget(m_voiceButton);
+
+    m_muteButton = makeIconButton(QStringLiteral(":/icons/mic.svg"), tr("Выключить микрофон"));
+    m_muteButton->setVisible(false);
+    connect(m_muteButton, &QToolButton::clicked, this, &MainWindow::onMuteClicked);
+    layout->addWidget(m_muteButton);
+
+    m_talkButton = new QToolButton(bar);
+    m_talkButton->setText(tr("Говорить"));
+    m_talkButton->setObjectName(QStringLiteral("LinkButton"));
+    m_talkButton->setCursor(Qt::PointingHandCursor);
+    m_talkButton->setVisible(false);
+    connect(m_talkButton, &QToolButton::pressed, this, [this]() {
+        if (m_voice)
+            m_voice->setTransmitting(true);
+        if (m_talkButton)
+            m_talkButton->setText(tr("Говорю…"));
+    });
+    connect(m_talkButton, &QToolButton::released, this, [this]() {
+        if (m_voice)
+            m_voice->setTransmitting(false);
+        if (m_talkButton)
+            m_talkButton->setText(tr("Говорить"));
+    });
+    layout->addWidget(m_talkButton);
 
     m_themeButton = makeIconButton(QStringLiteral(":/icons/moon.svg"), tr("Переключить тему"));
     connect(m_themeButton, &QToolButton::clicked, this, &MainWindow::onThemeToggleClicked);
@@ -418,29 +472,54 @@ QWidget *MainWindow::buildProfilePage()
 
     m_profileName = makeLabel(QStringLiteral("Гость"), "ProfileName", Qt::AlignCenter);
     m_profileSub = makeLabel(QString(), "ProfileSub", Qt::AlignCenter);
+    m_profileStatus = makeLabel(QString(), "ProfileStatus", Qt::AlignCenter);
     layout->addWidget(m_profileName);
     layout->addWidget(m_profileSub);
+    layout->addWidget(m_profileStatus);
 
     auto *version = makeLabel(QStringLiteral("DiDog v%1").arg(QStringLiteral(MESSENGER_VERSION)),
                               "EmptySubtitle", Qt::AlignCenter);
     layout->addWidget(version);
 
+    m_profileWriteButton = new QPushButton(tr("Написать"), page);
+    m_profileWriteButton->setObjectName(QStringLiteral("PrimaryButton"));
+    m_profileWriteButton->setCursor(Qt::PointingHandCursor);
+    m_profileWriteButton->hide();
+    connect(m_profileWriteButton, &QPushButton::clicked, this, [this]() {
+        if (m_chats && !m_profileUsername.isEmpty())
+            m_chats->createDirect(m_profileUsername);
+    });
+    layout->addWidget(m_profileWriteButton);
+
+    m_profileCallButton = new QPushButton(tr("Позвонить"), page);
+    m_profileCallButton->setObjectName(QStringLiteral("GhostButton"));
+    m_profileCallButton->setCursor(Qt::PointingHandCursor);
+    m_profileCallButton->hide();
+    connect(m_profileCallButton, &QPushButton::clicked, this, [this]() {
+        if (m_currentChatId <= 0)
+            return;
+        openChat(m_currentChatId);
+        if (m_voice && m_voice->state() == app::VoiceService::State::Idle)
+            m_voice->call(m_currentChatId);
+    });
+    layout->addWidget(m_profileCallButton);
+
     layout->addStretch(1);
 
-    auto *settings = new QPushButton(tr("Настройки"), page);
-    settings->setObjectName(QStringLiteral("GhostButton"));
-    settings->setCursor(Qt::PointingHandCursor);
-    connect(settings, &QPushButton::clicked, this, &MainWindow::openSettings);
-    layout->addWidget(settings);
+    m_profileSettingsButton = new QPushButton(tr("Настройки"), page);
+    m_profileSettingsButton->setObjectName(QStringLiteral("GhostButton"));
+    m_profileSettingsButton->setCursor(Qt::PointingHandCursor);
+    connect(m_profileSettingsButton, &QPushButton::clicked, this, &MainWindow::openSettings);
+    layout->addWidget(m_profileSettingsButton);
 
-    auto *logout = new QPushButton(tr("Выйти"), page);
-    logout->setObjectName(QStringLiteral("GhostButton"));
-    logout->setCursor(Qt::PointingHandCursor);
-    connect(logout, &QPushButton::clicked, this, [this]() {
+    m_profileLogoutButton = new QPushButton(tr("Выйти"), page);
+    m_profileLogoutButton->setObjectName(QStringLiteral("GhostButton"));
+    m_profileLogoutButton->setCursor(Qt::PointingHandCursor);
+    connect(m_profileLogoutButton, &QPushButton::clicked, this, [this]() {
         if (m_session)
             m_session->logout();
     });
-    layout->addWidget(logout);
+    layout->addWidget(m_profileLogoutButton);
 
     return page;
 }
@@ -537,48 +616,6 @@ QWidget *MainWindow::buildConversationPane()
     titleColumn->addWidget(m_headerStatus);
     headerLayout->addLayout(titleColumn);
 
-    m_membersButton = new QToolButton(header);
-    m_membersButton->setText(tr("Участники"));
-    m_membersButton->setObjectName(QStringLiteral("LinkButton"));
-    m_membersButton->setCursor(Qt::PointingHandCursor);
-    m_membersButton->setVisible(false);
-    connect(m_membersButton, &QToolButton::clicked, this, &MainWindow::onMembersClicked);
-    headerLayout->addWidget(m_membersButton);
-
-    m_voiceButton = new QToolButton(header);
-    m_voiceButton->setText(tr("Голос"));
-    m_voiceButton->setObjectName(QStringLiteral("LinkButton"));
-    m_voiceButton->setCursor(Qt::PointingHandCursor);
-    m_voiceButton->setVisible(false);
-    connect(m_voiceButton, &QToolButton::clicked, this, &MainWindow::onVoiceClicked);
-    headerLayout->addWidget(m_voiceButton);
-
-    m_muteButton = new QToolButton(header);
-    m_muteButton->setText(tr("Микрофон"));
-    m_muteButton->setObjectName(QStringLiteral("LinkButton"));
-    m_muteButton->setCursor(Qt::PointingHandCursor);
-    m_muteButton->setVisible(false);
-    connect(m_muteButton, &QToolButton::clicked, this, &MainWindow::onMuteClicked);
-    headerLayout->addWidget(m_muteButton);
-
-    m_talkButton = new QToolButton(header);
-    m_talkButton->setText(tr("Говорить"));
-    m_talkButton->setObjectName(QStringLiteral("LinkButton"));
-    m_talkButton->setCursor(Qt::PointingHandCursor);
-    m_talkButton->setVisible(false);
-    connect(m_talkButton, &QToolButton::pressed, this, [this]() {
-        if (m_voice)
-            m_voice->setTransmitting(true);
-        if (m_talkButton)
-            m_talkButton->setText(tr("Говорю…"));
-    });
-    connect(m_talkButton, &QToolButton::released, this, [this]() {
-        if (m_voice)
-            m_voice->setTransmitting(false);
-        if (m_talkButton)
-            m_talkButton->setText(tr("Говорить"));
-    });
-    headerLayout->addWidget(m_talkButton);
 
     headerLayout->addStretch(1);
 
@@ -916,28 +953,65 @@ void MainWindow::updateHeader()
 
 void MainWindow::openProfile(qint64 userId)
 {
-    if (m_currentChatId <= 0) {
-        showToast(tr("Сначала откройте чат."));
-        return;
-    }
     if (userId <= 0)
         return;
 
-    ProfileCardDialog dialog(m_chats, m_currentChatId, userId, m_user.id, this);
-    connect(&dialog, &ProfileCardDialog::callRequested, this, [this](qint64 chatId) {
-        openChat(chatId);
-        if (m_voice && m_voice->state() == app::VoiceService::State::Idle)
-            m_voice->call(chatId);
-    });
-    dialog.exec();
+    m_profileUserId = userId;
+    if (m_rightTabs)
+        m_rightTabs->setCurrentIndex(1);
+    refreshProfilePage();
+}
+
+void MainWindow::refreshProfilePage()
+{
+    if (!m_profileName || !m_profileAvatar)
+        return;
+
+    const bool self = m_profileUserId <= 0 || m_profileUserId == m_user.id;
+
+    if (self) {
+        m_profileUserId = m_user.id;
+        m_profileAvatar->setIdentity(m_user.displayName, m_user.avatarHue);
+        m_profileName->setText(m_user.displayName);
+        m_profileSub->setText(m_user.username.isEmpty() ? QString()
+                                                       : QStringLiteral("@%1").arg(m_user.username));
+        if (m_profileStatus)
+            m_profileStatus->setText(tr("в сети"));
+        if (m_profileWriteButton)
+            m_profileWriteButton->hide();
+        if (m_profileCallButton)
+            m_profileCallButton->hide();
+        if (m_profileSettingsButton)
+            m_profileSettingsButton->show();
+        if (m_profileLogoutButton)
+            m_profileLogoutButton->show();
+        return;
+    }
+
+    m_profileUsername.clear();
+    m_profileAvatar->setIdentity(QStringLiteral("…"), 210);
+    m_profileName->setText(tr("Загрузка…"));
+    m_profileSub->clear();
+    if (m_profileStatus)
+        m_profileStatus->clear();
+    if (m_profileSettingsButton)
+        m_profileSettingsButton->hide();
+    if (m_profileLogoutButton)
+        m_profileLogoutButton->hide();
+    if (m_profileWriteButton)
+        m_profileWriteButton->hide();
+    if (m_profileCallButton)
+        m_profileCallButton->hide();
+
+    if (m_chats && m_currentChatId > 0)
+        m_chats->loadMembers(m_currentChatId);
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event)
 {
     if (event->type() == QEvent::MouseButtonRelease) {
         if (watched == m_topAvatar) {
-            if (m_rightTabs)
-                m_rightTabs->setCurrentIndex(1);
+            openProfile(m_user.id);
             return true;
         }
 
@@ -1269,6 +1343,16 @@ void MainWindow::updateConnectionBanner()
 
     const bool connected = m_session && m_session->isAuthenticated();
     m_connectionBanner->setVisible(!connected);
+
+    if (m_topStatus) {
+        m_topStatus->setText(connected ? tr("в сети") : tr("нет сети"));
+        m_topStatus->setProperty("ok", connected);
+        if (QStyle *style = m_topStatus->style()) {
+            style->unpolish(m_topStatus);
+            style->polish(m_topStatus);
+        }
+    }
+
     if (m_composer)
         m_composer->setInputEnabled(connected);
 }

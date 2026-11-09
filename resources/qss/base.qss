@@ -825,3 +825,20 @@ QPushButton#TabButton:hover {
     color: {{accent}};
     font-weight: 600;
 }
+#TopStatus {
+    color: {{text-faint}};
+    font-size: 8pt;
+}
+
+#TopStatus[ok="true"] {
+    color: {{success}};
+}
+
+#TopStatus[ok="false"] {
+    color: {{warning}};
+}
+
+#ProfileStatus {
+    color: {{text-muted}};
+    font-size: 9pt;
+}
