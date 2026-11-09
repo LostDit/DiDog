@@ -1073,6 +1073,27 @@ void ChatService::react(qint64 chatId, qint64 messageId, const QString &emoji, b
     m_connection->request(QStringLiteral("msg.react"), request, nullptr, 10000);
 }
 
+void ChatService::forwardMessage(qint64 messageId, qint64 targetChatId)
+{
+    if (!m_connection || !m_connection->isConnected() || messageId <= 0
+        || targetChatId <= 0) {
+        return;
+    }
+
+    m_connection->request(
+        QStringLiteral("msg.forward"),
+        QJsonObject{{QStringLiteral("message_id"), static_cast<double>(messageId)},
+                    {QStringLiteral("chat_id"), static_cast<double>(targetChatId)}},
+        [this, targetChatId](const QJsonObject &reply) {
+            if (!replyOk(reply)) {
+                emit errorOccurred(core::proto::errorMessageOf(reply));
+                return;
+            }
+            emit messageForwarded(targetChatId);
+        },
+        10000);
+}
+
 void ChatService::createDirect(const QString &username)
 {
     QJsonObject request;

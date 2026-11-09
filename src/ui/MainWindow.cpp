@@ -658,6 +658,35 @@ QWidget *MainWindow::buildConversationPane()
                     m_chats->react(m_currentChatId, messageId, emoji, on);
             });
 
+    connect(m_messageView, &MessageView::forwardRequested, this, [this](qint64 messageId) {
+        if (!m_chats)
+            return;
+
+        QStringList names;
+        QList<qint64> ids;
+        for (const data::ChatSummary &summary : m_chats->chats()) {
+            names.append(summary.peerDisplayName);
+            ids.append(summary.chat.id);
+        }
+        if (names.isEmpty())
+            return;
+
+        bool ok = false;
+        const QString chosen = QInputDialog::getItem(this, tr("Переслать сообщение"),
+                                                     tr("Куда переслать?"), names, 0,
+                                                     false, &ok);
+        if (!ok)
+            return;
+
+        const int index = names.indexOf(chosen);
+        if (index >= 0)
+            m_chats->forwardMessage(messageId, ids.at(index));
+    });
+
+    connect(m_chats, &app::ChatService::messageForwarded, this, [this](qint64) {
+        showToast(tr("Переслано"));
+    });
+
     connect(m_messageView, &MessageView::replyRequested, this,
             [this](qint64 messageId, const QString &senderName, const QString &body) {
                 if (m_composer)

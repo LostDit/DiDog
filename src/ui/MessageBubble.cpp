@@ -331,6 +331,10 @@ void MessageBubble::showContextMenu(const QPoint &position)
     if (m_message.id > 0 && !m_message.deleted)
         reply = menu.addAction(tr("Ответить"));
 
+    QAction *forward = nullptr;
+    if (m_message.id > 0 && !m_message.deleted && !m_message.body.isEmpty())
+        forward = menu.addAction(tr("Переслать"));
+
     QAction *copy = nullptr;
     if (!m_message.deleted && !m_message.body.isEmpty())
         copy = menu.addAction(tr("Копировать текст"));
@@ -351,6 +355,10 @@ void MessageBubble::showContextMenu(const QPoint &position)
     if (!chosen)
         return;
 
+    if (chosen == forward) {
+        emit forwardRequested(m_message.id);
+        return;
+    }
     if (chosen == copy) {
         QGuiApplication::clipboard()->setText(m_message.body);
         return;

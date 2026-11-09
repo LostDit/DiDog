@@ -42,6 +42,7 @@ inline constexpr const char kUpdateDownload[] = "update.download";
 inline constexpr const char kMsgSend[] = "msg.send";
 inline constexpr const char kMsgEdit[] = "msg.edit";
 inline constexpr const char kMsgReact[] = "msg.react";
+inline constexpr const char kMsgForward[] = "msg.forward";
 inline constexpr const char kMsgDelete[] = "msg.delete";
 inline constexpr const char kAttachBegin[] = "attach.begin";
 inline constexpr const char kAttachFinish[] = "attach.finish";

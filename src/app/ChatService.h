@@ -57,6 +57,7 @@ public:
     void sendFile(qint64 chatId, const QString &filePath);
     void markRead(qint64 chatId);
     void react(qint64 chatId, qint64 messageId, const QString &emoji, bool on);
+    void forwardMessage(qint64 messageId, qint64 targetChatId);
     void createDirect(const QString &username);
 
     // Групповые чаты.
@@ -85,6 +86,7 @@ signals:
     void presenceChanged(qint64 userId, bool online);
     void messageArrived(qint64 chatId, const data::Message &message);
     void searchResults(const QString &query, const QList<data::Message> &messages);
+    void messageForwarded(qint64 targetChatId);
     void groupCreated(qint64 chatId);
     void membersLoaded(qint64 chatId, const QList<data::ChatMember> &members);
     void membersChanged(qint64 chatId);

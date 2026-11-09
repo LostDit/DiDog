@@ -233,6 +233,8 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleMessageDelete(data, session);
     if (type == QLatin1String(core::proto::type::kMsgReact))
         return handleMessageReact(data, session);
+    if (type == QLatin1String(core::proto::type::kMsgForward))
+        return handleMessageForward(data, session);
     if (type == QLatin1String(core::proto::type::kReceiptDelivered))
         return handleReceiptDelivered(data, session);
     if (type == QLatin1String(core::proto::type::kTyping))
@@ -1545,6 +1547,55 @@ HandlerResult ServerCore::handleMessageReact(const QJsonObject &data, ClientSess
     broadcastToChat(chatId, core::proto::event::kReaction, event);
 
     return HandlerResult::success();
+}
+
+HandlerResult ServerCore::handleMessageForward(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 messageId = int64Value(data, "message_id");
+    const qint64 targetChatId = int64Value(data, "chat_id");
+
+    data::MessageRepository messages(m_database.handle());
+    data::Message source;
+    bool found = false;
+    QString error;
+    if (!messages.byId(messageId, &source, &found, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!found || source.deleted)
+        return HandlerResult::failure(core::ErrorCode::NotFound);
+
+    data::ChatRepository chats(m_database.handle());
+    bool member = false;
+    if (!chats.isMember(source.chatId, session->userId(), &member, &error) || !member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+    if (!chats.isMember(targetChatId, session->userId(), &member, &error) || !member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    const QString body = source.body.trimmed();
+    if (body.isEmpty())
+        return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                      QStringLiteral("Можно пересылать только текст"));
+
+    data::Message copy;
+    copy.chatId = targetChatId;
+    copy.senderId = session->userId();
+    copy.clientMsgId = core::newUuid();
+    copy.kind = data::MessageKind::Text;
+    copy.body = body;
+    copy.createdAt = QDateTime::currentMSecsSinceEpoch();
+
+    data::Message stored;
+    if (!messages.append(copy, &stored, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(targetChatId));
+    event.insert(QStringLiteral("message"), data::json::messageToJson(stored));
+    broadcastToChat(targetChatId, core::proto::event::kMsg, event);
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("message_id"), static_cast<double>(stored.id));
+    payload.insert(QStringLiteral("seq"), static_cast<double>(stored.seq));
+    return HandlerResult::success(payload);
 }
 
 HandlerResult ServerCore::handleReceiptDelivered(const QJsonObject &data, ClientSession *session)

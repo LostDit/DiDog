@@ -47,6 +47,7 @@ private slots:
     void foreignMessageCannotBeChanged();
     void replyIsStoredAndValidated();
     void reactionsReachBothSides();
+    void forwardCopiesTextToAnotherChat();
 
 private:
     QJsonObject request(net::ClientConnection &connection, const QString &type,
@@ -359,6 +360,81 @@ void TestMessageOps::reactionsReachBothSides()
                         {QStringLiteral("on"), false}},
             &ok);
     QVERIFY(ok);
+}
+
+void TestMessageOps::forwardCopiesTextToAnotherChat()
+{
+    net::ClientConnection first;
+    net::ClientConnection second;
+    first.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    second.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    QSignalSpy c1(&first, &net::ClientConnection::socketConnected);
+    QSignalSpy c2(&second, &net::ClientConnection::socketConnected);
+    first.connectToServer();
+    second.connectToServer();
+    QTRY_COMPARE_WITH_TIMEOUT(c1.count(), 1, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(c2.count(), 1, 15000);
+
+    bool ok = false;
+    request(first, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("forward_a")},
+                        {QStringLiteral("display_name"), QStringLiteral("Forward A")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+    request(second, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("forward_b")},
+                        {QStringLiteral("display_name"), QStringLiteral("Forward B")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+
+    const QJsonObject chatsReply = request(first, QStringLiteral("chat.list"), QJsonObject(), &ok);
+    QVERIFY(ok);
+    const double generalId = chatsReply.value(QStringLiteral("data")).toObject()
+                                 .value(QStringLiteral("chats")).toArray()
+                                 .first().toObject().value(QStringLiteral("id")).toDouble();
+
+    const QJsonObject sent = request(
+        first, QStringLiteral("msg.send"),
+        QJsonObject{{QStringLiteral("chat_id"), generalId},
+                    {QStringLiteral("client_msg_id"), QUuid::createUuid().toString(QUuid::WithoutBraces)},
+                    {QStringLiteral("kind"), QStringLiteral("text")},
+                    {QStringLiteral("body"), QStringLiteral("пересылаемый текст")}},
+        &ok);
+    QVERIFY(ok);
+    const double messageId = sent.value(QStringLiteral("data")).toObject()
+                                 .value(QStringLiteral("message_id")).toDouble();
+
+    const QJsonObject direct = request(first, QStringLiteral("chat.direct"),
+                                       QJsonObject{{QStringLiteral("username"),
+                                                    QStringLiteral("forward_b")}},
+                                       &ok);
+    QVERIFY(ok);
+    const double directId = direct.value(QStringLiteral("data")).toObject()
+                                .value(QStringLiteral("chat")).toObject()
+                                .value(QStringLiteral("id")).toDouble();
+
+    request(first, QStringLiteral("msg.forward"),
+            QJsonObject{{QStringLiteral("message_id"), messageId},
+                        {QStringLiteral("chat_id"), directId}},
+            &ok);
+    QVERIFY(ok);
+
+    const QJsonObject opened = request(second, QStringLiteral("chat.open"),
+                                       QJsonObject{{QStringLiteral("chat_id"), directId},
+                                                   {QStringLiteral("limit"), 10}},
+                                       &ok);
+    QVERIFY(ok);
+    bool found = false;
+    for (const QJsonValue &value : opened.value(QStringLiteral("data")).toObject()
+                                        .value(QStringLiteral("messages")).toArray()) {
+        if (value.toObject().value(QStringLiteral("body")).toString()
+            == QStringLiteral("пересылаемый текст")) {
+            found = true;
+        }
+    }
+    QVERIFY(found);
 }
 
 void TestMessageOps::foreignMessageCannotBeChanged()

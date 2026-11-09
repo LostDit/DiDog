@@ -42,6 +42,7 @@ signals:
     void fileActivated(const QString &fileName, const QString &filePath);
     void replyRequested(qint64 messageId, const QString &senderName, const QString &body);
     void reactionToggled(qint64 messageId, const QString &emoji, bool on);
+    void forwardRequested(qint64 messageId);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;

@@ -80,6 +80,7 @@ private:
     HandlerResult handleMessageEdit(const QJsonObject &data, ClientSession *session);
     HandlerResult handleMessageDelete(const QJsonObject &data, ClientSession *session);
     HandlerResult handleMessageReact(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleMessageForward(const QJsonObject &data, ClientSession *session);
     HandlerResult handleReceiptDelivered(const QJsonObject &data, ClientSession *session);
     HandlerResult handleTyping(const QJsonObject &data, ClientSession *session);
 
