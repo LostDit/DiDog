@@ -68,6 +68,7 @@ set(MESSENGER_CORE_SOURCES
     ui/MessageView.h            ui/MessageView.cpp
     ui/ProfileCardDialog.h      ui/ProfileCardDialog.cpp
     ui/ParticipantsPanel.h      ui/ParticipantsPanel.cpp
+    ui/PanScrollArea.h          ui/PanScrollArea.cpp
     ui/SearchDialog.h           ui/SearchDialog.cpp
     ui/SettingsDialog.h         ui/SettingsDialog.cpp
     ui/StartupSplash.h          ui/StartupSplash.cpp

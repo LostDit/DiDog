@@ -1073,19 +1073,31 @@ void MainWindow::updateVoiceUi()
 
     if (m_voiceButton) {
         m_voiceButton->setVisible(m_currentChatId > 0);
+
+        QString tooltip = tr("Позвонить");
         if (state == app::VoiceService::State::Calling && inCurrentChat)
-            m_voiceButton->setText(tr("Отменить"));
+            tooltip = tr("Отменить вызов");
         else if (state == app::VoiceService::State::Active && inCurrentChat)
-            m_voiceButton->setText(tr("Завершить голос"));
-        else
-            m_voiceButton->setText(tr("Голос"));
+            tooltip = tr("Завершить голос");
+        m_voiceButton->setToolTip(tooltip);
+        m_voiceButton->setProperty("active",
+                                   state != app::VoiceService::State::Idle && inCurrentChat);
+        if (QStyle *style = m_voiceButton->style()) {
+            style->unpolish(m_voiceButton);
+            style->polish(m_voiceButton);
+        }
     }
 
     if (m_muteButton) {
         const bool active = state == app::VoiceService::State::Active && inCurrentChat;
         m_muteButton->setVisible(active);
-        m_muteButton->setText(m_voice && m_voice->isMuted() ? tr("Включить микрофон")
-                                                           : tr("Выключить микрофон"));
+        const bool muted = m_voice && m_voice->isMuted();
+        m_muteButton->setToolTip(muted ? tr("Включить микрофон") : tr("Выключить микрофон"));
+        m_muteButton->setProperty("muted", muted);
+        if (QStyle *style = m_muteButton->style()) {
+            style->unpolish(m_muteButton);
+            style->polish(m_muteButton);
+        }
     }
 
     if (m_talkButton) {

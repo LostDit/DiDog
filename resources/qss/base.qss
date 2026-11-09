@@ -842,3 +842,28 @@ QPushButton#TabButton:hover {
     color: {{text-muted}};
     font-size: 9pt;
 }
+#SettingsTree {
+    background-color: {{surface}};
+    border: 1px solid {{border}};
+    border-radius: 10px;
+    padding: 6px;
+}
+
+#SettingsTree::item {
+    padding: 6px 8px;
+    border-radius: 6px;
+    color: {{text}};
+}
+
+#SettingsTree::item:hover {
+    background-color: {{hover}};
+}
+
+#SettingsTree::item:selected {
+    background-color: {{accent-soft}};
+    color: {{accent}};
+}
+
+QToolButton#IconButton[active="true"] {
+    background-color: {{accent-soft}};
+}

@@ -14,6 +14,7 @@ class QLineEdit;
 class QProgressBar;
 class QPushButton;
 class QTabWidget;
+class QTreeWidget;
 
 namespace app {
 class BillingService;
@@ -79,6 +80,7 @@ private:
     QCheckBox *m_trayCheck = nullptr;
     QCheckBox *m_animationsCheck = nullptr;
     QTabWidget *m_tabs = nullptr;
+    QTreeWidget *m_settingsTree = nullptr;
     QLineEdit *m_settingsSearch = nullptr;
     QComboBox *m_inputCombo = nullptr;
     QComboBox *m_outputCombo = nullptr;

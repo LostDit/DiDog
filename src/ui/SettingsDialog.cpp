@@ -18,6 +18,8 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QProgressBar>
+#include <QTreeWidget>
+#include "ui/PanScrollArea.h"
 #include <QPushButton>
 #include <QTabWidget>
 #include <QUrl>
@@ -64,16 +66,32 @@ void SettingsDialog::buildUi()
     m_settingsSearch->setClearButtonEnabled(true);
     root->addWidget(m_settingsSearch);
 
+    m_settingsTree = new QTreeWidget(this);
+    m_settingsTree->setObjectName(QStringLiteral("SettingsTree"));
+    m_settingsTree->setHeaderHidden(true);
+    m_settingsTree->setFixedWidth(210);
+    m_settingsTree->setRootIsDecorated(true);
+    m_settingsTree->setIndentation(14);
+
     m_tabs = new QTabWidget(this);
     m_tabs->setObjectName(QStringLiteral("SettingsTabs"));
-    root->addWidget(m_tabs, 1);
+    m_tabs->tabBar()->hide();
+
+    auto *contentRow = new QHBoxLayout;
+    contentRow->setSpacing(12);
+    contentRow->addWidget(m_settingsTree, 0);
+    contentRow->addWidget(m_tabs, 1);
+    root->addLayout(contentRow, 1);
 
     const auto makePage = [this](const QString &title) {
         auto *page = new QWidget(this);
         auto *pageLayout = new QVBoxLayout(page);
         pageLayout->setContentsMargins(14, 12, 14, 12);
         pageLayout->setSpacing(10);
-        m_tabs->addTab(page, title);
+
+        auto *scroll = new PanScrollArea(this);
+        scroll->setWidget(page);
+        m_tabs->addTab(scroll, title);
         return pageLayout;
     };
 
@@ -97,6 +115,12 @@ void SettingsDialog::buildUi()
             for (const QString &word : keywords.at(i)) {
                 if (word.contains(query) || query.contains(word)) {
                     m_tabs->setCurrentIndex(i);
+                    for (int n = 0; n < m_settingsTree->topLevelItemCount(); ++n) {
+                        if (m_settingsTree->topLevelItem(n)->data(0, Qt::UserRole).toInt() == i) {
+                            m_settingsTree->setCurrentItem(m_settingsTree->topLevelItem(n));
+                            break;
+                        }
+                    }
                     return;
                 }
             }
@@ -300,6 +324,40 @@ void SettingsDialog::buildUi()
     layout->addLayout(dataRow);
 
     layout->addStretch(1);
+
+    auto addNode = [this](const QString &title, int page, QTreeWidgetItem *parent) {
+        auto *item = parent ? new QTreeWidgetItem(parent) : new QTreeWidgetItem(m_settingsTree);
+        item->setText(0, title);
+        item->setData(0, Qt::UserRole, page);
+        return item;
+    };
+
+    auto *general = addNode(tr("Основные"), 0, nullptr);
+    addNode(tr("Внешний вид"), 0, general);
+    addNode(tr("Уведомления"), 0, general);
+    addNode(tr("Окно"), 3, general);
+    auto *subscription = addNode(tr("Подписка"), 1, nullptr);
+    addNode(tr("План"), 1, subscription);
+    addNode(tr("Промокод"), 1, subscription);
+    auto *voiceNode = addNode(tr("Голос"), 2, nullptr);
+    addNode(tr("Push-to-talk"), 2, voiceNode);
+    addNode(tr("Устройства"), 2, voiceNode);
+    auto *updatesNode = addNode(tr("Обновления"), 4, nullptr);
+    addNode(tr("Проверка"), 4, updatesNode);
+    auto *dataNode = addNode(tr("Данные"), 5, nullptr);
+    addNode(tr("Сервер"), 5, dataNode);
+    addNode(tr("Папка данных"), 5, dataNode);
+    m_settingsTree->expandAll();
+
+    connect(m_settingsTree, &QTreeWidget::currentItemChanged, this,
+            [this](QTreeWidgetItem *current, QTreeWidgetItem *) {
+                if (!current)
+                    return;
+                const int page = current->data(0, Qt::UserRole).toInt();
+                if (page >= 0 && page < m_tabs->count())
+                    m_tabs->setCurrentIndex(page);
+            });
+    m_settingsTree->setCurrentItem(general);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
     buttons->button(QDialogButtonBox::Close)->setText(tr("Закрыть"));
