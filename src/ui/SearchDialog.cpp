@@ -66,6 +66,12 @@ void SearchDialog::onQueryChanged()
     m_debounce->start();
 }
 
+void SearchDialog::setQuery(const QString &query)
+{
+    m_query->setText(query);
+    m_query->setFocus();
+}
+
 void SearchDialog::setResults(const QList<data::Message> &messages,
                               const QHash<qint64, QString> &chatNames)
 {

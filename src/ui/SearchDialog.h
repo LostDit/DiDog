@@ -21,6 +21,8 @@ class SearchDialog : public QDialog
 public:
     explicit SearchDialog(QWidget *parent = nullptr);
 
+    void setQuery(const QString &query);
+
     void setResults(const QList<data::Message> &messages,
                     const QHash<qint64, QString> &chatNames);
     void setStatus(const QString &text);

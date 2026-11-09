@@ -70,6 +70,7 @@ public:
 
     // Открыть глобальный поиск (Ctrl+F).
     void openSearch();
+    void openSearchWithQuery(const QString &query);
 
     // Уведомление через трей главного окна (единственная иконка в системе).
     void showTrayNotification(const QString &title, const QString &body, qint64 chatId);

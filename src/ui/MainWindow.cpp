@@ -371,13 +371,16 @@ QWidget *MainWindow::buildTopBar()
 
     m_searchField = new QLineEdit(bar);
     m_searchField->setObjectName(QStringLiteral("SearchField"));
-    m_searchField->setPlaceholderText(tr("Поиск"));
+    m_searchField->setPlaceholderText(tr("Поиск (Enter — по сообщениям)"));
     m_searchField->setClearButtonEnabled(true);
     m_searchField->addAction(QIcon(QStringLiteral(":/icons/search.svg")),
                              QLineEdit::LeadingPosition);
     m_searchField->setFixedHeight(36);
     m_searchField->setFixedWidth(300);
-    m_searchField->setAccessibleName(tr("Поиск по чатам"));
+    m_searchField->setAccessibleName(tr("Поиск по чатам и сообщениям"));
+    connect(m_searchField, &QLineEdit::returnPressed, this, [this]() {
+        openSearchWithQuery(m_searchField->text());
+    });
     layout->addWidget(m_searchField);
 
     layout->addStretch(1);
@@ -1170,6 +1173,13 @@ void MainWindow::sendFile(const QString &filePath)
         return;
 
     m_chats->sendFile(m_currentChatId, filePath);
+}
+
+void MainWindow::openSearchWithQuery(const QString &query)
+{
+    openSearch();
+    if (m_searchDialog && !query.trimmed().isEmpty())
+        m_searchDialog->setQuery(query);
 }
 
 void MainWindow::openSearch()
