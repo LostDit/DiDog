@@ -96,7 +96,17 @@ trap 'rollback; cleanup' EXIT
 echo "== Подготовка $NEW_DIR =="
 rm -rf "$NEW_DIR"
 mkdir -p "$NEW_DIR"
-cp -a "$SOURCE_DIR/." "$NEW_DIR/"
+python3 - "$SOURCE_DIR" "$NEW_DIR" <<'PY'
+import json, os, shutil, sys
+src, dst = sys.argv[1], sys.argv[2]
+manifest = json.load(open(os.path.join(src, 'manifest.json')))
+for item in manifest['files']:
+    source = os.path.join(src, item['path'])
+    target = os.path.join(dst, item['path'])
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    shutil.copy2(source, target)
+shutil.copy2(os.path.join(src, 'manifest.json'), os.path.join(dst, 'manifest.json'))
+PY
 chown -R "$OWNER" "$NEW_DIR"
 chmod -R u+rwX,go+rX "$NEW_DIR"
 

@@ -22,6 +22,7 @@ param(
 
     [switch]$Deploy,
     [switch]$IncludeUpdater,
+    [switch]$IncludeServer,
     [switch]$DryRun,
 
     # Обновить и серверный бинарник (git pull + сборка + установка службы).
@@ -40,10 +41,13 @@ if (-not (Test-Path $distPath)) {
     throw "Каталог не найден: $distPath. Соберите Release и пакет."
 }
 
-# Манифест: по умолчанию без updater (безопасно для старых клиентов).
+# Манифест: по умолчанию без updater и серверного бинарника.
 $exclude = @()
 if (-not $IncludeUpdater) {
-    $exclude = @('MessengerUpdater.exe')
+    $exclude += 'MessengerUpdater.exe'
+}
+if (-not $IncludeServer) {
+    $exclude += 'MessengerServer.exe'
 }
 
 Write-Host "== Манифест =="
