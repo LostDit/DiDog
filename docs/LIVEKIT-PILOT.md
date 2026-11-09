@@ -84,3 +84,53 @@ node index.js --url wss://livekit.example.com --token <jwt> --port 46123
 3. Звонок в DiDog: в логах клиента `VOICE: LiveKit-мост запущен`.
 4. Слышимость в обе стороны, повторный звонок, завершение по кнопке.
 5. Сравнить задержку и качество с встроенным релеем.
+
+## Конфигурация сервера DiDog
+
+Флаги (или переменные окружения, если флаги не заданы):
+
+```bash
+--livekit-url wss://livekit.example.com \
+--livekit-key didog --livekit-secret "<secret>"
+# или
+LIVEKIT_URL=wss://livekit.example.com
+LIVEKIT_API_KEY=didog
+LIVEKIT_API_SECRET=<secret>
+```
+
+Пример systemd drop-in (`/etc/systemd/system/messengerapp.service.d/livekit.conf`):
+
+```ini
+[Service]
+Environment=LIVEKIT_URL=wss://livekit.example.com
+Environment=LIVEKIT_API_KEY=didog
+Environment=LIVEKIT_API_SECRET=<secret>
+```
+
+## Мост в установщике
+
+`scripts/package-windows.ps1` копирует `bridge/` (включая `node_modules`,
+~29 МБ) в `dist/MessengerApp/bridge`. Клиент запускает
+`node bridge/index.js` из каталога приложения. Требуется **Node.js 18+** в PATH.
+
+Если Node не установлен, звонок завершится сообщением
+«Не удалось запустить LiveKit-мост (нужен Node.js и bridge/)»; встроенный
+релей продолжает работать при выборе «Встроенный релей».
+
+## Порты и firewall
+
+```bash
+sudo ufw allow 7880/tcp
+sudo ufw allow 7881/tcp
+sudo ufw allow 7882/udp
+# в облачной security group — те же правила
+```
+
+Проверка: `ss -lntup | grep -E '7880|7881|7882'`.
+
+## Ограничения текущего этапа
+
+- Мост запускается на машине клиента, поэтому Node.js и `bridge/` должны быть
+  установлены у каждого участника (в установщик уже входит `bridge/`).
+- E2EE LiveKit пока не включён (DTLS-SRTP есть, но SFU видит медиа).
+- Индикация «кто говорит» берётся из локального анализа, не из LiveKit.

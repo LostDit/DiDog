@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     Собирает переносимый дистрибутив MessengerApp для Windows.
@@ -91,3 +91,11 @@ if (Test-Path $translations) {
 $size = (Get-ChildItem $dist -Recurse -File | Measure-Object -Property Length -Sum).Sum
 Write-Host ("Готово: {0} ({1:N1} МБ)" -f $dist, ($size / 1MB))
 Write-Host 'Запуск: MessengerServer.exe --port 45000, затем MessengerClient.exe'
+# LiveKit-мост (пилот): кладём рядом с клиентом, чтобы не требовался npm install.
+$bridgeSrc = Join-Path $root 'bridge'
+$bridgeDst = Join-Path $dist 'bridge'
+if (Test-Path $bridgeSrc) {
+    Remove-Item $bridgeDst -Recurse -Force -ErrorAction SilentlyContinue
+    Copy-Item $bridgeSrc $bridgeDst -Recurse -Force
+    Write-Host "LiveKit-мост: $bridgeDst"
+}

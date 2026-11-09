@@ -16,6 +16,7 @@
 #include <QJsonObject>
 #include <QRandomGenerator>
 #include <QCoreApplication>
+#include <QFileInfo>
 #include <QNetworkDatagram>
 #include <QProcess>
 #include <QTimer>
@@ -706,9 +707,18 @@ void VoiceService::startLiveKitBridge(qint64 chatId)
                         qWarning("VOICE: LiveKit-мост завершился с кодом %d", code);
                     });
 
+            const QString bridgeScript =
+                QCoreApplication::applicationDirPath() + QStringLiteral("/bridge/index.js");
+            if (!QFileInfo::exists(bridgeScript)) {
+                emit errorOccurred(tr("Не найден bridge/index.js рядом с клиентом."));
+                stopLiveKit();
+                setState(State::Idle);
+                return;
+            }
+
             m_bridge->setWorkingDirectory(QCoreApplication::applicationDirPath());
             m_bridge->start(QStringLiteral("node"),
-                            {QStringLiteral("bridge/index.js"),
+                            {bridgeScript,
                              QStringLiteral("--url"), url,
                              QStringLiteral("--token"), token,
                              QStringLiteral("--port"), QString::number(m_bridgePort)});

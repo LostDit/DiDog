@@ -434,6 +434,14 @@ int runServer(int argc, char *argv[])
                                   parser.value(livekitSecretOption));
         qInfo().noquote() << QStringLiteral("LiveKit: %1")
                                  .arg(parser.value(livekitUrlOption));
+    } else {
+        const QString livekitUrl = qEnvironmentVariable("LIVEKIT_URL");
+        if (!livekitUrl.isEmpty()) {
+            server.core()->setLiveKit(livekitUrl,
+                                      qEnvironmentVariable("LIVEKIT_API_KEY"),
+                                      qEnvironmentVariable("LIVEKIT_API_SECRET"));
+            qInfo().noquote() << QStringLiteral("LiveKit: %1").arg(livekitUrl);
+        }
     }
 
     return app.exec();
