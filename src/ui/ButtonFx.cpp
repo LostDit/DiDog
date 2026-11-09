@@ -86,6 +86,9 @@ void ButtonFx::attach(QAbstractButton *button)
 
     m_states.insert(button, state);
     button->installEventFilter(this);
+    connect(button, &QObject::destroyed, this, [this, button]() {
+        m_states.remove(button);
+    });
 }
 
 void ButtonFx::animate(QAbstractButton *button, int blur, int offsetY)
@@ -95,6 +98,8 @@ void ButtonFx::animate(QAbstractButton *button, int blur, int offsetY)
         return;
 
     const State &state = it.value();
+    if (!state.blur || !state.offset || !state.shadow)
+        return;
 
     if (!m_enabled || !button->isEnabled()) {
         state.blur->stop();
@@ -122,27 +127,28 @@ bool ButtonFx::eventFilter(QObject *watched, QEvent *event)
     }
 
     if (auto *button = qobject_cast<QAbstractButton *>(watched)) {
+        const auto it = m_states.find(button);
+        if (it == m_states.end())
+            return QObject::eventFilter(watched, event);
+
+        State &state = it.value();
         switch (event->type()) {
         case QEvent::Enter: {
-            State &state = m_states[button];
             state.hovered = true;
             animate(button, state.pressed ? 22 : 14, state.pressed ? 2 : 0);
             break;
         }
         case QEvent::Leave: {
-            State &state = m_states[button];
             state.hovered = false;
             animate(button, state.pressed ? 16 : 0, state.pressed ? 2 : 0);
             break;
         }
         case QEvent::MouseButtonPress: {
-            State &state = m_states[button];
             state.pressed = true;
             animate(button, 22, 2);
             break;
         }
         case QEvent::MouseButtonRelease: {
-            State &state = m_states[button];
             state.pressed = false;
             animate(button, state.hovered ? 14 : 0, 0);
             break;
@@ -151,7 +157,7 @@ bool ButtonFx::eventFilter(QObject *watched, QEvent *event)
             animate(button, 12, 0);
             break;
         case QEvent::FocusOut:
-            animate(button, m_states.value(button).hovered ? 14 : 0, 0);
+            animate(button, state.hovered ? 14 : 0, 0);
             break;
         case QEvent::EnabledChange:
             animate(button, 0, 0);
