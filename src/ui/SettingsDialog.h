@@ -66,6 +66,8 @@ private:
     QCheckBox *m_soundCheck = nullptr;
     QComboBox *m_soundQualityCombo = nullptr;
     QCheckBox *m_e2eeCheck = nullptr;
+    QCheckBox *m_noiseCheck = nullptr;
+    QCheckBox *m_agcCheck = nullptr;
     QLineEdit *m_host = nullptr;
     QLineEdit *m_port = nullptr;
 

@@ -437,6 +437,11 @@ void VoiceService::setTransmitting(bool transmitting)
 void VoiceService::openAudio()
 {
     qInfo("VOICE: открытие аудио");
+    m_processor.reset();
+    if (m_settings) {
+        m_processor.setAgc(m_settings->voiceAgc());
+        m_processor.setNoiseSuppression(m_settings->voiceNoiseSuppression());
+    }
     const QAudioFormat format = voiceFormat();
 
     QAudioDeviceInfo inputDevice = QAudioDeviceInfo::defaultInputDevice();
@@ -781,7 +786,10 @@ void VoiceService::onAudioReady()
         if (!canSend)
             continue;
 
-        const QByteArray packet = m_codec->encode(frame);
+        QByteArray processed = frame;
+        m_processor.process(reinterpret_cast<qint16 *>(processed.data()),
+                            processed.size() / 2);
+        const QByteArray packet = m_codec->encode(processed);
         if (!packet.isEmpty())
             sendDatagram(packet);
     }

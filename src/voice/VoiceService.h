@@ -1,5 +1,6 @@
 #pragma once
 
+#include "voice/AudioProcessor.h"
 #include <QAudioFormat>
 #include <QByteArray>
 #include <QHostAddress>
@@ -125,6 +126,7 @@ private:
 
     QByteArray m_captureBuffer;
     QMap<quint64, QByteArray> m_jitter;
+    voice::AudioProcessor m_processor;
     int m_packetsSent = 0;
     int m_packetsReceived = 0;
     qint64 m_captureBytes = 0;

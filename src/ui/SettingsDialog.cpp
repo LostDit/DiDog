@@ -218,6 +218,24 @@ void SettingsDialog::buildUi()
     });
     layout->addWidget(m_e2eeCheck);
 
+    m_noiseCheck = new QCheckBox(tr("Шумоподавление (гейт)"), this);
+    m_noiseCheck->setObjectName(QStringLiteral("NoiseCheck"));
+    m_noiseCheck->setChecked(!m_settings || m_settings->voiceNoiseSuppression());
+    connect(m_noiseCheck, &QCheckBox::toggled, this, [this](bool enabled) {
+        if (m_settings)
+            m_settings->setVoiceNoiseSuppression(enabled);
+    });
+    layout->addWidget(m_noiseCheck);
+
+    m_agcCheck = new QCheckBox(tr("Автогромкость (AGC)"), this);
+    m_agcCheck->setObjectName(QStringLiteral("AgcCheck"));
+    m_agcCheck->setChecked(!m_settings || m_settings->voiceAgc());
+    connect(m_agcCheck, &QCheckBox::toggled, this, [this](bool enabled) {
+        if (m_settings)
+            m_settings->setVoiceAgc(enabled);
+    });
+    layout->addWidget(m_agcCheck);
+
     m_soundQualityCombo = new QComboBox(this);
     m_soundQualityCombo->setObjectName(QStringLiteral("SoundQualityCombo"));
     m_soundQualityCombo->addItem(tr("Речь — 96 кбит/с"), 96000);

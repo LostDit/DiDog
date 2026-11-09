@@ -45,6 +45,11 @@ public:
 
     bool notificationsEnabled() const;
     void setNotificationsEnabled(bool enabled);
+    bool voiceAgc() const;
+    void setVoiceAgc(bool enabled);
+    bool voiceNoiseSuppression() const;
+    void setVoiceNoiseSuppression(bool enabled);
+
     bool voiceE2ee() const;
     void setVoiceE2ee(bool enabled);
 
