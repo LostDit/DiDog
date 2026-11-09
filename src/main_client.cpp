@@ -53,11 +53,12 @@ int main(int argc, char *argv[])
 
     QApplication app(argc, argv);
     QCoreApplication::setApplicationName(QStringLiteral("MessengerApp"));
+    QGuiApplication::setApplicationDisplayName(QStringLiteral("DiDog"));
     QCoreApplication::setApplicationVersion(QStringLiteral(MESSENGER_VERSION));
     QApplication::setWindowIcon(QIcon(QStringLiteral(":/icons/logo.svg")));
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(QStringLiteral("MessengerApp — клиент мессенджера"));
+    parser.setApplicationDescription(QStringLiteral("DiDog — клиент мессенджера"));
     parser.addHelpOption();
     parser.addVersionOption();
 
@@ -82,7 +83,7 @@ int main(int argc, char *argv[])
     if (parser.isSet(profileOption)) {
         QString error;
         if (!parseProfile(parser.value(profileOption), &options.dataDir, &error)) {
-            QMessageBox::critical(nullptr, QStringLiteral("MessengerApp"), error);
+            QMessageBox::critical(nullptr, QStringLiteral("DiDog"), error);
             return 1;
         }
     }
@@ -94,7 +95,7 @@ int main(int argc, char *argv[])
 
     QString pathError;
     if (!app::paths::ensureDirectories(&pathError)) {
-        QMessageBox::critical(nullptr, QStringLiteral("MessengerApp"), pathError);
+        QMessageBox::critical(nullptr, QStringLiteral("DiDog"), pathError);
         return 1;
     }
 
@@ -122,7 +123,7 @@ int main(int argc, char *argv[])
         }
 
         qWarning().noquote() << instanceGuard.errorString();
-        QMessageBox::information(nullptr, QStringLiteral("MessengerApp"),
+        QMessageBox::information(nullptr, QStringLiteral("DiDog"),
                                  instanceGuard.errorString()
                                      + QStringLiteral("\n\nЗакройте уже запущенный клиент или "
                                                       "запустите второй с флагом --profile second."));

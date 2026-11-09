@@ -17,6 +17,7 @@ class QTimer;
 class QToolButton;
 
 class QSystemTrayIcon;
+class QTabWidget;
 class QTimer;
 
 namespace app {
@@ -112,6 +113,8 @@ private:
     void buildUi();
     QWidget *buildSidebar();
     QWidget *buildChatPane();
+    QWidget *buildTopBar();
+    QWidget *buildProfilePage();
     QWidget *buildEmptyPane();
     QWidget *buildConversationPane();
 
@@ -135,9 +138,11 @@ private:
     data::User m_user;
 
     AvatarWidget *m_profileAvatar = nullptr;
+    AvatarWidget *m_topAvatar = nullptr;
     QLabel *m_profileName = nullptr;
     QLabel *m_profileSub = nullptr;
     QToolButton *m_themeButton = nullptr;
+    QToolButton *m_profileTabButton = nullptr;
     QLineEdit *m_searchField = nullptr;
     QListView *m_chatList = nullptr;
     ChatListModel *m_chatModel = nullptr;
@@ -152,6 +157,7 @@ private:
     QToolButton *m_muteButton = nullptr;
     QToolButton *m_talkButton = nullptr;
     ParticipantsPanel *m_participantsPanel = nullptr;
+    QTabWidget *m_rightTabs = nullptr;
     bool m_panelVisible = false;
 
     QSystemTrayIcon *m_tray = nullptr;

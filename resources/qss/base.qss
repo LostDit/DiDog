@@ -794,3 +794,34 @@ QPushButton#TabButton:hover {
     color: {{text-muted}};
     font-size: 9pt;
 }
+#TopBar {
+    background-color: {{surface}};
+    border-bottom: 1px solid {{border}};
+}
+
+#TopBarTitle {
+    color: {{text}};
+    font-size: 15pt;
+    font-weight: 700;
+    padding-right: 8px;
+}
+
+#RightTabs::pane {
+    border-left: 1px solid {{border}};
+    border-top: none;
+    background-color: {{surface}};
+}
+
+#RightTabs QTabBar::tab {
+    background: transparent;
+    color: {{text-muted}};
+    padding: 7px 12px;
+    margin-right: 4px;
+    border-radius: 8px;
+}
+
+#RightTabs QTabBar::tab:selected {
+    background-color: {{accent-soft}};
+    color: {{accent}};
+    font-weight: 600;
+}

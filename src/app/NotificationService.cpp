@@ -30,7 +30,7 @@ void NotificationService::setUnreadCount(int count)
     m_unread = qMax(0, count);
 
     if (m_window) {
-        const QString base = QStringLiteral("MessengerApp");
+        const QString base = QStringLiteral("DiDog");
         m_window->setWindowTitle(m_unread > 0
                                      ? QStringLiteral("(%1) %2").arg(m_unread).arg(base)
                                      : base);

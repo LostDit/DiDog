@@ -1,7 +1,7 @@
 ﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
-    Публикует установщик MessengerApp в GitHub Releases.
+    Публикует установщик DiDog в GitHub Releases.
 .DESCRIPTION
     Использует учётные данные Git Credential Manager (те же, что для git push).
     Создаёт релиз по тегу, если его нет, и загружает установщик.
@@ -24,13 +24,13 @@ $root = Split-Path -Parent $PSScriptRoot
 
 if (-not $Installer) {
     $version = $Tag.TrimStart('v')
-    $Installer = Join-Path $root "dist\installer\MessengerApp-Setup-$version.exe"
+    $Installer = Join-Path $root "dist\installer\DiDog-Setup-$version.exe"
 }
 if (-not (Test-Path $Installer)) {
     throw "Не найден установщик: $Installer (сначала scripts\build-installer.ps1)"
 }
 if (-not $Name) {
-    $Name = "MessengerApp $($Tag.TrimStart('v'))"
+    $Name = "DiDog $($Tag.TrimStart('v'))"
 }
 
 $env:GIT_TERMINAL_PROMPT = '0'

@@ -38,7 +38,7 @@ LoginWindow::LoginWindow(net::ClientConnection *connection, app::SessionService 
 {
     setObjectName(QStringLiteral("Root"));
     setMinimumSize(920, 600);
-    setWindowTitle(QStringLiteral("MessengerApp"));
+    setWindowTitle(QStringLiteral("DiDog"));
 
     buildUi();
     applyMode();
@@ -97,7 +97,7 @@ void LoginWindow::buildUi()
     brandLogo->setPixmap(QIcon(QStringLiteral(":/icons/logo.svg")).pixmap(72, 72));
     brandLayout->addWidget(brandLogo);
 
-    brandLayout->addWidget(makeLabel(QStringLiteral("MessengerApp"), "LoginBrandTitle",
+    brandLayout->addWidget(makeLabel(QStringLiteral("DiDog"), "LoginBrandTitle",
                                      Qt::AlignLeft));
 
     auto *brandText = makeLabel(
@@ -127,7 +127,7 @@ void LoginWindow::buildUi()
     logo->setAlignment(Qt::AlignCenter);
     layout->addWidget(logo);
 
-    layout->addWidget(makeLabel(tr("MessengerApp"), "LoginTitle", Qt::AlignCenter));
+    layout->addWidget(makeLabel(tr("DiDog"), "LoginTitle", Qt::AlignCenter));
     layout->addWidget(makeLabel(tr("Общайтесь. Делитесь. Без лишнего."),
                                 "EmptySubtitle", Qt::AlignCenter));
 

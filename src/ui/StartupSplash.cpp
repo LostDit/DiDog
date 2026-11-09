@@ -82,7 +82,7 @@ StartupSplash::StartupSplash(QWidget *parent)
     m_logo->setAlignment(Qt::AlignCenter);
     layout->addWidget(m_logo);
 
-    auto *title = new QLabel(QStringLiteral("MessengerApp"), card);
+    auto *title = new QLabel(QStringLiteral("DiDog"), card);
     title->setObjectName(QStringLiteral("SplashTitle"));
     title->setAlignment(Qt::AlignCenter);
     layout->addWidget(title);

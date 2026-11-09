@@ -2,8 +2,8 @@
 ; Сборка: ISCC.exe installer\messengerapp.iss
 ; Требует предварительно собранный dist\MessengerApp (scripts\package-windows.ps1).
 
-#define AppName "MessengerApp"
-#define AppVersion "2.1.4"
+#define AppName "DiDog"
+#define AppVersion "2.2.0"
 #define AppPublisher "LostDit"
 #define AppUrl "https://github.com/LostDit/MessengerApp"
 #define ClientExe "MessengerClient.exe"

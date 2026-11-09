@@ -152,7 +152,7 @@ bool installService(const QStringList &arguments, QString *error)
     }
 
     const std::wstring name = QStringLiteral("MessengerAppServer").toStdWString();
-    const std::wstring displayName = QStringLiteral("MessengerApp Server").toStdWString();
+    const std::wstring displayName = QStringLiteral("DiDog Server").toStdWString();
     const std::wstring command = commandLine.toStdWString();
 
     SC_HANDLE service = CreateServiceW(
@@ -174,7 +174,7 @@ bool installService(const QStringList &arguments, QString *error)
     }
 
     const std::wstring description =
-        QStringLiteral("Сервер MessengerApp: обмен сообщениями и вложениями").toStdWString();
+        QStringLiteral("Сервер DiDog: обмен сообщениями и вложениями").toStdWString();
     SERVICE_DESCRIPTIONW descriptionData{const_cast<wchar_t *>(description.c_str())};
     ChangeServiceConfig2W(service, SERVICE_CONFIG_DESCRIPTION, &descriptionData);
 

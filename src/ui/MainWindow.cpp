@@ -89,7 +89,7 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
     , m_connection(connection)
 {
     setObjectName(QStringLiteral("Root"));
-    setWindowTitle(QStringLiteral("MessengerApp"));
+    setWindowTitle(QStringLiteral("DiDog"));
     setWindowIcon(QIcon(QStringLiteral(":/icons/logo.svg")));
     setMinimumSize(900, 600);
 
@@ -128,7 +128,7 @@ MainWindow::MainWindow(app::ChatService *chats, app::SessionService *session,
                                              : tr("Пропущенный вызов от %1").arg(callerName);
                     showToast(text);
                     if (m_tray && m_tray->isVisible()) {
-                        m_tray->showMessage(tr("MessengerApp"), text,
+                        m_tray->showMessage(tr("DiDog"), text,
                                             QSystemTrayIcon::Information, 4000);
                     }
                 });
@@ -192,6 +192,8 @@ void MainWindow::setUser(const data::User &user)
 {
     m_user = user;
     m_profileAvatar->setIdentity(user.displayName, user.avatarHue);
+    if (m_topAvatar)
+        m_topAvatar->setIdentity(user.displayName, user.avatarHue);
     m_profileName->setText(user.displayName);
     m_profileSub->setText(QStringLiteral("@%1").arg(user.username));
     m_messageView->setCurrentUserId(user.id);
@@ -241,11 +243,29 @@ void MainWindow::buildUi()
     auto *central = new QWidget;
     central->setObjectName(QStringLiteral("Root"));
 
-    auto *layout = new QHBoxLayout(central);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-    layout->addWidget(buildSidebar(), 0);
-    layout->addWidget(buildChatPane(), 1);
+    auto *root = new QVBoxLayout(central);
+    root->setContentsMargins(0, 0, 0, 0);
+    root->setSpacing(0);
+    root->addWidget(buildTopBar());
+
+    auto *content = new QHBoxLayout;
+    content->setContentsMargins(0, 0, 0, 0);
+    content->setSpacing(0);
+    content->addWidget(buildSidebar(), 0);
+    content->addWidget(buildChatPane(), 1);
+
+    m_rightTabs = new QTabWidget;
+    m_rightTabs->setObjectName(QStringLiteral("RightTabs"));
+    m_rightTabs->setFixedWidth(300);
+
+    m_participantsPanel = new ParticipantsPanel(m_chats, m_rightTabs);
+    connect(m_participantsPanel, &ParticipantsPanel::profileRequested,
+            this, &MainWindow::openProfile);
+    m_rightTabs->addTab(m_participantsPanel, tr("Участники"));
+    m_rightTabs->addTab(buildProfilePage(), tr("Профиль"));
+
+    content->addWidget(m_rightTabs, 0);
+    root->addLayout(content, 1);
 
     setCentralWidget(central);
 }
@@ -254,53 +274,12 @@ QWidget *MainWindow::buildSidebar()
 {
     auto *sidebar = new QFrame;
     sidebar->setObjectName(QStringLiteral("Sidebar"));
-    sidebar->setFixedWidth(320);
+    sidebar->setFixedWidth(300);
 
     auto *layout = new QVBoxLayout(sidebar);
     layout->setContentsMargins(16, 16, 16, 12);
     layout->setSpacing(12);
 
-    auto *profileRow = new QHBoxLayout;
-    profileRow->setSpacing(10);
-
-    m_profileAvatar = new AvatarWidget;
-    m_profileAvatar->setDiameter(38);
-    m_profileAvatar->setIdentity(QStringLiteral("Гость"), 212);
-    m_profileAvatar->setCursor(Qt::PointingHandCursor);
-    m_profileAvatar->installEventFilter(this);
-    profileRow->addWidget(m_profileAvatar);
-
-    auto *nameColumn = new QVBoxLayout;
-    nameColumn->setSpacing(1);
-    m_profileName = makeLabel(QStringLiteral("Гость"), "ProfileName", Qt::AlignLeft);
-    m_profileSub = makeLabel(QString(), "ProfileSub", Qt::AlignLeft);
-    nameColumn->addWidget(m_profileName);
-    nameColumn->addWidget(m_profileSub);
-    profileRow->addLayout(nameColumn);
-    profileRow->addStretch(1);
-
-    m_themeButton = makeIconButton(QStringLiteral(":/icons/moon.svg"), tr("Переключить тему"));
-    connect(m_themeButton, &QToolButton::clicked, this, &MainWindow::onThemeToggleClicked);
-    profileRow->addWidget(m_themeButton);
-
-    auto *menuButton = makeIconButton(QStringLiteral(":/icons/more.svg"), tr("Меню"));
-    auto *menu = new QMenu(menuButton);
-
-    QAction *settingsAction = menu->addAction(tr("Настройки…"));
-    connect(settingsAction, &QAction::triggered, this, &MainWindow::openSettings);
-
-    menu->addSeparator();
-
-    QAction *logoutAction = menu->addAction(tr("Выйти"));
-    connect(logoutAction, &QAction::triggered, this, [this]() {
-        if (m_session)
-            m_session->logout();
-    });
-    menuButton->setMenu(menu);
-    menuButton->setPopupMode(QToolButton::InstantPopup);
-    profileRow->addWidget(menuButton);
-
-    layout->addLayout(profileRow);
 
     auto *chatsRow = new QHBoxLayout;
     chatsRow->setSpacing(8);
@@ -312,15 +291,6 @@ QWidget *MainWindow::buildSidebar()
     chatsRow->addWidget(newChatButton);
     layout->addLayout(chatsRow);
 
-    m_searchField = new QLineEdit;
-    m_searchField->setObjectName(QStringLiteral("SearchField"));
-    m_searchField->setPlaceholderText(tr("Поиск"));
-    m_searchField->setClearButtonEnabled(true);
-    m_searchField->addAction(QIcon(QStringLiteral(":/icons/search.svg")),
-                             QLineEdit::LeadingPosition);
-    m_searchField->setFixedHeight(38);
-    m_searchField->setAccessibleName(tr("Поиск по чатам"));
-    layout->addWidget(m_searchField);
 
     m_chatModel = new ChatListModel(this);
     m_chatProxy = new QSortFilterProxyModel(this);
@@ -343,9 +313,6 @@ QWidget *MainWindow::buildSidebar()
     m_chatList->setAccessibleName(tr("Список чатов"));
     layout->addWidget(m_chatList, 1);
 
-    connect(m_searchField, &QLineEdit::textChanged, this, [this](const QString &text) {
-        m_chatProxy->setFilterFixedString(text);
-    });
     connect(m_chatList->selectionModel(), &QItemSelectionModel::currentChanged, this,
             [this](const QModelIndex &, const QModelIndex &) { onChatSelectionChanged(); });
 
@@ -357,6 +324,125 @@ QWidget *MainWindow::buildSidebar()
                                 "EmptySubtitle", Qt::AlignLeft));
 
     return sidebar;
+}
+
+QWidget *MainWindow::buildTopBar()
+{
+    auto *bar = new QFrame;
+    bar->setObjectName(QStringLiteral("TopBar"));
+    bar->setFixedHeight(64);
+
+    auto *layout = new QHBoxLayout(bar);
+    layout->setContentsMargins(14, 8, 14, 8);
+    layout->setSpacing(10);
+
+    auto *logo = new QLabel(bar);
+    logo->setPixmap(QIcon(QStringLiteral(":/icons/logo.svg")).pixmap(32, 32));
+    logo->setFixedSize(32, 32);
+    layout->addWidget(logo);
+
+    layout->addWidget(makeLabel(QStringLiteral("DiDog"), "TopBarTitle", Qt::AlignLeft));
+
+    m_searchField = new QLineEdit(bar);
+    m_searchField->setObjectName(QStringLiteral("SearchField"));
+    m_searchField->setPlaceholderText(tr("Поиск"));
+    m_searchField->setClearButtonEnabled(true);
+    m_searchField->addAction(QIcon(QStringLiteral(":/icons/search.svg")),
+                             QLineEdit::LeadingPosition);
+    m_searchField->setFixedHeight(36);
+    m_searchField->setFixedWidth(300);
+    m_searchField->setAccessibleName(tr("Поиск по чатам"));
+    layout->addWidget(m_searchField);
+
+    layout->addStretch(1);
+
+    auto *chatButton = makeIconButton(QStringLiteral(":/icons/chat.svg"), tr("Чаты"));
+    connect(chatButton, &QToolButton::clicked, this, [this]() {
+        if (m_searchField)
+            m_searchField->setFocus();
+    });
+    layout->addWidget(chatButton);
+
+    auto *membersButton = makeIconButton(QStringLiteral(":/icons/people.svg"), tr("Участники"));
+    connect(membersButton, &QToolButton::clicked, this, [this]() {
+        if (m_rightTabs)
+            m_rightTabs->setCurrentIndex(0);
+    });
+    layout->addWidget(membersButton);
+
+    m_themeButton = makeIconButton(QStringLiteral(":/icons/moon.svg"), tr("Переключить тему"));
+    connect(m_themeButton, &QToolButton::clicked, this, &MainWindow::onThemeToggleClicked);
+    layout->addWidget(m_themeButton);
+
+    auto *menuButton = makeIconButton(QStringLiteral(":/icons/more.svg"), tr("Меню"));
+    auto *menu = new QMenu(menuButton);
+    QAction *settingsAction = menu->addAction(tr("Настройки…"));
+    connect(settingsAction, &QAction::triggered, this, &MainWindow::openSettings);
+    menu->addSeparator();
+    QAction *logoutAction = menu->addAction(tr("Выйти"));
+    connect(logoutAction, &QAction::triggered, this, [this]() {
+        if (m_session)
+            m_session->logout();
+    });
+    menuButton->setMenu(menu);
+    menuButton->setPopupMode(QToolButton::InstantPopup);
+    layout->addWidget(menuButton);
+
+    m_topAvatar = new AvatarWidget;
+    m_topAvatar->setDiameter(34);
+    m_topAvatar->setIdentity(QStringLiteral("Гость"), 212);
+    m_topAvatar->setCursor(Qt::PointingHandCursor);
+    m_topAvatar->setToolTip(tr("Профиль"));
+    m_topAvatar->installEventFilter(this);
+    layout->addWidget(m_topAvatar);
+
+    connect(m_searchField, &QLineEdit::textChanged, this, [this](const QString &text) {
+        if (m_chatProxy)
+            m_chatProxy->setFilterFixedString(text);
+    });
+
+    return bar;
+}
+
+QWidget *MainWindow::buildProfilePage()
+{
+    auto *page = new QWidget;
+    auto *layout = new QVBoxLayout(page);
+    layout->setContentsMargins(20, 24, 20, 16);
+    layout->setSpacing(8);
+
+    m_profileAvatar = new AvatarWidget;
+    m_profileAvatar->setDiameter(76);
+    m_profileAvatar->setIdentity(QStringLiteral("Гость"), 212);
+    layout->addWidget(m_profileAvatar, 0, Qt::AlignHCenter);
+
+    m_profileName = makeLabel(QStringLiteral("Гость"), "ProfileName", Qt::AlignCenter);
+    m_profileSub = makeLabel(QString(), "ProfileSub", Qt::AlignCenter);
+    layout->addWidget(m_profileName);
+    layout->addWidget(m_profileSub);
+
+    auto *version = makeLabel(QStringLiteral("DiDog v%1").arg(QStringLiteral(MESSENGER_VERSION)),
+                              "EmptySubtitle", Qt::AlignCenter);
+    layout->addWidget(version);
+
+    layout->addStretch(1);
+
+    auto *settings = new QPushButton(tr("Настройки"), page);
+    settings->setObjectName(QStringLiteral("GhostButton"));
+    settings->setCursor(Qt::PointingHandCursor);
+    connect(settings, &QPushButton::clicked, this, &MainWindow::openSettings);
+    layout->addWidget(settings);
+
+    auto *logout = new QPushButton(tr("Выйти"), page);
+    logout->setObjectName(QStringLiteral("GhostButton"));
+    logout->setCursor(Qt::PointingHandCursor);
+    connect(logout, &QPushButton::clicked, this, [this]() {
+        if (m_session)
+            m_session->logout();
+    });
+    layout->addWidget(logout);
+
+    return page;
 }
 
 QWidget *MainWindow::buildChatPane()
@@ -564,17 +650,6 @@ QWidget *MainWindow::buildConversationPane()
 
     outer->addWidget(column, 1);
 
-    m_participantsPanel = new ParticipantsPanel(m_chats, page);
-    m_participantsPanel->hide();
-    connect(m_participantsPanel, &ParticipantsPanel::closeRequested, this, [this]() {
-        m_panelVisible = false;
-        if (m_participantsPanel)
-            m_participantsPanel->hide();
-    });
-    connect(m_participantsPanel, &ParticipantsPanel::profileRequested,
-            this, &MainWindow::openProfile);
-    outer->addWidget(m_participantsPanel);
-
     return page;
 }
 
@@ -742,14 +817,10 @@ void MainWindow::openChat(qint64 chatId)
         m_messageView->setAnimationsEnabled(m_settings && m_settings->animationsEnabled());
 
     const data::ChatSummary openSummary = m_chats->chat(chatId);
-    m_panelVisible = openSummary.chat.kind == QLatin1String("group");
-    if (m_participantsPanel) {
-        if (m_panelVisible) {
-            m_participantsPanel->setChat(chatId, m_user.id);
-            m_participantsPanel->show();
-        } else {
-            m_participantsPanel->hide();
-        }
+    if (m_participantsPanel)
+        m_participantsPanel->setChat(chatId, m_user.id);
+    if (m_rightTabs) {
+        m_rightTabs->setCurrentIndex(openSummary.chat.kind == QLatin1String("group") ? 0 : 1);
     }
     m_speakingUserId = 0;
     m_chats->setActiveChat(chatId);
@@ -800,15 +871,8 @@ void MainWindow::updateHeader()
     if (m_membersButton)
         m_membersButton->setVisible(isGroup);
 
-    if (m_participantsPanel && m_participantsPanel->isVisible()) {
-        if (isGroup)
-            m_participantsPanel->setChat(m_currentChatId, m_user.id);
-        else
-            m_participantsPanel->hide();
-    } else if (m_participantsPanel && isGroup && m_panelVisible) {
+    if (m_participantsPanel)
         m_participantsPanel->setChat(m_currentChatId, m_user.id);
-        m_participantsPanel->show();
-    }
 
     QString status;
     if (m_voice && m_voice->chatId() == m_currentChatId
@@ -871,6 +935,12 @@ void MainWindow::openProfile(qint64 userId)
 bool MainWindow::eventFilter(QObject *watched, QEvent *event)
 {
     if (event->type() == QEvent::MouseButtonRelease) {
+        if (watched == m_topAvatar) {
+            if (m_rightTabs)
+                m_rightTabs->setCurrentIndex(1);
+            return true;
+        }
+
         if (watched == m_profileAvatar) {
             if (m_currentChatId > 0)
                 openProfile(m_user.id);
@@ -1134,10 +1204,10 @@ void MainWindow::onMembersClicked()
     if (!m_participantsPanel)
         return;
 
-    const bool show = !m_panelVisible;
-    m_panelVisible = show;
-    m_participantsPanel->setChat(m_currentChatId, m_user.id);
-    m_participantsPanel->setVisible(show);
+    if (m_rightTabs)
+        m_rightTabs->setCurrentIndex(0);
+    if (m_participantsPanel)
+        m_participantsPanel->setChat(m_currentChatId, m_user.id);
 }
 
 void MainWindow::onTypingChanged(qint64 chatId, qint64 userId, bool typing)
@@ -1221,7 +1291,7 @@ void MainWindow::setupTray()
         return;
 
     m_tray = new QSystemTrayIcon(QIcon(QStringLiteral(":/icons/logo.svg")), this);
-    m_tray->setToolTip(QStringLiteral("MessengerApp"));
+    m_tray->setToolTip(QStringLiteral("DiDog"));
 
     auto *menu = new QMenu(this);
     auto *openAction = menu->addAction(tr("Открыть"));
@@ -1279,8 +1349,8 @@ void MainWindow::setTrayUnread(int count)
         return;
 
     m_tray->setToolTip(count > 0
-                           ? tr("MessengerApp — %1 непрочитанных").arg(count)
-                           : QStringLiteral("MessengerApp"));
+                           ? tr("DiDog — %1 непрочитанных").arg(count)
+                           : QStringLiteral("DiDog"));
 }
 
 void MainWindow::checkForUpdatesNow()
@@ -1306,7 +1376,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
         event->ignore();
 
         if (!m_trayHintShown) {
-            m_tray->showMessage(tr("MessengerApp"),
+            m_tray->showMessage(tr("DiDog"),
                                 tr("Свёрнуто в трей. Двойной клик — открыть."),
                                 QSystemTrayIcon::Information, 2500);
             m_trayHintShown = true;
