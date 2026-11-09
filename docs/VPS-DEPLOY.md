@@ -129,6 +129,18 @@ curl http://127.0.0.1:45080/metrics    # didog_connections, didog_uptime_seconds
 
 Порт 45080 не выставляйте наружу — только локально/monitoring.
 
+В systemd-юните (`/etc/systemd/system/messengerapp.service`) это строка
+`ExecStart`. Пример:
+
+```ini
+[Service]
+ExecStart=/opt/messengerapp/MessengerServer --port 45000 --voice-port 45001 \
+          --data /var/lib/messengerapp --tls --http-port 45080
+```
+
+Затем: `sudo systemctl daemon-reload && sudo systemctl restart messengerapp`,
+проверка: `curl http://127.0.0.1:45080/healthz`.
+
 Ограничение частоты: 60 запросов/с, burst 300 на сессию; превышение даёт
 ошибку `RATE_LIMITED`. Порог задаётся в коде (`ClientSession::setRateLimit`)
 и в тестах.

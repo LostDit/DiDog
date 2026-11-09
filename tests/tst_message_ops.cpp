@@ -56,6 +56,7 @@ private slots:
     void voiceSenderKeysAreRelayed();
     void rateLimitRejectsBurst();
     void healthEndpointResponds();
+    void voiceAcceptNotifiesCaller();
 
 private:
     QJsonObject request(net::ClientConnection &connection, const QString &type,
@@ -744,6 +745,75 @@ void TestMessageOps::healthEndpointResponds()
 
     QVERIFY(response.contains("200 OK"));
     QVERIFY(response.contains("\"status\":\"ok\""));
+}
+
+void TestMessageOps::voiceAcceptNotifiesCaller()
+{
+    net::ClientConnection caller;
+    net::ClientConnection callee;
+    caller.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    callee.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    QSignalSpy c1(&caller, &net::ClientConnection::socketConnected);
+    QSignalSpy c2(&callee, &net::ClientConnection::socketConnected);
+    QSignalSpy callerEvents(&caller, &net::ClientConnection::eventReceived);
+    caller.connectToServer();
+    callee.connectToServer();
+    QTRY_COMPARE_WITH_TIMEOUT(c1.count(), 1, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(c2.count(), 1, 15000);
+
+    bool ok = false;
+    request(caller, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("call_a")},
+                        {QStringLiteral("display_name"), QStringLiteral("Call A")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+    request(callee, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("call_b")},
+                        {QStringLiteral("display_name"), QStringLiteral("Call B")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+
+    const QJsonObject direct = request(caller, QStringLiteral("chat.direct"),
+                                       QJsonObject{{QStringLiteral("username"),
+                                                    QStringLiteral("call_b")}},
+                                       &ok);
+    QVERIFY(ok);
+    const double chatId = direct.value(QStringLiteral("data")).toObject()
+                              .value(QStringLiteral("chat")).toObject()
+                              .value(QStringLiteral("id")).toDouble();
+    const double calleeId = direct.value(QStringLiteral("data")).toObject()
+                                .value(QStringLiteral("chat")).toObject()
+                                .value(QStringLiteral("peer_id")).toDouble();
+
+    request(caller, QStringLiteral("voice.join"), QJsonObject{{QStringLiteral("chat_id"), chatId}}, &ok);
+    QVERIFY(ok);
+    request(callee, QStringLiteral("voice.join"), QJsonObject{{QStringLiteral("chat_id"), chatId}}, &ok);
+    QVERIFY(ok);
+    Q_UNUSED(calleeId)
+
+    // callee сообщает серверу, что принял вызов: caller должен получить событие.
+    const QJsonObject chats = request(callee, QStringLiteral("chat.list"), QJsonObject(), &ok);
+    QVERIFY(ok);
+    qint64 callerId = 0;
+    for (const QJsonValue &value : chats.value(QStringLiteral("data")).toObject()
+                                        .value(QStringLiteral("chats")).toArray()) {
+        const QJsonObject chat = value.toObject();
+        if (static_cast<qint64>(chat.value(QStringLiteral("id")).toDouble()) == static_cast<qint64>(chatId)) {
+            callerId = static_cast<qint64>(chat.value(QStringLiteral("peer")).toObject()
+                                                .value(QStringLiteral("id")).toDouble());
+        }
+    }
+    QVERIFY(callerId > 0);
+
+    request(callee, QStringLiteral("voice.accept"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId},
+                        {QStringLiteral("caller_id"), static_cast<double>(callerId)}},
+            &ok);
+    QVERIFY(ok);
+
+    QTRY_VERIFY_WITH_TIMEOUT(hasEvent(callerEvents, QStringLiteral("ev.voice.accepted")), 10000);
 }
 
 void TestMessageOps::foreignMessageCannotBeChanged()

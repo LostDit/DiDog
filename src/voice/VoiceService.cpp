@@ -719,6 +719,21 @@ void VoiceService::onEvent(const QString &name, const QJsonObject &data)
     const qint64 chatId = static_cast<qint64>(
         data.value(QStringLiteral("chat_id")).toDouble());
 
+    if (name == QLatin1String(core::proto::event::kVoice)) {
+        const bool joined = data.value(QStringLiteral("joined")).toBool(true);
+        if (!joined && chatId == m_chatId && m_state != State::Idle) {
+            stopCallTimer();
+            closeAudio();
+            closeUdp();
+            m_jitter.clear();
+            m_chatId = 0;
+            m_callerId = 0;
+            m_callerName.clear();
+            setState(State::Idle);
+        }
+        return;
+    }
+
     if (name == QLatin1String(core::proto::event::kVoiceSenderKeyEvent)) {
         if (chatId == m_chatId) {
             const qint64 fromUserId = static_cast<qint64>(
@@ -802,6 +817,8 @@ void VoiceService::onEvent(const QString &name, const QJsonObject &data)
     if (name == QLatin1String(core::proto::event::kVoiceCancelled)) {
         if (m_state == State::Ringing) {
             stopCallTimer();
+            closeAudio();
+            closeUdp();
             m_chatId = 0;
             m_callerId = 0;
             m_callerName.clear();

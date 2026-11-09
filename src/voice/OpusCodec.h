@@ -28,5 +28,5 @@ public:
 private:
     void *m_encoder = nullptr;
     void *m_decoder = nullptr;
-    int m_bitrate = 32000;
+    int m_bitrate = 96000;
 };

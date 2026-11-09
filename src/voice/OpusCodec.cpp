@@ -124,6 +124,11 @@ bool OpusCodec::open(QString *error)
     api().encoder_ctl(reinterpret_cast<OpusEncoder *>(m_encoder), OPUS_SET_INBAND_FEC_REQUEST, 1);
     api().encoder_ctl(reinterpret_cast<OpusEncoder *>(m_encoder),
                       OPUS_SET_PACKET_LOSS_PERC_REQUEST, 10);
+    // Максимальное качество голоса: 96 кбит/с, VBR, complexity 10, без DTX.
+    api().encoder_ctl(reinterpret_cast<OpusEncoder *>(m_encoder), 4006 /*VBR*/, 1);
+    api().encoder_ctl(reinterpret_cast<OpusEncoder *>(m_encoder), 4010 /*COMPLEXITY*/, 10);
+    api().encoder_ctl(reinterpret_cast<OpusEncoder *>(m_encoder), 4024 /*SIGNAL*/, 3001 /*VOICE*/);
+    api().encoder_ctl(reinterpret_cast<OpusEncoder *>(m_encoder), 4016 /*DTX*/, 0);
 
     m_decoder = api().decoder_create(kSampleRate, kChannels, &opusError);
     if (!m_decoder || opusError != OPUS_OK) {
