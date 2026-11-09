@@ -35,9 +35,13 @@ sudo bash db-reset.sh --yes  # выполнить
 ## 3. Удаление тестовых пользователей
 
 ```bash
-sudo bash db-purge-users.sh --like 'anna_%' --like 'maksim_%'          # отчёт
-sudo bash db-purge-users.sh --like 'anna_%' --like 'maksim_%' --yes    # удалить
+sudo bash db-purge-users.sh --list                                  # все пользователи
+sudo bash db-purge-users.sh --like 'anna_%' --like 'maksim_%'       # отчёт
+sudo bash db-purge-users.sh --display-like 'Rob Bot%' --yes         # удалить по имени
 ```
+
+Можно комбинировать `--like` (username) и `--display-like` (отображаемое имя).
+Если не знаете username ботов — сначала `--list`, затем удалите по имени.
 
 Удаляет пользователей по `username LIKE`, их сообщения (вложения и квитанции
 каскадом) и осиротевшие чаты. Перед удалением делает бэкап и останавливает

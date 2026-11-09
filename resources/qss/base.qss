@@ -741,9 +741,10 @@ QComboBox#SettingsCombo QAbstractItemView {
 #SettingsTabs QTabBar::tab {
     background: transparent;
     color: {{text-muted}};
-    padding: 8px 14px;
-    margin-right: 4px;
+    padding: 7px 16px;
+    margin-right: 6px;
     border-radius: 8px;
+    min-width: 88px;
 }
 
 #SettingsTabs QTabBar::tab:selected {

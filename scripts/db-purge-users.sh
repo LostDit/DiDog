@@ -1,30 +1,30 @@
 #!/usr/bin/env bash
-# Удаление пользователей серверной БД по LIKE-шаблонам (тестовые аккаунты).
+# Удаление пользователей серверной БД по шаблонам username и/или display_name.
 # По умолчанию — только отчёт.
 #
 # Использование:
-#   sudo bash db-purge-users.sh --like 'anna_%' --like 'maksim_%'   # отчёт
-#   sudo bash db-purge-users.sh --like 'anna_%' --yes               # удалить
+#   sudo bash db-purge-users.sh --list
+#   sudo bash db-purge-users.sh --like 'anna_%' --like 'maksim_%'          # отчёт
+#   sudo bash db-purge-users.sh --display-like 'Rob Bot%' --yes            # удалить
 #
 set -euo pipefail
 
 DATA_DIR="/var/lib/messengerapp"
-PATTERNS=()
+USER_PATTERNS=()
+NAME_PATTERNS=()
 YES=0
+LIST=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --data) DATA_DIR="$2"; shift 2 ;;
-        --like) PATTERNS+=("$2"); shift 2 ;;
+        --like) USER_PATTERNS+=("$2"); shift 2 ;;
+        --display-like) NAME_PATTERNS+=("$2"); shift 2 ;;
         --yes) YES=1; shift ;;
+        --list) LIST=1; shift ;;
         *) echo "Неизвестный параметр: $1" >&2; exit 2 ;;
     esac
 done
-
-if [[ ${#PATTERNS[@]} -eq 0 ]]; then
-    echo "Укажите хотя бы один --like 'шаблон%'" >&2
-    exit 2
-fi
 
 DB="$DATA_DIR/server.db"
 if [[ ! -f "$DB" ]]; then
@@ -36,15 +36,35 @@ if ! command -v sqlite3 >/dev/null 2>&1; then
     exit 2
 fi
 
+if [[ "$LIST" -eq 1 ]]; then
+    echo "== Все пользователи =="
+    sqlite3 -header -column "$DB" \
+        "SELECT u.id, u.username, u.display_name,
+                (SELECT COUNT(*) FROM messages m WHERE m.sender_id = u.id) AS messages
+         FROM users u ORDER BY u.id;"
+    exit 0
+fi
+
+if [[ ${#USER_PATTERNS[@]} -eq 0 && ${#NAME_PATTERNS[@]} -eq 0 ]]; then
+    echo "Укажите --like 'шаблон%' и/или --display-like 'Имя%' (или --list)" >&2
+    exit 2
+fi
+
 WHERE=""
-for pattern in "${PATTERNS[@]}"; do
+for pattern in "${USER_PATTERNS[@]}"; do
     escaped="${pattern//\'/\'\'}"
     if [[ -n "$WHERE" ]]; then WHERE+=" OR "; fi
     WHERE+="username LIKE '$escaped'"
 done
+for pattern in "${NAME_PATTERNS[@]}"; do
+    escaped="${pattern//\'/\'\'}"
+    if [[ -n "$WHERE" ]]; then WHERE+=" OR "; fi
+    WHERE+="display_name LIKE '$escaped'"
+done
 
 echo "== Кандидаты на удаление =="
-sqlite3 -header -column "$DB" "SELECT id, username, display_name FROM users WHERE $WHERE ORDER BY id;"
+sqlite3 -header -column "$DB" \
+    "SELECT id, username, display_name FROM users WHERE $WHERE ORDER BY id;"
 
 COUNT=$(sqlite3 "$DB" "SELECT COUNT(*) FROM users WHERE $WHERE;")
 MESSAGES=$(sqlite3 "$DB" "SELECT COUNT(*) FROM messages WHERE sender_id IN (SELECT id FROM users WHERE $WHERE);")
