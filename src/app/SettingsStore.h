@@ -45,6 +45,9 @@ public:
 
     bool notificationsEnabled() const;
     void setNotificationsEnabled(bool enabled);
+    bool voiceE2ee() const;
+    void setVoiceE2ee(bool enabled);
+
     int voiceBitrate() const;
     void setVoiceBitrate(int bitrate);
 

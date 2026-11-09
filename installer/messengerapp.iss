@@ -4,7 +4,7 @@
 ; Requires dist\MessengerApp built by scripts\package-windows.ps1.
 
 #define AppName "DiDog"
-#define AppVersion "2.8.4"
+#define AppVersion "2.8.5"
 #define AppPublisher "LostDit"
 #define AppUrl "https://github.com/LostDit/DiDog"
 #define ClientExe "MessengerClient.exe"

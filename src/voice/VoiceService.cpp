@@ -243,7 +243,10 @@ void VoiceService::call(qint64 chatId)
             openUdp(static_cast<quint16>(data.value(QStringLiteral("udp_port")).toInt()),
                     static_cast<quint32>(data.value(QStringLiteral("udp_token")).toDouble()),
                     key);
-            beginE2ee(data);
+            if (!m_settings || m_settings->voiceE2ee())
+                beginE2ee(data);
+            else
+                qInfo("VOICE: E2EE отключён настройкой, используется ключ комнаты");
             openAudio();
 
             m_connection->request(
@@ -300,7 +303,10 @@ void VoiceService::accept(qint64 chatId, qint64 callerId)
             openUdp(static_cast<quint16>(data.value(QStringLiteral("udp_port")).toInt()),
                     static_cast<quint32>(data.value(QStringLiteral("udp_token")).toDouble()),
                     key);
-            beginE2ee(data);
+            if (!m_settings || m_settings->voiceE2ee())
+                beginE2ee(data);
+            else
+                qInfo("VOICE: E2EE отключён настройкой, используется ключ комнаты");
             openAudio();
 
             m_connection->request(
@@ -452,6 +458,8 @@ void VoiceService::openAudio()
 
     m_input = new QAudioInput(inputDevice, m_inputFormat, this);
     m_inputDevice = m_input->start();
+    qInfo("VOICE: состояние микрофона=%d, ошибка=%d", int(m_input->state()),
+          int(m_input->error()));
     if (!m_inputDevice) {
         emit errorOccurred(tr("Не удалось открыть микрофон."));
         return;
@@ -468,6 +476,8 @@ void VoiceService::openAudio()
 
     m_output = new QAudioOutput(outputDevice, m_outputFormat, this);
     m_outputDevice = m_output->start();
+    qInfo("VOICE: состояние динамиков=%d, ошибка=%d", int(m_output->state()),
+          int(m_output->error()));
     m_jitterTimer->start();
 }
 

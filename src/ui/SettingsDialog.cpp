@@ -209,6 +209,15 @@ void SettingsDialog::buildUi()
             [this](bool enabled) { m_settings->setVoicePushToTalk(enabled); });
     layout->addWidget(m_pttCheck);
 
+    m_e2eeCheck = new QCheckBox(tr("Шифрование голоса (E2EE, выключите для диагностики)"), this);
+    m_e2eeCheck->setObjectName(QStringLiteral("E2eeCheck"));
+    m_e2eeCheck->setChecked(!m_settings || m_settings->voiceE2ee());
+    connect(m_e2eeCheck, &QCheckBox::toggled, this, [this](bool enabled) {
+        if (m_settings)
+            m_settings->setVoiceE2ee(enabled);
+    });
+    layout->addWidget(m_e2eeCheck);
+
     m_soundQualityCombo = new QComboBox(this);
     m_soundQualityCombo->setObjectName(QStringLiteral("SoundQualityCombo"));
     m_soundQualityCombo->addItem(tr("Речь — 96 кбит/с"), 96000);
