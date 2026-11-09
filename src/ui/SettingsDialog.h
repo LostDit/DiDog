@@ -64,6 +64,7 @@ private:
     QLabel *m_languageHint = nullptr;
     QCheckBox *m_notifications = nullptr;
     QCheckBox *m_soundCheck = nullptr;
+    QComboBox *m_soundQualityCombo = nullptr;
     QLineEdit *m_host = nullptr;
     QLineEdit *m_port = nullptr;
 

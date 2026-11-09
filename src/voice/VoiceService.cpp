@@ -153,6 +153,9 @@ void VoiceService::call(qint64 chatId)
     if (m_state != State::Idle)
         hangup();
 
+    if (m_settings)
+        m_codec->setBitrate(m_settings->voiceBitrate());
+
     QString codecError;
     if (!m_codec->open(&codecError)) {
         emit errorOccurred(codecError);
@@ -207,6 +210,9 @@ void VoiceService::accept(qint64 chatId, qint64 callerId)
         emit errorOccurred(tr("Нет соединения с сервером."));
         return;
     }
+
+    if (m_settings)
+        m_codec->setBitrate(m_settings->voiceBitrate());
 
     QString codecError;
     if (!m_codec->open(&codecError)) {

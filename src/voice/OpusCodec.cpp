@@ -102,6 +102,15 @@ bool OpusCodec::isAvailable(QString *error)
     return loadApi(error);
 }
 
+void OpusCodec::setBitrate(int bitrate)
+{
+    m_bitrate = qBound(6000, bitrate, 510000);
+    if (m_encoder) {
+        api().encoder_ctl(reinterpret_cast<OpusEncoder *>(m_encoder),
+                          OPUS_SET_BITRATE_REQUEST, m_bitrate);
+    }
+}
+
 bool OpusCodec::open(QString *error)
 {
     if (isOpen())

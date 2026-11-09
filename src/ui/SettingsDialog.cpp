@@ -209,6 +209,26 @@ void SettingsDialog::buildUi()
             [this](bool enabled) { m_settings->setVoicePushToTalk(enabled); });
     layout->addWidget(m_pttCheck);
 
+    m_soundQualityCombo = new QComboBox(this);
+    m_soundQualityCombo->setObjectName(QStringLiteral("SoundQualityCombo"));
+    m_soundQualityCombo->addItem(tr("Речь — 96 кбит/с"), 96000);
+    m_soundQualityCombo->addItem(tr("Музыка — 128 кбит/с"), 128000);
+    m_soundQualityCombo->addItem(tr("Максимум — 192 кбит/с"), 192000);
+    const int qualityIndex =
+        m_soundQualityCombo->findData(m_settings ? m_settings->voiceBitrate() : 96000);
+    if (qualityIndex >= 0)
+        m_soundQualityCombo->setCurrentIndex(qualityIndex);
+    connect(m_soundQualityCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            [this](int) {
+                if (m_settings)
+                    m_settings->setVoiceBitrate(m_soundQualityCombo->currentData().toInt());
+            });
+    auto *qualityRow = new QHBoxLayout;
+    qualityRow->setSpacing(8);
+    qualityRow->addWidget(new QLabel(tr("Качество звука"), this));
+    qualityRow->addWidget(m_soundQualityCombo, 1);
+    layout->addLayout(qualityRow);
+
     auto *devicesRow = new QHBoxLayout;
     devicesRow->setSpacing(8);
 

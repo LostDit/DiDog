@@ -17,6 +17,7 @@ public:
     static bool isAvailable(QString *error = nullptr);
 
     bool open(QString *error = nullptr);
+    void setBitrate(int bitrate);
     void close();
 
     // PCM 48 кГц, моно, 16 бит, 20 мс = 1920 байт.
