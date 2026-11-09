@@ -223,6 +223,8 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleVoiceCancel(data, session);
     if (type == QLatin1String(core::proto::type::kVoiceSpeaking))
         return handleVoiceSpeaking(data, session);
+    if (type == QLatin1String(core::proto::type::kVoicePubkey))
+        return handleVoicePubkey(data, session);
     if (type == QLatin1String(core::proto::type::kUpdateManifest))
         return handleUpdateManifest(session);
     if (type == QLatin1String(core::proto::type::kUpdateDownload))
@@ -1209,7 +1211,46 @@ HandlerResult ServerCore::handleVoiceJoin(const QJsonObject &data, ClientSession
     payload.insert(QStringLiteral("udp_token"), static_cast<double>(voiceToken));
     payload.insert(QStringLiteral("voice_key"),
                    QString::fromLatin1(voiceKey.toHex()));
+    payload.insert(QStringLiteral("participants"), m_voiceRooms.value(chatId).size());
+
+    // Публичные ключи уже подключившихся участников (кроме себя) для E2EE.
+    QJsonObject pubkeys;
+    const QHash<qint64, QString> known = m_voicePubkeys.value(chatId);
+    for (auto it = known.constBegin(); it != known.constEnd(); ++it) {
+        if (it.key() == session->userId())
+            continue;
+        pubkeys.insert(QString::number(it.key()), it.value());
+    }
+    payload.insert(QStringLiteral("pubkeys"), pubkeys);
     return HandlerResult::success(payload);
+}
+
+HandlerResult ServerCore::handleVoicePubkey(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+    const QString pubkey = stringValue(data, "pubkey").trimmed();
+
+    if (pubkey.isEmpty() || pubkey.size() > 128)
+        return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                      QStringLiteral("Некорректный публичный ключ"));
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    bool member = false;
+    if (!chats.isMember(chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    m_voicePubkeys[chatId].insert(session->userId(), pubkey);
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    event.insert(QStringLiteral("user_id"), static_cast<double>(session->userId()));
+    event.insert(QStringLiteral("pubkey"), pubkey);
+    broadcastToChat(chatId, core::proto::event::kVoicePubkeyEvent, event, session);
+
+    return HandlerResult::success();
 }
 
 HandlerResult ServerCore::handleVoiceLeave(const QJsonObject &data, ClientSession *session)

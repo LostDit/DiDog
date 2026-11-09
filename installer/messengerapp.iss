@@ -1,10 +1,10 @@
-﻿; DiDog installer (Inno Setup 7).
+; DiDog installer (Inno Setup 7).
 ; Full build:      ISCC.exe installer\messengerapp.iss
 ; Client-only:     ISCC.exe /DClientOnly=1 installer\messengerapp.iss
 ; Requires dist\MessengerApp built by scripts\package-windows.ps1.
 
 #define AppName "DiDog"
-#define AppVersion "2.5.0"
+#define AppVersion "2.6.0"
 #define AppPublisher "LostDit"
 #define AppUrl "https://github.com/LostDit/DiDog"
 #define ClientExe "MessengerClient.exe"

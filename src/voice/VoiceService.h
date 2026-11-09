@@ -80,6 +80,8 @@ private slots:
 
 private:
     void startRoom(qint64 chatId);
+    void beginE2ee(const QJsonObject &data);
+    void applyPeerKey(qint64 userId, const QString &pubkeyBase64);
     void openAudio();
     void closeAudio();
     void openUdp(quint16 port, quint32 token, const QByteArray &key);
@@ -108,6 +110,11 @@ private:
     quint16 m_serverVoicePort = 0;
     quint32 m_token = 0;
     QByteArray m_key;
+    QByteArray m_roomKey;
+    QByteArray m_privateKey;
+    QByteArray m_publicKey;
+    int m_participants = 2;
+    QHash<qint64, QString> m_pendingPeerKeys;
     QHash<quint32, quint32> m_lastSequenceByUser;
 
     QByteArray m_captureBuffer;

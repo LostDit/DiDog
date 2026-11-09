@@ -50,6 +50,7 @@ private slots:
     void forwardCopiesTextToAnotherChat();
     void pinnedMessageAppearsInChat();
     void chatFlagsArePersisted();
+    void voicePubkeysAreRelayed();
 
 private:
     QJsonObject request(net::ClientConnection &connection, const QString &type,
@@ -561,6 +562,63 @@ void TestMessageOps::chatFlagsArePersisted()
     QVERIFY(archived.value(QStringLiteral("data")).toObject()
                 .value(QStringLiteral("chats")).toArray()
                 .first().toObject().value(QStringLiteral("archived")).toBool());
+}
+
+void TestMessageOps::voicePubkeysAreRelayed()
+{
+    net::ClientConnection first;
+    net::ClientConnection second;
+    first.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    second.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    QSignalSpy c1(&first, &net::ClientConnection::socketConnected);
+    QSignalSpy c2(&second, &net::ClientConnection::socketConnected);
+    QSignalSpy events(&second, &net::ClientConnection::eventReceived);
+    first.connectToServer();
+    second.connectToServer();
+    QTRY_COMPARE_WITH_TIMEOUT(c1.count(), 1, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(c2.count(), 1, 15000);
+
+    bool ok = false;
+    request(first, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("voice_a")},
+                        {QStringLiteral("display_name"), QStringLiteral("Voice A")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+    request(second, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("voice_b")},
+                        {QStringLiteral("display_name"), QStringLiteral("Voice B")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+
+    const QJsonObject direct = request(first, QStringLiteral("chat.direct"),
+                                       QJsonObject{{QStringLiteral("username"),
+                                                    QStringLiteral("voice_b")}},
+                                       &ok);
+    QVERIFY(ok);
+    const double chatId = direct.value(QStringLiteral("data")).toObject()
+                              .value(QStringLiteral("chat")).toObject()
+                              .value(QStringLiteral("id")).toDouble();
+
+    request(first, QStringLiteral("voice.join"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId}}, &ok);
+    QVERIFY(ok);
+    request(second, QStringLiteral("voice.join"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId}}, &ok);
+    QVERIFY(ok);
+
+    QByteArray pubkey(32, 'p');
+    const QString encoded = QString::fromLatin1(pubkey.toBase64());
+    request(first, QStringLiteral("voice.pubkey"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId},
+                        {QStringLiteral("pubkey"), encoded}},
+            &ok);
+    QVERIFY(ok);
+
+    QTRY_VERIFY_WITH_TIMEOUT(hasEvent(events, QStringLiteral("ev.voice_pubkey")), 10000);
+    const QJsonObject event = eventData(events, QStringLiteral("ev.voice_pubkey"));
+    QCOMPARE(event.value(QStringLiteral("pubkey")).toString(), encoded);
 }
 
 void TestMessageOps::foreignMessageCannotBeChanged()

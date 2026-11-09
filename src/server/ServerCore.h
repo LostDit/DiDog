@@ -72,6 +72,7 @@ private:
     HandlerResult handleVoiceDecline(const QJsonObject &data, ClientSession *session);
     HandlerResult handleVoiceCancel(const QJsonObject &data, ClientSession *session);
     HandlerResult handleVoiceSpeaking(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleVoicePubkey(const QJsonObject &data, ClientSession *session);
     HandlerResult handleUpdateManifest(ClientSession *session);
     HandlerResult handleUpdateDownload(const QJsonObject &data, ClientSession *session);
 
@@ -155,6 +156,7 @@ private:
     QHash<quint32, VoiceEndpoint> m_voiceEndpoints;
     QHash<ClientSession *, quint32> m_sessionVoiceTokens;
     QHash<qint64, QByteArray> m_voiceKeys;
+    QHash<qint64, QHash<qint64, QString>> m_voicePubkeys;
 
     bool isUserOnline(qint64 userId) const;
 };

@@ -185,6 +185,7 @@ void VoiceService::call(qint64 chatId)
             openUdp(static_cast<quint16>(data.value(QStringLiteral("udp_port")).toInt()),
                     static_cast<quint32>(data.value(QStringLiteral("udp_token")).toDouble()),
                     key);
+            beginE2ee(data);
             openAudio();
 
             m_connection->request(
@@ -238,6 +239,7 @@ void VoiceService::accept(qint64 chatId, qint64 callerId)
             openUdp(static_cast<quint16>(data.value(QStringLiteral("udp_port")).toInt()),
                     static_cast<quint32>(data.value(QStringLiteral("udp_token")).toDouble()),
                     key);
+            beginE2ee(data);
             openAudio();
 
             m_connection->request(
@@ -409,6 +411,56 @@ void VoiceService::closeAudio()
     }
 }
 
+void VoiceService::beginE2ee(const QJsonObject &data)
+{
+    m_participants = data.value(QStringLiteral("participants")).toInt(2);
+    m_roomKey = m_key;
+    m_pendingPeerKeys.clear();
+
+    QString error;
+    if (!VoiceCrypto::generateKeyPair(&m_privateKey, &m_publicKey, &error)) {
+        emit errorOccurred(tr("Не удалось создать ключ E2EE: %1").arg(error));
+        return;
+    }
+
+    const QJsonObject pubkeys = data.value(QStringLiteral("pubkeys")).toObject();
+    for (auto it = pubkeys.constBegin(); it != pubkeys.constEnd(); ++it)
+        applyPeerKey(it.key().toLongLong(), it.value().toString());
+
+    if (m_connection) {
+        m_connection->request(
+            QStringLiteral("voice.pubkey"),
+            QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(m_chatId)},
+                        {QStringLiteral("pubkey"),
+                         QString::fromLatin1(m_publicKey.toBase64())}},
+            nullptr, 10000);
+    }
+}
+
+void VoiceService::applyPeerKey(qint64 userId, const QString &pubkeyBase64)
+{
+    if (userId <= 0 || pubkeyBase64.isEmpty())
+        return;
+
+    if (m_privateKey.isEmpty()) {
+        m_pendingPeerKeys.insert(userId, pubkeyBase64);
+        return;
+    }
+
+    // Групповые звонки пока используют ключ комнаты (см. docs/VOICE-SECURITY.md).
+    if (m_participants > 2)
+        return;
+
+    const QByteArray peerKey = QByteArray::fromBase64(pubkeyBase64.toLatin1());
+    bool ok = false;
+    const QByteArray secret = VoiceCrypto::deriveSharedSecret(m_privateKey, peerKey, &ok);
+    if (!ok || secret.size() != 32)
+        return;
+
+    const QByteArray info = QByteArrayLiteral("chat-") + QByteArray::number(m_chatId);
+    m_key = VoiceCrypto::hkdfSha256(secret, QByteArrayLiteral("didog-voice"), info);
+}
+
 void VoiceService::openUdp(quint16 port, quint32 token, const QByteArray &key)
 {
     closeUdp();
@@ -455,6 +507,11 @@ void VoiceService::closeUdp()
 
     m_token = 0;
     m_key.clear();
+    m_roomKey.clear();
+    m_privateKey.clear();
+    m_publicKey.clear();
+    m_pendingPeerKeys.clear();
+    m_participants = 2;
     m_lastSequenceByUser.clear();
 }
 
@@ -620,6 +677,15 @@ void VoiceService::onEvent(const QString &name, const QJsonObject &data)
 {
     const qint64 chatId = static_cast<qint64>(
         data.value(QStringLiteral("chat_id")).toDouble());
+
+    if (name == QLatin1String(core::proto::event::kVoicePubkeyEvent)) {
+        if (chatId == m_chatId) {
+            const qint64 userId = static_cast<qint64>(
+                data.value(QStringLiteral("user_id")).toDouble());
+            applyPeerKey(userId, data.value(QStringLiteral("pubkey")).toString());
+        }
+        return;
+    }
 
     if (name == QLatin1String(core::proto::event::kVoiceInvite)) {
         const qint64 callerId = static_cast<qint64>(

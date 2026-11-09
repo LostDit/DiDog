@@ -370,3 +370,12 @@ C: attach.ack {transfer_id: 12}      // только после проверки
 массив закреплённых сообщений. Список чатов отдаёт `pinned`, `muted`, `archived`.
 
 Миграции: v7 — `reactions`, v8 — `pins`, v9 — `chat_members.pinned/muted/archived`.
+## Голос: E2EE-обмен ключами (2.6.0)
+
+| Запрос | Поля | Ответ |
+|---|---|---|
+| `voice.pubkey` | `chat_id`, `pubkey` (base64 X25519) | `{}` |
+
+`voice.join` дополнительно возвращает `participants` и `pubkeys`
+(`{ "<user_id>": "<base64>" }`). Событие `ev.voice_pubkey`:
+`chat_id`, `user_id`, `pubkey`.
