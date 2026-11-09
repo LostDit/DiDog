@@ -1037,6 +1037,42 @@ void ChatService::markRead(qint64 chatId)
     m_connection->request(QStringLiteral("chat.read"), request, nullptr, 10000);
 }
 
+void ChatService::react(qint64 chatId, qint64 messageId, const QString &emoji, bool on)
+{
+    if (!m_connection || !m_connection->isConnected() || emoji.isEmpty())
+        return;
+
+    ChatState &state = m_states[chatId];
+    bool found = false;
+    for (data::Message &message : state.messages) {
+        if (message.id != messageId)
+            continue;
+        found = true;
+        const int current = message.reactionCounts.value(emoji, 0);
+        if (on) {
+            message.reactionCounts.insert(emoji, current + 1);
+            message.myReactions.insert(emoji);
+        } else {
+            if (current <= 1)
+                message.reactionCounts.remove(emoji);
+            else
+                message.reactionCounts.insert(emoji, current - 1);
+            message.myReactions.remove(emoji);
+        }
+        break;
+    }
+    if (!found)
+        return;
+
+    emit messagesChanged(chatId);
+
+    QJsonObject request{{QStringLiteral("chat_id"), static_cast<double>(chatId)},
+                        {QStringLiteral("message_id"), static_cast<double>(messageId)},
+                        {QStringLiteral("emoji"), emoji},
+                        {QStringLiteral("on"), on}};
+    m_connection->request(QStringLiteral("msg.react"), request, nullptr, 10000);
+}
+
 void ChatService::createDirect(const QString &username)
 {
     QJsonObject request;
@@ -1087,6 +1123,39 @@ void ChatService::onEvent(const QString &event, const QJsonObject &data)
         resolveReplyPreview(message.chatId, &message);
         if (message.id > 0)
             handleNewMessage(message);
+        return;
+    }
+
+    if (event == QLatin1String(core::proto::event::kReaction)) {
+        const qint64 chatId = static_cast<qint64>(
+            data.value(QStringLiteral("chat_id")).toDouble());
+        const qint64 messageId = static_cast<qint64>(
+            data.value(QStringLiteral("message_id")).toDouble());
+        const qint64 userId = static_cast<qint64>(
+            data.value(QStringLiteral("user_id")).toDouble());
+        const QString emoji = data.value(QStringLiteral("emoji")).toString();
+        const bool on = data.value(QStringLiteral("on")).toBool(true);
+
+        ChatState &state = m_states[chatId];
+        for (data::Message &message : state.messages) {
+            if (message.id != messageId)
+                continue;
+            const int current = message.reactionCounts.value(emoji, 0);
+            if (on) {
+                message.reactionCounts.insert(emoji, current + 1);
+                if (userId == m_currentUserId)
+                    message.myReactions.insert(emoji);
+            } else {
+                if (current <= 1)
+                    message.reactionCounts.remove(emoji);
+                else
+                    message.reactionCounts.insert(emoji, current - 1);
+                if (userId == m_currentUserId)
+                    message.myReactions.remove(emoji);
+            }
+            break;
+        }
+        emit messagesChanged(chatId);
         return;
     }
 

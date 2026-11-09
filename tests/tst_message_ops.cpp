@@ -46,6 +46,7 @@ private slots:
     void editAndDeleteReachBothSides();
     void foreignMessageCannotBeChanged();
     void replyIsStoredAndValidated();
+    void reactionsReachBothSides();
 
 private:
     QJsonObject request(net::ClientConnection &connection, const QString &type,
@@ -269,6 +270,95 @@ void TestMessageOps::replyIsStoredAndValidated()
                         {QStringLiteral("reply_to"), 999999}},
             &ok);
     QVERIFY(!ok);
+}
+
+void TestMessageOps::reactionsReachBothSides()
+{
+    net::ClientConnection first;
+    net::ClientConnection second;
+    first.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    second.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+
+    QSignalSpy firstConnected(&first, &net::ClientConnection::socketConnected);
+    QSignalSpy secondConnected(&second, &net::ClientConnection::socketConnected);
+    QSignalSpy firstEvents(&first, &net::ClientConnection::eventReceived);
+
+    first.connectToServer();
+    second.connectToServer();
+    QTRY_COMPARE_WITH_TIMEOUT(firstConnected.count(), 1, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(secondConnected.count(), 1, 15000);
+
+    bool ok = false;
+    request(first, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("reactor_a")},
+                        {QStringLiteral("display_name"), QStringLiteral("Reactor A")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+    request(second, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("reactor_b")},
+                        {QStringLiteral("display_name"), QStringLiteral("Reactor B")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+
+    const QJsonObject chatsReply = request(first, QStringLiteral("chat.list"), QJsonObject(), &ok);
+    QVERIFY(ok);
+    const double chatId = chatsReply.value(QStringLiteral("data")).toObject()
+                             .value(QStringLiteral("chats")).toArray()
+                             .first().toObject().value(QStringLiteral("id")).toDouble();
+
+    const QJsonObject sent = request(
+        first, QStringLiteral("msg.send"),
+        QJsonObject{{QStringLiteral("chat_id"), chatId},
+                    {QStringLiteral("client_msg_id"), QUuid::createUuid().toString(QUuid::WithoutBraces)},
+                    {QStringLiteral("kind"), QStringLiteral("text")},
+                    {QStringLiteral("body"), QStringLiteral("реакция")}},
+        &ok);
+    QVERIFY(ok);
+    const double messageId = sent.value(QStringLiteral("data")).toObject()
+                                 .value(QStringLiteral("message_id")).toDouble();
+    QVERIFY(messageId > 0);
+
+    request(second, QStringLiteral("msg.react"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId},
+                        {QStringLiteral("message_id"), messageId},
+                        {QStringLiteral("emoji"), QStringLiteral("👍")},
+                        {QStringLiteral("on"), true}},
+            &ok);
+    QVERIFY(ok);
+
+    QTRY_VERIFY_WITH_TIMEOUT(hasEvent(firstEvents, QStringLiteral("ev.reaction")), 10000);
+    const QJsonObject reaction = eventData(firstEvents, QStringLiteral("ev.reaction"));
+    QCOMPARE(reaction.value(QStringLiteral("message_id")).toDouble(), messageId);
+    QCOMPARE(reaction.value(QStringLiteral("emoji")).toString(), QStringLiteral("👍"));
+    QVERIFY(reaction.value(QStringLiteral("on")).toBool());
+
+    const QJsonObject opened = request(first, QStringLiteral("chat.open"),
+                                       QJsonObject{{QStringLiteral("chat_id"), chatId},
+                                                   {QStringLiteral("limit"), 10}},
+                                       &ok);
+    QVERIFY(ok);
+    bool found = false;
+    for (const QJsonValue &value : opened.value(QStringLiteral("data")).toObject()
+                                        .value(QStringLiteral("messages")).toArray()) {
+        const QJsonObject message = value.toObject();
+        if (static_cast<qint64>(message.value(QStringLiteral("id")).toDouble()) != messageId)
+            continue;
+        const QJsonArray reactions = message.value(QStringLiteral("reactions")).toArray();
+        QCOMPARE(reactions.size(), 1);
+        QCOMPARE(reactions.first().toObject().value(QStringLiteral("count")).toInt(), 1);
+        found = true;
+    }
+    QVERIFY(found);
+
+    request(second, QStringLiteral("msg.react"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId},
+                        {QStringLiteral("message_id"), messageId},
+                        {QStringLiteral("emoji"), QStringLiteral("👍")},
+                        {QStringLiteral("on"), false}},
+            &ok);
+    QVERIFY(ok);
 }
 
 void TestMessageOps::foreignMessageCannotBeChanged()

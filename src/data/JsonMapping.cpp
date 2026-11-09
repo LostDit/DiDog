@@ -1,5 +1,6 @@
 #include "data/JsonMapping.h"
 
+#include <QJsonArray>
 #include <QJsonValue>
 
 namespace data::json {
@@ -91,6 +92,19 @@ QJsonObject messageToJson(const Message &message)
                   message.hasAttachment() ? QJsonValue(attachmentToJson(message.attachment))
                                           : QJsonValue(QJsonValue::Null));
     object.insert(QStringLiteral("status"), deliveryStateToString(message.state));
+
+    if (!message.reactionCounts.isEmpty()) {
+        QJsonArray reactions;
+        for (auto it = message.reactionCounts.constBegin();
+             it != message.reactionCounts.constEnd(); ++it) {
+            QJsonObject item;
+            item.insert(QStringLiteral("emoji"), it.key());
+            item.insert(QStringLiteral("count"), it.value());
+            item.insert(QStringLiteral("me"), message.myReactions.contains(it.key()));
+            reactions.append(item);
+        }
+        object.insert(QStringLiteral("reactions"), reactions);
+    }
     return object;
 }
 
@@ -117,6 +131,17 @@ Message messageFromJson(const QJsonObject &object)
     if (attachment.isObject()) {
         message.attachment = attachmentFromJson(attachment.toObject());
         message.attachment.messageId = message.id;
+    }
+
+    const QJsonArray reactions = object.value(QStringLiteral("reactions")).toArray();
+    for (const QJsonValue &value : reactions) {
+        const QJsonObject item = value.toObject();
+        const QString emoji = item.value(QStringLiteral("emoji")).toString();
+        if (emoji.isEmpty())
+            continue;
+        message.reactionCounts.insert(emoji, item.value(QStringLiteral("count")).toInt());
+        if (item.value(QStringLiteral("me")).toBool())
+            message.myReactions.insert(emoji);
     }
 
     const QString status = object.value(QStringLiteral("status")).toString();

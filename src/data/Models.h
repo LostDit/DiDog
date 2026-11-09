@@ -2,6 +2,8 @@
 
 #include <QList>
 #include <QMetaType>
+#include <QSet>
+#include <QHash>
 #include <QString>
 #include <QtGlobal>
 
@@ -90,6 +92,10 @@ struct Message {
     QString replySenderName;
     QString replyBody;
     MessageKind replyKind = MessageKind::Text;
+
+    // Реакции: сколько раз поставили каждый эмодзи и какие поставил я.
+    QHash<QString, int> reactionCounts;
+    QSet<QString> myReactions;
 
     // Локальная копия файла (у отправителя — исходник, у получателя — кэш)
     // и прогресс загрузки (-1, если не загружается).

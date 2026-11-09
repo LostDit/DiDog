@@ -56,6 +56,7 @@ public:
     void sendText(qint64 chatId, const QString &text, qint64 replyToId = 0);
     void sendFile(qint64 chatId, const QString &filePath);
     void markRead(qint64 chatId);
+    void react(qint64 chatId, qint64 messageId, const QString &emoji, bool on);
     void createDirect(const QString &username);
 
     // Групповые чаты.

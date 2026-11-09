@@ -79,6 +79,7 @@ private:
     HandlerResult handleMessageSend(const QJsonObject &data, ClientSession *session);
     HandlerResult handleMessageEdit(const QJsonObject &data, ClientSession *session);
     HandlerResult handleMessageDelete(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleMessageReact(const QJsonObject &data, ClientSession *session);
     HandlerResult handleReceiptDelivered(const QJsonObject &data, ClientSession *session);
     HandlerResult handleTyping(const QJsonObject &data, ClientSession *session);
 
@@ -128,6 +129,7 @@ private:
     };
     QString m_updatesRoot;
     bool loadUpdateManifest(QString *version, QList<UpdateFile> *files, QString *error) const;
+    void attachReactions(QList<data::Message> *messages, qint64 viewerId) const;
     AttachmentStore m_attachmentStore;
     QHash<quint32, ReadyAttachment> m_readyAttachments;
     QMultiHash<qint64, ClientSession *> m_sessions;

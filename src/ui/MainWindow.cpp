@@ -652,6 +652,12 @@ QWidget *MainWindow::buildConversationPane()
     connect(m_messageView, &MessageView::deleteForMeRequested, this,
             &MainWindow::onDeleteMessageForMe);
     connect(m_messageView, &MessageView::avatarActivated, this, &MainWindow::openProfile);
+    connect(m_messageView, &MessageView::reactionToggled, this,
+            [this](qint64 messageId, const QString &emoji, bool on) {
+                if (m_currentChatId > 0)
+                    m_chats->react(m_currentChatId, messageId, emoji, on);
+            });
+
     connect(m_messageView, &MessageView::replyRequested, this,
             [this](qint64 messageId, const QString &senderName, const QString &body) {
                 if (m_composer)

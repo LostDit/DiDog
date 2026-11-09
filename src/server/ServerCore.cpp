@@ -8,6 +8,7 @@
 #include "data/JsonMapping.h"
 #include "data/MessageRepository.h"
 #include "data/PromoRepository.h"
+#include "data/ReactionRepository.h"
 #include "data/ReceiptRepository.h"
 #include "data/SubscriptionRepository.h"
 #include "data/UserRepository.h"
@@ -230,6 +231,8 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleMessageEdit(data, session);
     if (type == QLatin1String(core::proto::type::kMsgDelete))
         return handleMessageDelete(data, session);
+    if (type == QLatin1String(core::proto::type::kMsgReact))
+        return handleMessageReact(data, session);
     if (type == QLatin1String(core::proto::type::kReceiptDelivered))
         return handleReceiptDelivered(data, session);
     if (type == QLatin1String(core::proto::type::kTyping))
@@ -432,6 +435,8 @@ HandlerResult ServerCore::handleChatOpen(const QJsonObject &data, ClientSession 
     bool hasMore = false;
     if (!messages.page(chatId, beforeSeq, limit, &page, &hasMore, &error))
         return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    attachReactions(&page, session->userId());
 
     QJsonArray array;
     for (const data::Message &message : page) {
@@ -1482,6 +1487,64 @@ HandlerResult ServerCore::handleMessageDelete(const QJsonObject &data, ClientSes
     QJsonObject payload;
     payload.insert(QStringLiteral("message"), data::json::messageToJson(full));
     return HandlerResult::success(payload);
+}
+
+void ServerCore::attachReactions(QList<data::Message> *messages, qint64 viewerId) const
+{
+    if (!messages)
+        return;
+
+    data::ReactionRepository reactions(m_database.handle());
+    for (data::Message &message : *messages) {
+        QHash<QString, int> counts;
+        if (reactions.counts(message.id, &counts, nullptr))
+            message.reactionCounts = counts;
+        QSet<QString> mine;
+        if (reactions.byUser(message.id, viewerId, &mine, nullptr))
+            message.myReactions = mine;
+    }
+}
+
+HandlerResult ServerCore::handleMessageReact(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+    const qint64 messageId = int64Value(data, "message_id");
+    const QString emoji = stringValue(data, "emoji").trimmed();
+    const bool on = data.value(QStringLiteral("on")).toBool(true);
+
+    if (emoji.isEmpty() || emoji.size() > 16)
+        return HandlerResult::failure(core::ErrorCode::BadRequest,
+                                      QStringLiteral("Некорректная реакция"));
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    bool member = false;
+    if (!chats.isMember(chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    data::MessageRepository messages(m_database.handle());
+    data::Message message;
+    bool found = false;
+    if (!messages.byId(messageId, &message, &found, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!found || message.chatId != chatId)
+        return HandlerResult::failure(core::ErrorCode::NotFound);
+
+    data::ReactionRepository reactions(m_database.handle());
+    if (!reactions.set(messageId, session->userId(), emoji, on, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    event.insert(QStringLiteral("message_id"), static_cast<double>(messageId));
+    event.insert(QStringLiteral("emoji"), emoji);
+    event.insert(QStringLiteral("user_id"), static_cast<double>(session->userId()));
+    event.insert(QStringLiteral("on"), on);
+    broadcastToChat(chatId, core::proto::event::kReaction, event);
+
+    return HandlerResult::success();
 }
 
 HandlerResult ServerCore::handleReceiptDelivered(const QJsonObject &data, ClientSession *session)

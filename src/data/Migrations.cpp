@@ -161,6 +161,18 @@ const char *const kSchemaV6[] = {
     "ALTER TABLE outbox ADD COLUMN reply_to_id INTEGER NOT NULL DEFAULT 0",
 };
 
+// Схема v7: реакции на сообщения.
+const char *const kSchemaV7[] = {
+    "CREATE TABLE IF NOT EXISTS reactions ("
+    "  message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,"
+    "  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,"
+    "  emoji      TEXT    NOT NULL,"
+    "  created_at INTEGER NOT NULL,"
+    "  PRIMARY KEY (message_id, user_id, emoji)"
+    ")",
+    "CREATE INDEX IF NOT EXISTS ix_reactions_message ON reactions(message_id)",
+};
+
 bool exec(QSqlDatabase &db, const QString &sql, QString *error)
 {
     QSqlQuery query(db);
@@ -333,6 +345,31 @@ bool applyV6(QSqlDatabase &db, QString *error)
     return true;
 }
 
+bool applyV7(QSqlDatabase &db, QString *error)
+{
+    if (!db.transaction()) {
+        if (error)
+            *error = QStringLiteral("Не удалось начать транзакцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+
+    for (const char *statement : kSchemaV7) {
+        if (!exec(db, QString::fromLatin1(statement), error)) {
+            db.rollback();
+            return false;
+        }
+    }
+
+    if (!db.commit()) {
+        if (error)
+            *error = QStringLiteral("Не удалось зафиксировать миграцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+    return true;
+}
+
 int version(QSqlDatabase &db)
 {
     QSqlQuery query(db);
@@ -379,6 +416,9 @@ bool apply(QSqlDatabase &db, QString *error)
         return false;
 
     if (current < 6 && !applyV6(db, error))
+        return false;
+
+    if (current < 7 && !applyV7(db, error))
         return false;
 
     if (!exec(db, QStringLiteral("PRAGMA user_version = %1").arg(kCurrentVersion), error))

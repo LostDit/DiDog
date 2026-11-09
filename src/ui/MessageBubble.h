@@ -41,6 +41,7 @@ signals:
     void videoActivated(const QString &filePath);
     void fileActivated(const QString &fileName, const QString &filePath);
     void replyRequested(qint64 messageId, const QString &senderName, const QString &body);
+    void reactionToggled(qint64 messageId, const QString &emoji, bool on);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -70,6 +71,8 @@ private:
     QLabel *m_status = nullptr;
     QPushButton *m_retry = nullptr;
     QToolButton *m_replyButton = nullptr;
+    QToolButton *m_reactButton = nullptr;
+    QGraphicsOpacityEffect *m_reactEffect = nullptr;
     QGraphicsOpacityEffect *m_replyEffect = nullptr;
 };
 

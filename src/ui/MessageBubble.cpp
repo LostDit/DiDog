@@ -131,6 +131,29 @@ MessageBubble::MessageBubble(const data::Message &message, bool own, bool showAv
 
     buildAttachment();
 
+    if (!message.reactionCounts.isEmpty()) {
+        auto *reactions = new QHBoxLayout;
+        reactions->setSpacing(4);
+
+        for (auto it = message.reactionCounts.constBegin();
+             it != message.reactionCounts.constEnd(); ++it) {
+            const QString emoji = it.key();
+            auto *chip = new QToolButton(m_bubble);
+            chip->setObjectName(QStringLiteral("ReactionChip"));
+            chip->setText(QStringLiteral("%1 %2").arg(emoji).arg(it.value()));
+            chip->setCheckable(true);
+            chip->setChecked(message.myReactions.contains(emoji));
+            chip->setCursor(Qt::PointingHandCursor);
+            connect(chip, &QToolButton::clicked, this, [this, emoji]() {
+                emit reactionToggled(m_message.id, emoji,
+                                     !m_message.myReactions.contains(emoji));
+            });
+            reactions->addWidget(chip);
+        }
+        reactions->addStretch(1);
+        bubbleLayout->addLayout(reactions);
+    }
+
     auto *footer = new QHBoxLayout;
     footer->setSpacing(6);
     footer->addStretch(1);
@@ -144,6 +167,23 @@ MessageBubble::MessageBubble(const data::Message &message, bool own, bool showAv
     m_replyEffect->setOpacity(0.0);
     m_replyButton->setGraphicsEffect(m_replyEffect);
     footer->addWidget(m_replyButton);
+
+    m_reactButton = new QToolButton(m_bubble);
+    m_reactButton->setText(QStringLiteral("👍"));
+    m_reactButton->setObjectName(QStringLiteral("BubbleAction"));
+    m_reactButton->setCursor(Qt::PointingHandCursor);
+    m_reactButton->setToolTip(tr("Реакция"));
+    m_reactButton->setVisible(true);
+    m_reactEffect = new QGraphicsOpacityEffect(m_reactButton);
+    m_reactEffect->setOpacity(0.0);
+    m_reactButton->setGraphicsEffect(m_reactEffect);
+    footer->addWidget(m_reactButton);
+    connect(m_reactButton, &QToolButton::clicked, this, [this]() {
+        if (m_message.id <= 0)
+            return;
+        emit reactionToggled(m_message.id, QStringLiteral("👍"),
+                             !m_message.myReactions.contains(QStringLiteral("👍")));
+    });
     connect(m_replyButton, &QToolButton::clicked, this, [this]() {
         if (m_message.id > 0) {
             emit replyRequested(m_message.id, m_message.senderDisplayName, m_message.body);
