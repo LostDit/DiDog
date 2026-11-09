@@ -122,7 +122,6 @@ void StartupSplash::start()
     show();
     raise();
 
-    m_pulse->start();
 
     m_fade->stop();
     m_fade->setStartValue(0.0);
@@ -142,7 +141,6 @@ void StartupSplash::finish()
 
 void StartupSplash::fadeOut()
 {
-    m_pulse->stop();
 
     m_fade->stop();
     m_fade->setStartValue(m_cardOpacity->opacity());
