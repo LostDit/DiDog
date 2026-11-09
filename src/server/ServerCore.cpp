@@ -170,6 +170,11 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
     if (!isPublic && (!session || !session->isAuthenticated()))
         return HandlerResult::failure(core::ErrorCode::AuthRequired);
 
+    if (session && !session->allowRequest()) {
+        return HandlerResult::failure(core::ErrorCode::RateLimited,
+                                      QStringLiteral("Слишком много запросов, попробуйте позже"));
+    }
+
     if (type == QLatin1String(core::proto::type::kHello))
         return handleHello(data);
     if (type == QLatin1String(core::proto::type::kAuthRegister))

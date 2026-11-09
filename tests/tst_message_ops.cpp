@@ -7,6 +7,8 @@
 #include <QJsonObject>
 #include <QScopedPointer>
 #include <QSignalSpy>
+#include <QTcpSocket>
+#include <QHostAddress>
 #include <QTemporaryDir>
 #include <QUuid>
 #include <QtTest>
@@ -52,6 +54,8 @@ private slots:
     void chatFlagsArePersisted();
     void voicePubkeysAreRelayed();
     void voiceSenderKeysAreRelayed();
+    void rateLimitRejectsBurst();
+    void healthEndpointResponds();
 
 private:
     QJsonObject request(net::ClientConnection &connection, const QString &type,
@@ -689,6 +693,57 @@ void TestMessageOps::voiceSenderKeysAreRelayed()
     QTRY_VERIFY_WITH_TIMEOUT(hasEvent(events, QStringLiteral("ev.voice_senderkey")), 10000);
     const QJsonObject senderEvent = eventData(events, QStringLiteral("ev.voice_senderkey"));
     QCOMPARE(senderEvent.value(QStringLiteral("payload")).toString(), payload);
+}
+
+void TestMessageOps::rateLimitRejectsBurst()
+{
+    m_server->setRateLimit(1.0, 3.0);
+
+    net::ClientConnection client;
+    client.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    QSignalSpy connected(&client, &net::ClientConnection::socketConnected);
+    client.connectToServer();
+    QTRY_COMPARE_WITH_TIMEOUT(connected.count(), 1, 15000);
+
+    bool ok = false;
+    request(client, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("rate_user")},
+                        {QStringLiteral("display_name"), QStringLiteral("Rate User")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+
+    int limited = 0;
+    for (int i = 0; i < 100; ++i) {
+        bool pingOk = false;
+        const QJsonObject reply = request(client, QStringLiteral("ping"), QJsonObject(), &pingOk);
+        if (!pingOk && reply.value(QStringLiteral("error")).toObject()
+                           .value(QStringLiteral("code")).toString()
+                           == QLatin1String("RATE_LIMITED")) {
+            ++limited;
+        }
+    }
+    QVERIFY2(limited > 0, "сервер не ограничил частоту запросов");
+}
+
+void TestMessageOps::healthEndpointResponds()
+{
+    QString error;
+    QVERIFY2(m_server->startHttp(0, &error), qPrintable(error));
+    QVERIFY(m_server->httpPort() > 0);
+
+    QTcpSocket socket;
+    socket.connectToHost(QHostAddress::LocalHost, m_server->httpPort());
+    QVERIFY(socket.waitForConnected(5000));
+    socket.write("GET /healthz HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n");
+    QTRY_VERIFY_WITH_TIMEOUT(socket.bytesAvailable() > 0, 5000);
+
+    QByteArray response = socket.readAll();
+    while (socket.state() != QAbstractSocket::UnconnectedState && socket.bytesAvailable() > 0)
+        response += socket.readAll();
+
+    QVERIFY(response.contains("200 OK"));
+    QVERIFY(response.contains("\"status\":\"ok\""));
 }
 
 void TestMessageOps::foreignMessageCannotBeChanged()

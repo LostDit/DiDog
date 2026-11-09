@@ -6,6 +6,7 @@
 #include <QDebug>
 #include <QFile>
 #include <QHostAddress>
+#include <QDateTime>
 #include <QJsonObject>
 #include <QTcpSocket>
 
@@ -35,6 +36,32 @@ ClientSession::~ClientSession()
     // поэтому указатель защищён QPointer.
     if (m_core && isAuthenticated())
         m_core->unregisterSession(this);
+}
+
+void ClientSession::setRateLimit(double perSecond, double capacity)
+{
+    m_ratePerSecond = qMax(0.1, perSecond);
+    m_rateCapacity = qMax(1.0, capacity);
+    m_tokens = m_rateCapacity;
+}
+
+bool ClientSession::allowRequest()
+{
+    const double kRatePerSecond = m_ratePerSecond;
+    const double kCapacity = m_rateCapacity;
+
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (m_tokensUpdatedAt == 0)
+        m_tokensUpdatedAt = now;
+
+    const double elapsed = (now - m_tokensUpdatedAt) / 1000.0;
+    m_tokens = qMin(kCapacity, m_tokens + elapsed * kRatePerSecond);
+    m_tokensUpdatedAt = now;
+
+    if (m_tokens < 1.0)
+        return false;
+    m_tokens -= 1.0;
+    return true;
 }
 
 QString ClientSession::peerAddress() const

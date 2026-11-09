@@ -3,6 +3,13 @@
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии по SemVer.
 Каждое изменение попадает сюда и в затронутые файлы `docs/`.
 
+## [2.8.0] — 2026-11-09
+
+### Сервер
+- **Ограничение частоты запросов** на сессию: token bucket (60/с, burst 300),
+  ошибка `RATE_LIMITED`.
+- **Healthcheck и метрики** по HTTP: `--http-port`, `/healthz` и `/metrics`
+  (`didog_connections`, `didog_uptime_seconds`).
 ## [2.7.0] — 2026-11-09
 
 ### Безопасность

@@ -291,9 +291,14 @@ int runServer(int argc, char *argv[])
         QStringLiteral("Каталог обновлений с manifest.json."),
         QStringLiteral("dir"));
 
+    const QCommandLineOption httpPortOption(
+        QStringLiteral("http-port"),
+        QStringLiteral("HTTP-порт healthcheck (/healthz, /metrics); 0 — выключено."),
+        QStringLiteral("port"), QStringLiteral("0"));
+
     parser.addOptions({portOption, dataOption, verboseOption, tlsOption, tlsCertOption,
                        tlsKeyOption, serviceOption, addPromoOption, voicePortOption,
-                       updatesOption});
+                       updatesOption, httpPortOption});
     parser.process(app);
 
     bool portOk = false;
@@ -328,6 +333,14 @@ int runServer(int argc, char *argv[])
     const uint voicePort = parser.value(voicePortOption).toUInt(&voicePortOk);
     if (voicePortOk && voicePort > 0 && voicePort <= 65535)
         server.setVoicePort(static_cast<quint16>(voicePort));
+
+    bool httpPortOk = false;
+    const uint httpPort = parser.value(httpPortOption).toUInt(&httpPortOk);
+    if (httpPortOk && httpPort > 0 && httpPort <= 65535) {
+        QString httpError;
+        if (!server.startHttp(static_cast<quint16>(httpPort), &httpError))
+            qWarning().noquote() << httpError;
+    }
 
     if (parser.isSet(updatesOption))
         server.setUpdatesRoot(parser.value(updatesOption));

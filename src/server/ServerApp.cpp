@@ -125,6 +125,87 @@ void ServerApp::createServer()
     }
 }
 
+bool ServerApp::startHttp(quint16 port, QString *error)
+{
+    if (m_http)
+        return true;
+
+    m_http = new QTcpServer(this);
+    connect(m_http, &QTcpServer::newConnection, this, [this]() {
+        while (QTcpSocket *socket = m_http->nextPendingConnection()) {
+            connect(socket, &QTcpSocket::readyRead, socket, [this, socket]() {
+                const QByteArray request = socket->readAll();
+                const QByteArray path = request.split(' ').value(1);
+
+                QByteArray status = "200 OK";
+                QByteArray contentType = "application/json";
+                QByteArray body;
+
+                if (path.startsWith("/healthz")) {
+                    body = QStringLiteral("{\"status\":\"ok\",\"version\":\"%1\",\"uptime\":%2,"
+                                          "\"connections\":%3}")
+                               .arg(QStringLiteral(MESSENGER_VERSION))
+                               .arg(m_startedAt.isValid()
+                                        ? m_startedAt.secsTo(QDateTime::currentDateTime())
+                                        : 0)
+                               .arg(m_sessions.size())
+                               .toUtf8();
+                } else if (path.startsWith("/metrics")) {
+                    contentType = "text/plain; version=0.0.4";
+                    body = QStringLiteral("# HELP didog_connections Current client connections\n"
+                                          "# TYPE didog_connections gauge\n"
+                                          "didog_connections %1\n"
+                                          "# HELP didog_uptime_seconds Server uptime\n"
+                                          "# TYPE didog_uptime_seconds counter\n"
+                                          "didog_uptime_seconds %2\n")
+                               .arg(m_sessions.size())
+                               .arg(m_startedAt.isValid()
+                                        ? m_startedAt.secsTo(QDateTime::currentDateTime())
+                                        : 0)
+                               .toUtf8();
+                } else {
+                    status = "404 Not Found";
+                    contentType = "text/plain";
+                    body = "not found";
+                }
+
+                QByteArray response = "HTTP/1.1 " + status + "\r\n";
+                response += "Content-Type: " + contentType + "\r\n";
+                response += "Content-Length: " + QByteArray::number(body.size()) + "\r\n";
+                response += "Connection: close\r\n\r\n";
+                response += body;
+                socket->write(response);
+                socket->disconnectFromHost();
+            });
+            connect(socket, &QTcpSocket::disconnected, socket, &QObject::deleteLater);
+        }
+    });
+
+    if (!m_http->listen(QHostAddress::AnyIPv4, port)) {
+        if (error)
+            *error = QStringLiteral("Не удалось открыть HTTP-порт: %1").arg(m_http->errorString());
+        delete m_http;
+        m_http = nullptr;
+        return false;
+    }
+
+    m_startedAt = QDateTime::currentDateTime();
+    qInfo().noquote() << QStringLiteral("Healthcheck: http://0.0.0.0:%1/healthz")
+                             .arg(m_http->serverPort());
+    return true;
+}
+
+void ServerApp::setRateLimit(double perSecond, double capacity)
+{
+    m_ratePerSecond = perSecond;
+    m_rateCapacity = capacity;
+}
+
+quint16 ServerApp::httpPort() const
+{
+    return m_http ? m_http->serverPort() : 0;
+}
+
 bool ServerApp::start(quint16 port)
 {
     QString voiceError;
@@ -202,6 +283,7 @@ void ServerApp::onNewConnection()
 {
     while (QTcpSocket *socket = m_server->nextPendingConnection()) {
         auto *session = new ClientSession(socket, m_core, this);
+    session->setRateLimit(m_ratePerSecond, m_rateCapacity);
         m_sessions.insert(session);
 
         // Соединяем удаление из учёта с фактическим удалением объекта.
@@ -221,6 +303,7 @@ void ServerApp::attachSession(QSslSocket *socket)
         return;
 
     auto *session = new ClientSession(socket, m_core, this);
+    session->setRateLimit(m_ratePerSecond, m_rateCapacity);
     m_sessions.insert(session);
 
     connect(session, &QObject::destroyed, this, [this, session]() {

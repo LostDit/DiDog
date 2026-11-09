@@ -46,6 +46,10 @@ public:
 
     QString peerAddress() const;
 
+    // Ограничение частоты запросов: token bucket (30 запросов/с, burst 60).
+    bool allowRequest();
+    void setRateLimit(double perSecond, double capacity);
+
 private slots:
     void onReadyRead();
     void onDisconnected();
@@ -78,6 +82,12 @@ private:
     quint32 m_nextDownloadId = 1;
     bool m_pumping = false;
     bool m_closing = false;
+
+    // Token bucket для ограничения частоты запросов.
+    double m_ratePerSecond = 60.0;
+    double m_rateCapacity = 300.0;
+    double m_tokens = 300.0;
+    qint64 m_tokensUpdatedAt = 0;
 };
 
 } // namespace server

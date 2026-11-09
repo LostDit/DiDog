@@ -116,3 +116,19 @@ sudo systemctl start messengerapp
 | `QSslSocket::supportsSsl() == false` на Ubuntu | не установлены OpenSSL/плагины Qt, проверьте `ldd MessengerServer | grep ssl` |
 | «Сертификат сервера не совпадает» | сертификат перевыпущен — удалите сохранённый отпечаток в настройках клиента |
 | Соединение сбрасывается | порт закрыт в облачном firewall или `ufw` |
+
+## Healthcheck и защита от флуда (2.8.0)
+
+Сервер умеет отдавать healthcheck и метрики по HTTP:
+
+```bash
+MessengerServer --port 45000 --voice-port 45001 --http-port 45080 ...
+curl http://127.0.0.1:45080/healthz    # {"status":"ok","version":"2.8.0",...}
+curl http://127.0.0.1:45080/metrics    # didog_connections, didog_uptime_seconds
+```
+
+Порт 45080 не выставляйте наружу — только локально/monitoring.
+
+Ограничение частоты: 60 запросов/с, burst 300 на сессию; превышение даёт
+ошибку `RATE_LIMITED`. Порог задаётся в коде (`ClientSession::setRateLimit`)
+и в тестах.
