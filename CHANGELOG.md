@@ -3,6 +3,22 @@
 Формат: [Keep a Changelog](https://keepachangelog.com/ru/1.1.0/), версии по SemVer.
 Каждое изменение попадает сюда и в затронутые файлы `docs/`.
 
+## [3.0.0] — 2026-11-10
+
+### Голос: LiveKit (пилот)
+- Сервер выдаёт `voice.token` (JWT HS256) для комнаты `chat-<id>`;
+  настройка через `--livekit-url/key/secret` или переменные
+  `LIVEKIT_URL/LIVEKIT_API_KEY/LIVEKIT_API_SECRET`.
+- Клиент: Настройки → Голос → «Голосовой сервер: встроенный / LiveKit (пилот)».
+- Node-мост `bridge/` (`@livekit/rtc-node`): локальный UDP PCM ↔ WebRTC-комната,
+  публикация микрофона и приём дорожек; входит в клиентский установщик.
+- `bridge/docker-compose.yml` + `livekit.yaml` + `docs/LIVEKIT-PILOT.md`.
+- Автотест моста `bridge/selftest.mjs`: два моста в комнате, звук проходит
+  (проверено на livekit-server 1.13.11, ~788 КБ принято).
+
+### Ограничения пилота
+- Нужен Node.js 18+ на клиенте и сервер LiveKit; E2EE LiveKit пока выключен.
+- По умолчанию используется встроенный релей (обратная совместимость).
 ## [2.9.1] — 2026-11-10
 
 ### Голос

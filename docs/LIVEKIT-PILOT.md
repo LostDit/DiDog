@@ -134,3 +134,14 @@ sudo ufw allow 7882/udp
   установлены у каждого участника (в установщик уже входит `bridge/`).
 - E2EE LiveKit пока не включён (DTLS-SRTP есть, но SFU видит медиа).
 - Индикация «кто говорит» берётся из локального анализа, не из LiveKit.
+## Автотест моста
+
+```powershell
+# Windows-сборка LiveKit: https://github.com/livekit/livekit/releases
+.\build\livekit\livekit-server.exe --dev --bind 127.0.0.1
+cd bridge
+node selftest.mjs
+```
+
+Ожидаемо: `SELFTEST OK: получено N байт звука`. Проверено на livekit-server
+1.13.11: два моста в комнате `selftest`, тон 440 Гц проходит через LiveKit.
