@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     Готовит манифест обновления, упаковывает dist в tar.gz и отправляет на сервер.
@@ -22,7 +22,11 @@ param(
 
     [switch]$Deploy,
     [switch]$IncludeUpdater,
-    [switch]$DryRun
+    [switch]$DryRun,
+
+    # Обновить и серверный бинарник (git pull + сборка + установка службы).
+    [switch]$ServerUpdate,
+    [string]$ServerRepo = '~/MessengerApp'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -124,6 +128,18 @@ if ($Deploy) {
     & ssh $target "sudo bash $RemoteScript $remoteArchive"
     if ($LASTEXITCODE -ne 0) {
         throw "Серверный скрипт завершился с ошибкой."
+    }
+}
+
+if ($ServerUpdate) {
+    Write-Host "== Обновление серверного бинарника =="
+    $remote = "cd $ServerRepo && git pull && cmake --build build -j`$(nproc) && " +
+              "sudo systemctl stop messengerapp && " +
+              "sudo install -m 755 build/MessengerServer /opt/messengerapp/MessengerServer && " +
+              "sudo systemctl start messengerapp"
+    & ssh $target $remote
+    if ($LASTEXITCODE -ne 0) {
+        throw "Обновление сервера завершилось с ошибкой."
     }
 }
 
