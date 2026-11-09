@@ -1,5 +1,7 @@
 #include "voice/VoiceCrypto.h"
 
+#include <QMessageAuthenticationCode>
+#include <QDebug>
 #include <QLibrary>
 #include <QtEndian>
 
@@ -28,6 +30,20 @@ struct EvpApi {
     int (*decryptUpdate)(void *, unsigned char *, int *, const unsigned char *, int) = nullptr;
     int (*decryptFinal)(void *, unsigned char *, int *) = nullptr;
     int (*ctrl)(void *, int, int, void *) = nullptr;
+
+    void *(*pkeyCtxNewId)(int, void *) = nullptr;
+    void *(*pkeyCtxNew)(void *, void *) = nullptr;
+    void (*pkeyCtxFree)(void *) = nullptr;
+    int (*keygenInit)(void *) = nullptr;
+    int (*keygen)(void *, void **) = nullptr;
+    void (*pkeyFree)(void *) = nullptr;
+    int (*getRawPublic)(const void *, unsigned char *, size_t *) = nullptr;
+    int (*getRawPrivate)(const void *, unsigned char *, size_t *) = nullptr;
+    void *(*newRawPrivate)(int, void *, const unsigned char *, size_t) = nullptr;
+    void *(*newRawPublic)(int, void *, const unsigned char *, size_t) = nullptr;
+    int (*deriveInit)(void *) = nullptr;
+    int (*deriveSetPeer)(void *, void *) = nullptr;
+    int (*derive)(void *, unsigned char *, size_t *) = nullptr;
 };
 
 EvpApi &api()
@@ -75,9 +91,25 @@ bool loadApi(QString *error)
         a.decryptFinal = reinterpret_cast<decltype(a.decryptFinal)>(
             library->resolve("EVP_DecryptFinal_ex"));
         a.ctrl = reinterpret_cast<decltype(a.ctrl)>(library->resolve("EVP_CIPHER_CTX_ctrl"));
+        a.pkeyCtxNewId = reinterpret_cast<decltype(a.pkeyCtxNewId)>(library->resolve("EVP_PKEY_CTX_new_id"));
+        a.pkeyCtxNew = reinterpret_cast<decltype(a.pkeyCtxNew)>(library->resolve("EVP_PKEY_CTX_new"));
+        a.pkeyCtxFree = reinterpret_cast<decltype(a.pkeyCtxFree)>(library->resolve("EVP_PKEY_CTX_free"));
+        a.keygenInit = reinterpret_cast<decltype(a.keygenInit)>(library->resolve("EVP_PKEY_keygen_init"));
+        a.keygen = reinterpret_cast<decltype(a.keygen)>(library->resolve("EVP_PKEY_keygen"));
+        a.pkeyFree = reinterpret_cast<decltype(a.pkeyFree)>(library->resolve("EVP_PKEY_free"));
+        a.getRawPublic = reinterpret_cast<decltype(a.getRawPublic)>(library->resolve("EVP_PKEY_get_raw_public_key"));
+        a.getRawPrivate = reinterpret_cast<decltype(a.getRawPrivate)>(library->resolve("EVP_PKEY_get_raw_private_key"));
+        a.newRawPrivate = reinterpret_cast<decltype(a.newRawPrivate)>(library->resolve("EVP_PKEY_new_raw_private_key"));
+        a.newRawPublic = reinterpret_cast<decltype(a.newRawPublic)>(library->resolve("EVP_PKEY_new_raw_public_key"));
+        a.deriveInit = reinterpret_cast<decltype(a.deriveInit)>(library->resolve("EVP_PKEY_derive_init"));
+        a.deriveSetPeer = reinterpret_cast<decltype(a.deriveSetPeer)>(library->resolve("EVP_PKEY_derive_set_peer"));
+        a.derive = reinterpret_cast<decltype(a.derive)>(library->resolve("EVP_PKEY_derive"));
 
         if (a.ctxNew && a.ctxFree && a.aes256gcm && a.encryptInit && a.encryptUpdate
-            && a.encryptFinal && a.decryptInit && a.decryptUpdate && a.decryptFinal && a.ctrl) {
+            && a.encryptFinal && a.decryptInit && a.decryptUpdate && a.decryptFinal && a.ctrl
+            && a.pkeyCtxNewId && a.pkeyCtxNew && a.pkeyCtxFree && a.keygenInit && a.keygen && a.pkeyFree
+            && a.getRawPublic && a.getRawPrivate && a.newRawPrivate && a.newRawPublic && a.deriveInit
+            && a.deriveSetPeer && a.derive) {
             a.library = library;
             return true;
         }
@@ -220,4 +252,120 @@ QByteArray VoiceCrypto::decrypt(const QByteArray &key, quint32 sequence,
     if (ok)
         *ok = true;
     return out;
+}
+
+namespace {
+constexpr int kEvpPkeyX25519 = 1034;
+}
+
+bool VoiceCrypto::generateKeyPair(QByteArray *privateKey, QByteArray *publicKey,
+                                  QString *error)
+{
+    if (!loadApi(error))
+        return false;
+
+    void *ctx = api().pkeyCtxNewId(kEvpPkeyX25519, nullptr);
+    if (!ctx) {
+        if (error)
+            *error = QStringLiteral("Не удалось создать контекст X25519.");
+        return false;
+    }
+
+    void *key = nullptr;
+    bool ok = api().keygenInit(ctx) == 1 && api().keygen(ctx, &key) == 1 && key;
+
+    if (ok) {
+        unsigned char raw[32];
+        size_t length = sizeof(raw);
+        ok = api().getRawPrivate(key, raw, &length) == 1 && length == 32;
+        if (ok && privateKey)
+            *privateKey = QByteArray(reinterpret_cast<char *>(raw), 32);
+
+        length = sizeof(raw);
+        ok = ok && api().getRawPublic(key, raw, &length) == 1 && length == 32;
+        if (ok && publicKey)
+            *publicKey = QByteArray(reinterpret_cast<char *>(raw), 32);
+    }
+
+    if (key)
+        api().pkeyFree(key);
+    api().pkeyCtxFree(ctx);
+
+    if (!ok && error)
+        *error = QStringLiteral("Не удалось сгенерировать ключевую пару X25519.");
+    return ok;
+}
+
+QByteArray VoiceCrypto::deriveSharedSecret(const QByteArray &privateKey,
+                                           const QByteArray &peerPublic, bool *ok)
+{
+    if (ok)
+        *ok = false;
+    if (privateKey.size() != 32 || peerPublic.size() != 32)
+        return QByteArray();
+    if (!loadApi(nullptr))
+        return QByteArray();
+
+    void *privatePkey = api().newRawPrivate(
+        kEvpPkeyX25519, nullptr,
+        reinterpret_cast<const unsigned char *>(privateKey.constData()), 32);
+    void *peerPkey = api().newRawPublic(
+        kEvpPkeyX25519, nullptr,
+        reinterpret_cast<const unsigned char *>(peerPublic.constData()), 32);
+    if (!privatePkey || !peerPkey) {
+        if (privatePkey)
+            api().pkeyFree(privatePkey);
+        if (peerPkey)
+            api().pkeyFree(peerPkey);
+        return QByteArray();
+    }
+
+    void *ctx = api().pkeyCtxNew(privatePkey, nullptr);
+    QByteArray secret;
+    const int initResult = ctx ? api().deriveInit(ctx) : -1;
+    const int peerResult = initResult > 0 ? api().deriveSetPeer(ctx, peerPkey) : -1;
+    bool success = initResult > 0 && peerResult > 0;
+    if (!success) {
+        qWarning("x25519 derive init=%d peer=%d ctx=%p priv=%p peer=%p", initResult,
+                 peerResult, ctx, privatePkey, peerPkey);
+    }
+
+    if (success) {
+        unsigned char buffer[32];
+        size_t length = sizeof(buffer);
+        success = api().derive(ctx, buffer, &length) == 1 && length == 32;
+        if (success)
+            secret = QByteArray(reinterpret_cast<char *>(buffer), 32);
+    }
+
+    if (ctx)
+        api().pkeyCtxFree(ctx);
+    api().pkeyFree(privatePkey);
+    api().pkeyFree(peerPkey);
+
+    if (ok)
+        *ok = success;
+    return secret;
+}
+
+QByteArray VoiceCrypto::hkdfSha256(const QByteArray &secret, const QByteArray &salt,
+                                   const QByteArray &info, int length)
+{
+    const QByteArray effectiveSalt = salt.isEmpty() ? QByteArray(32, '\0') : salt;
+    const QByteArray prk = QMessageAuthenticationCode::hash(
+        secret, effectiveSalt, QCryptographicHash::Sha256);
+
+    QByteArray output;
+    QByteArray block;
+    quint8 counter = 1;
+    while (output.size() < length) {
+        QMessageAuthenticationCode mac(QCryptographicHash::Sha256, prk);
+        mac.addData(block);
+        mac.addData(info);
+        mac.addData(reinterpret_cast<const char *>(&counter), 1);
+        block = mac.result();
+        output.append(block);
+        ++counter;
+    }
+    return output.left(length);
 }

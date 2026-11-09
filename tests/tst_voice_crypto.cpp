@@ -12,7 +12,51 @@ private slots:
     void roundTrip();
     void tamperingIsRejected();
     void replayWithOtherSequenceFails();
+    void e2eeKeyExchangeMatches();
+    void hkdfIsDeterministic();
 };
+
+void TestVoiceCrypto::e2eeKeyExchangeMatches()
+{
+    QString error;
+    if (!VoiceCrypto::available(&error))
+        QSKIP(qPrintable(error));
+
+    QByteArray alicePrivate;
+    QByteArray alicePublic;
+    QByteArray bobPrivate;
+    QByteArray bobPublic;
+    QVERIFY2(VoiceCrypto::generateKeyPair(&alicePrivate, &alicePublic, &error), qPrintable(error));
+    QVERIFY(VoiceCrypto::generateKeyPair(&bobPrivate, &bobPublic, &error));
+    QCOMPARE(alicePrivate.size(), 32);
+    QCOMPARE(alicePublic.size(), 32);
+
+    bool ok = false;
+    const QByteArray aliceSecret =
+        VoiceCrypto::deriveSharedSecret(alicePrivate, bobPublic, &ok);
+    QVERIFY(ok);
+    const QByteArray bobSecret =
+        VoiceCrypto::deriveSharedSecret(bobPrivate, alicePublic, &ok);
+    QVERIFY(ok);
+    QCOMPARE(aliceSecret, bobSecret);
+    QCOMPARE(aliceSecret.size(), 32);
+
+    const QByteArray aliceKey = VoiceCrypto::hkdfSha256(
+        aliceSecret, "didog-voice", "chat-42");
+    const QByteArray bobKey = VoiceCrypto::hkdfSha256(
+        bobSecret, "didog-voice", "chat-42");
+    QCOMPARE(aliceKey, bobKey);
+    QCOMPARE(aliceKey.size(), 32);
+}
+
+void TestVoiceCrypto::hkdfIsDeterministic()
+{
+    const QByteArray secret(32, 'k');
+    QCOMPARE(VoiceCrypto::hkdfSha256(secret, "salt", "info"),
+             VoiceCrypto::hkdfSha256(secret, "salt", "info"));
+    QVERIFY(VoiceCrypto::hkdfSha256(secret, "salt", "info")
+            != VoiceCrypto::hkdfSha256(secret, "salt", "other"));
+}
 
 void TestVoiceCrypto::roundTrip()
 {
