@@ -68,7 +68,7 @@
 
 - `MessengerClient.exe` и `MessengerUpdater.exe`;
 - `MessengerServer.exe`;
-- установщик `MessengerApp-Setup-*.exe` (Inno Setup поддерживает `SignTool`).
+- установщик `DiDog-Setup-*.exe` (Inno Setup поддерживает `SignTool`).
 
 Скрипт `scripts/sign.ps1` (следующий этап) принимает PFX или отпечаток
 сертификата из хранилища и вызывает `signtool sign /fd SHA256 /tr <timestamp>`.

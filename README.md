@@ -10,17 +10,17 @@ DiDog — российская альтернатива Discord: чаты, гр�
 
 ## Скриншоты
 
-| Вход | Переписка |
+| Вход | Главное окно (тёмная) |
 |---|---|
-| ![Вход](docs/screenshots/login-light.png) | ![Светлая тема](docs/screenshots/chat-light.png) |
+| ![Вход](docs/screenshots/login-light.png) | ![Тёмная тема](docs/screenshots/chat-dark.png) |
 
-| Тёмная тема | Фото в чате |
+| Светлая тема | Профиль справа |
 |---|---|
-| ![Тёмная тема](docs/screenshots/chat-dark.png) | ![Фото](docs/screenshots/chat-image.png) |
+| ![Светлая тема](docs/screenshots/chat-light.png) | ![Профиль](docs/screenshots/didog-profile.png) |
 
-| Поиск | Настройки |
+| Стартовая заставка | Настройки |
 |---|---|
-| ![Поиск](docs/screenshots/search-results.png) | ![Настройки](docs/screenshots/settings.png) |
+| ![Заставка](docs/screenshots/didog-splash.png) | ![Настройки](docs/screenshots/settings.png) |
 
 ## Возможности
 
