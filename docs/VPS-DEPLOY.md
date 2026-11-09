@@ -14,7 +14,7 @@
 Скопируйте репозиторий на сервер и запустите:
 
 ```bash
-git clone https://github.com/LostDit/MessengerApp.git
+git clone https://github.com/LostDit/DiDog.git
 cd MessengerApp
 sudo ./scripts/deploy-vps.sh
 ```

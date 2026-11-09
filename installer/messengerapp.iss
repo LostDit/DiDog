@@ -5,7 +5,7 @@
 #define AppName "DiDog"
 #define AppVersion "2.3.0"
 #define AppPublisher "LostDit"
-#define AppUrl "https://github.com/LostDit/MessengerApp"
+#define AppUrl "https://github.com/LostDit/DiDog"
 #define ClientExe "MessengerClient.exe"
 #define ServerExe "MessengerServer.exe"
 #define SourceDir "..\dist\MessengerApp"

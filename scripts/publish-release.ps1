@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
     Публикует установщик DiDog в GitHub Releases.
@@ -13,7 +13,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Tag,
 
-    [string]$Repo = 'LostDit/MessengerApp',
+    [string]$Repo = 'LostDit/DiDog',
     [string]$Installer,
     [string]$Name,
     [string]$Notes = ''
