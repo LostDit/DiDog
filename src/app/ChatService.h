@@ -58,6 +58,8 @@ public:
     void markRead(qint64 chatId);
     void react(qint64 chatId, qint64 messageId, const QString &emoji, bool on);
     void forwardMessage(qint64 messageId, qint64 targetChatId);
+    void pinMessage(qint64 chatId, qint64 messageId, bool on);
+    QList<data::Message> pinnedMessages(qint64 chatId) const;
     void createDirect(const QString &username);
 
     // Групповые чаты.
@@ -87,6 +89,7 @@ signals:
     void messageArrived(qint64 chatId, const data::Message &message);
     void searchResults(const QString &query, const QList<data::Message> &messages);
     void messageForwarded(qint64 targetChatId);
+    void pinnedChanged(qint64 chatId);
     void groupCreated(qint64 chatId);
     void membersLoaded(qint64 chatId, const QList<data::ChatMember> &members);
     void membersChanged(qint64 chatId);
@@ -99,6 +102,7 @@ private slots:
 private:
     struct ChatState {
         QList<data::Message> messages;
+        QList<data::Message> pinned;
         bool loaded = false;
         bool hasMore = false;
         bool loading = false;

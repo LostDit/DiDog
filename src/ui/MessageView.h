@@ -50,6 +50,7 @@ signals:
     void replyRequested(qint64 messageId, const QString &senderName, const QString &body);
     void reactionToggled(qint64 messageId, const QString &emoji, bool on);
     void forwardRequested(qint64 messageId);
+    void pinRequested(qint64 messageId);
     void imageActivated(const QString &filePath);
     void videoActivated(const QString &filePath);
     void fileActivated(const QString &fileName, const QString &filePath);

@@ -43,6 +43,7 @@ inline constexpr const char kMsgSend[] = "msg.send";
 inline constexpr const char kMsgEdit[] = "msg.edit";
 inline constexpr const char kMsgReact[] = "msg.react";
 inline constexpr const char kMsgForward[] = "msg.forward";
+inline constexpr const char kMsgPin[] = "msg.pin";
 inline constexpr const char kMsgDelete[] = "msg.delete";
 inline constexpr const char kAttachBegin[] = "attach.begin";
 inline constexpr const char kAttachFinish[] = "attach.finish";
@@ -59,6 +60,7 @@ namespace event {
 inline constexpr const char kMsg[] = "ev.msg";
 inline constexpr const char kMsgEdited[] = "ev.msg.edited";
 inline constexpr const char kReaction[] = "ev.reaction";
+inline constexpr const char kPin[] = "ev.pin";
 inline constexpr const char kMsgDeleted[] = "ev.msg.deleted";
 inline constexpr const char kReceipt[] = "ev.receipt";
 inline constexpr const char kRead[] = "ev.read";

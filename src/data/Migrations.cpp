@@ -173,6 +173,18 @@ const char *const kSchemaV7[] = {
     "CREATE INDEX IF NOT EXISTS ix_reactions_message ON reactions(message_id)",
 };
 
+// Схема v8: закреплённые сообщения.
+const char *const kSchemaV8[] = {
+    "CREATE TABLE IF NOT EXISTS pins ("
+    "  chat_id    INTEGER NOT NULL REFERENCES chats(id) ON DELETE CASCADE,"
+    "  message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,"
+    "  pinned_by  INTEGER NOT NULL,"
+    "  created_at INTEGER NOT NULL,"
+    "  PRIMARY KEY (chat_id, message_id)"
+    ")",
+    "CREATE INDEX IF NOT EXISTS ix_pins_chat ON pins(chat_id, created_at DESC)",
+};
+
 bool exec(QSqlDatabase &db, const QString &sql, QString *error)
 {
     QSqlQuery query(db);
@@ -370,6 +382,31 @@ bool applyV7(QSqlDatabase &db, QString *error)
     return true;
 }
 
+bool applyV8(QSqlDatabase &db, QString *error)
+{
+    if (!db.transaction()) {
+        if (error)
+            *error = QStringLiteral("Не удалось начать транзакцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+
+    for (const char *statement : kSchemaV8) {
+        if (!exec(db, QString::fromLatin1(statement), error)) {
+            db.rollback();
+            return false;
+        }
+    }
+
+    if (!db.commit()) {
+        if (error)
+            *error = QStringLiteral("Не удалось зафиксировать миграцию: %1")
+                         .arg(db.lastError().text());
+        return false;
+    }
+    return true;
+}
+
 int version(QSqlDatabase &db)
 {
     QSqlQuery query(db);
@@ -419,6 +456,9 @@ bool apply(QSqlDatabase &db, QString *error)
         return false;
 
     if (current < 7 && !applyV7(db, error))
+        return false;
+
+    if (current < 8 && !applyV8(db, error))
         return false;
 
     if (!exec(db, QStringLiteral("PRAGMA user_version = %1").arg(kCurrentVersion), error))

@@ -8,6 +8,7 @@
 #include "data/JsonMapping.h"
 #include "data/MessageRepository.h"
 #include "data/PromoRepository.h"
+#include "data/PinRepository.h"
 #include "data/ReactionRepository.h"
 #include "data/ReceiptRepository.h"
 #include "data/SubscriptionRepository.h"
@@ -235,6 +236,8 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleMessageReact(data, session);
     if (type == QLatin1String(core::proto::type::kMsgForward))
         return handleMessageForward(data, session);
+    if (type == QLatin1String(core::proto::type::kMsgPin))
+        return handleMessagePin(data, session);
     if (type == QLatin1String(core::proto::type::kReceiptDelivered))
         return handleReceiptDelivered(data, session);
     if (type == QLatin1String(core::proto::type::kTyping))
@@ -452,9 +455,26 @@ HandlerResult ServerCore::handleChatOpen(const QJsonObject &data, ClientSession 
         array.append(data::json::messageToJson(withState));
     }
 
+    data::PinRepository pinRepo(m_database.handle());
+    QList<qint64> pinnedIds;
+    pinRepo.ids(chatId, &pinnedIds, nullptr);
+    QList<data::Message> pinnedMessages;
+    for (qint64 pinnedId : pinnedIds) {
+        data::Message pinned;
+        bool pinnedFound = false;
+        if (messages.byId(pinnedId, &pinned, &pinnedFound, &error) && pinnedFound)
+            pinnedMessages.append(pinned);
+    }
+    attachReactions(&pinnedMessages, session->userId());
+
+    QJsonArray pinnedArray;
+    for (const data::Message &pinned : pinnedMessages)
+        pinnedArray.append(data::json::messageToJson(pinned));
+
     QJsonObject payload;
     payload.insert(QStringLiteral("messages"), array);
     payload.insert(QStringLiteral("has_more"), hasMore);
+    payload.insert(QStringLiteral("pinned"), pinnedArray);
     return HandlerResult::success(payload);
 }
 
@@ -1491,6 +1511,15 @@ HandlerResult ServerCore::handleMessageDelete(const QJsonObject &data, ClientSes
     return HandlerResult::success(payload);
 }
 
+void ServerCore::attachReactions(data::Message *message, qint64 viewerId) const
+{
+    if (!message)
+        return;
+    QList<data::Message> one{*message};
+    attachReactions(&one, viewerId);
+    *message = one.first();
+}
+
 void ServerCore::attachReactions(QList<data::Message> *messages, qint64 viewerId) const
 {
     if (!messages)
@@ -1596,6 +1625,46 @@ HandlerResult ServerCore::handleMessageForward(const QJsonObject &data, ClientSe
     payload.insert(QStringLiteral("message_id"), static_cast<double>(stored.id));
     payload.insert(QStringLiteral("seq"), static_cast<double>(stored.seq));
     return HandlerResult::success(payload);
+}
+
+HandlerResult ServerCore::handleMessagePin(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+    const qint64 messageId = int64Value(data, "message_id");
+    const bool on = data.value(QStringLiteral("on")).toBool(true);
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    bool member = false;
+    if (!chats.isMember(chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    data::MessageRepository messages(m_database.handle());
+    data::Message message;
+    bool found = false;
+    if (!messages.byId(messageId, &message, &found, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!found || message.chatId != chatId)
+        return HandlerResult::failure(core::ErrorCode::NotFound);
+
+    data::PinRepository pins(m_database.handle());
+    if (!pins.set(chatId, messageId, session->userId(), on, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    attachReactions(&message, session->userId());
+
+    QJsonObject event;
+    event.insert(QStringLiteral("chat_id"), static_cast<double>(chatId));
+    event.insert(QStringLiteral("message_id"), static_cast<double>(messageId));
+    event.insert(QStringLiteral("on"), on);
+    event.insert(QStringLiteral("pinned_by"), static_cast<double>(session->userId()));
+    if (on)
+        event.insert(QStringLiteral("message"), data::json::messageToJson(message));
+    broadcastToChat(chatId, core::proto::event::kPin, event);
+
+    return HandlerResult::success();
 }
 
 HandlerResult ServerCore::handleReceiptDelivered(const QJsonObject &data, ClientSession *session)

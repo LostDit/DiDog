@@ -48,6 +48,7 @@ private slots:
     void replyIsStoredAndValidated();
     void reactionsReachBothSides();
     void forwardCopiesTextToAnotherChat();
+    void pinnedMessageAppearsInChat();
 
 private:
     QJsonObject request(net::ClientConnection &connection, const QString &type,
@@ -435,6 +436,80 @@ void TestMessageOps::forwardCopiesTextToAnotherChat()
         }
     }
     QVERIFY(found);
+}
+
+void TestMessageOps::pinnedMessageAppearsInChat()
+{
+    net::ClientConnection first;
+    net::ClientConnection second;
+    first.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    second.setEndpoint(QStringLiteral("127.0.0.1"), m_server->port());
+    QSignalSpy c1(&first, &net::ClientConnection::socketConnected);
+    QSignalSpy c2(&second, &net::ClientConnection::socketConnected);
+    QSignalSpy events(&second, &net::ClientConnection::eventReceived);
+    first.connectToServer();
+    second.connectToServer();
+    QTRY_COMPARE_WITH_TIMEOUT(c1.count(), 1, 15000);
+    QTRY_COMPARE_WITH_TIMEOUT(c2.count(), 1, 15000);
+
+    bool ok = false;
+    request(first, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("pin_owner")},
+                        {QStringLiteral("display_name"), QStringLiteral("Pin Owner")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+    request(second, QStringLiteral("auth.register"),
+            QJsonObject{{QStringLiteral("username"), QStringLiteral("pin_reader")},
+                        {QStringLiteral("display_name"), QStringLiteral("Pin Reader")},
+                        {QStringLiteral("password"), QStringLiteral("probe-password-123")}},
+            &ok);
+    QVERIFY(ok);
+
+    const QJsonObject chatsReply = request(first, QStringLiteral("chat.list"), QJsonObject(), &ok);
+    QVERIFY(ok);
+    const double chatId = chatsReply.value(QStringLiteral("data")).toObject()
+                             .value(QStringLiteral("chats")).toArray()
+                             .first().toObject().value(QStringLiteral("id")).toDouble();
+
+    const QJsonObject sent = request(
+        first, QStringLiteral("msg.send"),
+        QJsonObject{{QStringLiteral("chat_id"), chatId},
+                    {QStringLiteral("client_msg_id"), QUuid::createUuid().toString(QUuid::WithoutBraces)},
+                    {QStringLiteral("kind"), QStringLiteral("text")},
+                    {QStringLiteral("body"), QStringLiteral("важное сообщение")}},
+        &ok);
+    QVERIFY(ok);
+    const double messageId = sent.value(QStringLiteral("data")).toObject()
+                                 .value(QStringLiteral("message_id")).toDouble();
+
+    const QJsonObject pinReply = request(first, QStringLiteral("msg.pin"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId},
+                        {QStringLiteral("message_id"), messageId},
+                        {QStringLiteral("on"), true}},
+            &ok);
+    QVERIFY2(ok, qPrintable(pinReply.value(QStringLiteral("error")).toObject()
+                              .value(QStringLiteral("message")).toString()));
+
+    QTRY_VERIFY_WITH_TIMEOUT(hasEvent(events, QStringLiteral("ev.pin")), 10000);
+
+    const QJsonObject opened = request(second, QStringLiteral("chat.open"),
+                                       QJsonObject{{QStringLiteral("chat_id"), chatId},
+                                                   {QStringLiteral("limit"), 10}},
+                                       &ok);
+    QVERIFY(ok);
+    const QJsonArray pinned = opened.value(QStringLiteral("data")).toObject()
+                                  .value(QStringLiteral("pinned")).toArray();
+    QCOMPARE(pinned.size(), 1);
+    QCOMPARE(pinned.first().toObject().value(QStringLiteral("body")).toString(),
+             QStringLiteral("важное сообщение"));
+
+    request(first, QStringLiteral("msg.pin"),
+            QJsonObject{{QStringLiteral("chat_id"), chatId},
+                        {QStringLiteral("message_id"), messageId},
+                        {QStringLiteral("on"), false}},
+            &ok);
+    QVERIFY(ok);
 }
 
 void TestMessageOps::foreignMessageCannotBeChanged()

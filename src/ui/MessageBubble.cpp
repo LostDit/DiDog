@@ -331,6 +331,10 @@ void MessageBubble::showContextMenu(const QPoint &position)
     if (m_message.id > 0 && !m_message.deleted)
         reply = menu.addAction(tr("Ответить"));
 
+    QAction *pin = nullptr;
+    if (m_message.id > 0 && !m_message.deleted)
+        pin = menu.addAction(tr("Закрепить/Открепить"));
+
     QAction *forward = nullptr;
     if (m_message.id > 0 && !m_message.deleted && !m_message.body.isEmpty())
         forward = menu.addAction(tr("Переслать"));
@@ -355,6 +359,10 @@ void MessageBubble::showContextMenu(const QPoint &position)
     if (!chosen)
         return;
 
+    if (chosen == pin) {
+        emit pinRequested(m_message.id);
+        return;
+    }
     if (chosen == forward) {
         emit forwardRequested(m_message.id);
         return;

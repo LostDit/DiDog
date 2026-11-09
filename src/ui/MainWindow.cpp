@@ -625,6 +625,32 @@ QWidget *MainWindow::buildConversationPane()
 
     layout->addWidget(header);
 
+    m_pinnedBanner = new QFrame;
+    m_pinnedBanner->setObjectName(QStringLiteral("PinnedBanner"));
+    m_pinnedBanner->hide();
+
+    auto *pinnedLayout = new QHBoxLayout(m_pinnedBanner);
+    pinnedLayout->setContentsMargins(12, 6, 8, 6);
+    pinnedLayout->setSpacing(8);
+
+    m_pinnedText = new QLabel(m_pinnedBanner);
+    m_pinnedText->setObjectName(QStringLiteral("PinnedText"));
+    m_pinnedText->setCursor(Qt::PointingHandCursor);
+    m_pinnedText->installEventFilter(this);
+    pinnedLayout->addWidget(m_pinnedText, 1);
+
+    auto *unpinButton = new QToolButton(m_pinnedBanner);
+    unpinButton->setText(QStringLiteral("×"));
+    unpinButton->setObjectName(QStringLiteral("AttachmentChipRemove"));
+    unpinButton->setCursor(Qt::PointingHandCursor);
+    connect(unpinButton, &QToolButton::clicked, this, [this]() {
+        if (m_currentChatId > 0 && m_pinnedMessageId > 0)
+            m_chats->pinMessage(m_currentChatId, m_pinnedMessageId, false);
+    });
+    pinnedLayout->addWidget(unpinButton);
+
+    layout->addWidget(m_pinnedBanner);
+
     m_messageView = new MessageView;
     m_messageView->setAccessibleName(tr("Лента сообщений"));
     layout->addWidget(m_messageView, 1);
@@ -658,6 +684,17 @@ QWidget *MainWindow::buildConversationPane()
                     m_chats->react(m_currentChatId, messageId, emoji, on);
             });
 
+    connect(m_messageView, &MessageView::pinRequested, this, [this](qint64 messageId) {
+        if (m_currentChatId <= 0)
+            return;
+        bool pinned = false;
+        for (const data::Message &message : m_chats->pinnedMessages(m_currentChatId)) {
+            if (message.id == messageId)
+                pinned = true;
+        }
+        m_chats->pinMessage(m_currentChatId, messageId, !pinned);
+    });
+
     connect(m_messageView, &MessageView::forwardRequested, this, [this](qint64 messageId) {
         if (!m_chats)
             return;
@@ -685,6 +722,11 @@ QWidget *MainWindow::buildConversationPane()
 
     connect(m_chats, &app::ChatService::messageForwarded, this, [this](qint64) {
         showToast(tr("Переслано"));
+    });
+
+    connect(m_chats, &app::ChatService::pinnedChanged, this, [this](qint64 chatId) {
+        if (chatId == m_currentChatId)
+            updatePinnedBanner();
     });
 
     connect(m_messageView, &MessageView::replyRequested, this,
@@ -903,6 +945,7 @@ void MainWindow::openChat(qint64 chatId)
 
     m_chatStack->setCurrentIndex(1);
     updateHeader();
+    updatePinnedBanner();
 
     m_messageView->setCurrentUserId(m_chats->currentUserId());
     m_messageView->setHasMore(m_chats->hasMore(chatId));
@@ -1001,6 +1044,31 @@ void MainWindow::openProfile(qint64 userId)
     refreshProfilePage();
 }
 
+void MainWindow::updatePinnedBanner()
+{
+    if (!m_pinnedBanner || !m_pinnedText)
+        return;
+
+    const QList<data::Message> pinned = m_chats->pinnedMessages(m_currentChatId);
+    if (pinned.isEmpty()) {
+        m_pinnedMessageId = 0;
+        m_pinnedBanner->hide();
+        return;
+    }
+
+    const data::Message &message = pinned.first();
+    m_pinnedMessageId = message.id;
+
+    QString text = message.body.simplified();
+    if (text.size() > 80)
+        text = text.left(80) + QStringLiteral("…");
+    if (text.isEmpty())
+        text = tr("Вложение");
+
+    m_pinnedText->setText(tr("Закреплено: %1 — %2").arg(message.senderDisplayName, text));
+    m_pinnedBanner->show();
+}
+
 void MainWindow::refreshProfilePage()
 {
     if (!m_profileName || !m_profileAvatar)
@@ -1059,6 +1127,11 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
         if (watched == m_profileAvatar) {
             if (m_currentChatId > 0)
                 openProfile(m_user.id);
+            return true;
+        }
+
+        if (watched == m_pinnedText && m_pinnedMessageId > 0) {
+            m_messageView->scrollToMessage(m_pinnedMessageId);
             return true;
         }
 

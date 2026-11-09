@@ -7,6 +7,7 @@
 #include <QMainWindow>
 #include <QPointer>
 
+class QFrame;
 class QLabel;
 class QLineEdit;
 class QListView;
@@ -76,6 +77,7 @@ public:
     void showTrayNotification(const QString &title, const QString &body, qint64 chatId);
     void setTrayUnread(int count);
     void refreshProfilePage();
+    void updatePinnedBanner();
 
 protected:
     void closeEvent(QCloseEvent *event) override;
@@ -165,6 +167,9 @@ private:
     bool m_panelVisible = false;
 
     QLabel *m_topStatus = nullptr;
+    QFrame *m_pinnedBanner = nullptr;
+    QLabel *m_pinnedText = nullptr;
+    qint64 m_pinnedMessageId = 0;
     qint64 m_profileUserId = 0;
     QString m_profileUsername;
     QLabel *m_profileStatus = nullptr;

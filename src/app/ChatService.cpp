@@ -399,6 +399,12 @@ void ChatService::openChat(qint64 chatId)
                                       visible.append(message);
                               }
 
+                              current.pinned.clear();
+                              for (const QJsonValue &value : data.value(QStringLiteral("pinned")).toArray()) {
+                                  data::Message pinned = data::json::messageFromJson(value.toObject());
+                                  resolveReplyPreview(chatId, &pinned);
+                                  current.pinned.append(pinned);
+                              }
                               current.messages = visible + pending;
                               for (data::Message &message : current.messages)
                                   resolveReplyPreview(chatId, &message);
@@ -1094,6 +1100,55 @@ void ChatService::forwardMessage(qint64 messageId, qint64 targetChatId)
         10000);
 }
 
+void ChatService::pinMessage(qint64 chatId, qint64 messageId, bool on)
+{
+    if (!m_connection || !m_connection->isConnected() || messageId <= 0)
+        return;
+
+    ChatState &state = m_states[chatId];
+    if (on) {
+        bool exists = false;
+        for (const data::Message &pinned : qAsConst(state.pinned)) {
+            if (pinned.id == messageId) {
+                exists = true;
+                break;
+            }
+        }
+        if (!exists) {
+            for (const data::Message &message : qAsConst(state.messages)) {
+                if (message.id == messageId) {
+                    state.pinned.prepend(message);
+                    break;
+                }
+            }
+        }
+    } else {
+        for (int i = 0; i < state.pinned.size(); ++i) {
+            if (state.pinned.at(i).id == messageId) {
+                state.pinned.removeAt(i);
+                break;
+            }
+        }
+    }
+    emit pinnedChanged(chatId);
+
+    m_connection->request(
+        QStringLiteral("msg.pin"),
+        QJsonObject{{QStringLiteral("chat_id"), static_cast<double>(chatId)},
+                    {QStringLiteral("message_id"), static_cast<double>(messageId)},
+                    {QStringLiteral("on"), on}},
+        [this](const QJsonObject &reply) {
+            if (!replyOk(reply))
+                emit errorOccurred(core::proto::errorMessageOf(reply));
+        },
+        10000);
+}
+
+QList<data::Message> ChatService::pinnedMessages(qint64 chatId) const
+{
+    return m_states.value(chatId).pinned;
+}
+
 void ChatService::createDirect(const QString &username)
 {
     QJsonObject request;
@@ -1144,6 +1199,40 @@ void ChatService::onEvent(const QString &event, const QJsonObject &data)
         resolveReplyPreview(message.chatId, &message);
         if (message.id > 0)
             handleNewMessage(message);
+        return;
+    }
+
+    if (event == QLatin1String(core::proto::event::kPin)) {
+        const qint64 chatId = static_cast<qint64>(
+            data.value(QStringLiteral("chat_id")).toDouble());
+        const qint64 messageId = static_cast<qint64>(
+            data.value(QStringLiteral("message_id")).toDouble());
+        const bool on = data.value(QStringLiteral("on")).toBool(true);
+
+        ChatState &state = m_states[chatId];
+        if (on) {
+            data::Message pinned = data::json::messageFromJson(
+                data.value(QStringLiteral("message")).toObject());
+            resolveReplyPreview(chatId, &pinned);
+            bool exists = false;
+            for (int i = 0; i < state.pinned.size(); ++i) {
+                if (state.pinned.at(i).id == messageId) {
+                    state.pinned[i] = pinned;
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists)
+                state.pinned.prepend(pinned);
+        } else {
+            for (int i = 0; i < state.pinned.size(); ++i) {
+                if (state.pinned.at(i).id == messageId) {
+                    state.pinned.removeAt(i);
+                    break;
+                }
+            }
+        }
+        emit pinnedChanged(chatId);
         return;
     }
 

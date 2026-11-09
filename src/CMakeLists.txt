@@ -31,6 +31,7 @@ set(MESSENGER_CORE_SOURCES
     data/Models.h               data/Models.cpp
     data/OutboxRepository.h     data/OutboxRepository.cpp
     data/ReactionRepository.h   data/ReactionRepository.cpp
+    data/PinRepository.h        data/PinRepository.cpp
     data/PromoRepository.h      data/PromoRepository.cpp
     data/SubscriptionRepository.h data/SubscriptionRepository.cpp
     data/ReceiptRepository.h    data/ReceiptRepository.cpp
