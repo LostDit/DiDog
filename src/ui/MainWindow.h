@@ -160,6 +160,7 @@ private:
     QToolButton *m_talkButton = nullptr;
     ParticipantsPanel *m_participantsPanel = nullptr;
     QTabWidget *m_rightTabs = nullptr;
+    QWidget *m_sidebar = nullptr;
     bool m_panelVisible = false;
 
     QLabel *m_topStatus = nullptr;

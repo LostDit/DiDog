@@ -3,7 +3,7 @@
 ; Требует предварительно собранный dist\MessengerApp (scripts\package-windows.ps1).
 
 #define AppName "DiDog"
-#define AppVersion "2.3.1"
+#define AppVersion "2.3.2"
 #define AppPublisher "LostDit"
 #define AppUrl "https://github.com/LostDit/DiDog"
 #define ClientExe "MessengerClient.exe"

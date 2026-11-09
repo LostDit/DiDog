@@ -138,7 +138,7 @@ void SettingsDialog::buildUi()
     appearance->setVerticalSpacing(10);
 
     m_themeBox = new QComboBox(this);
-    m_themeBox->setObjectName(QStringLiteral("SettingsCombo"));
+    m_themeBox->setObjectName(QStringLiteral("ThemeCombo"));
     m_themeBox->addItem(tr("Светлая"), 0);
     m_themeBox->addItem(tr("Тёмная"), 1);
     m_themeBox->setCurrentIndex(m_theme
@@ -146,7 +146,7 @@ void SettingsDialog::buildUi()
     appearance->addRow(tr("Тема"), m_themeBox);
 
     m_languageBox = new QComboBox(this);
-    m_languageBox->setObjectName(QStringLiteral("SettingsCombo"));
+    m_languageBox->setObjectName(QStringLiteral("LanguageCombo"));
     m_languageBox->addItem(tr("Системный"), QStringLiteral("auto"));
     m_languageBox->addItem(tr("Русский"), QStringLiteral("ru"));
     m_languageBox->addItem(QStringLiteral("English"), QStringLiteral("en"));
@@ -165,6 +165,7 @@ void SettingsDialog::buildUi()
     layout->addWidget(sectionTitle(tr("Уведомления"), this));
 
     m_notifications = new QCheckBox(tr("Показывать уведомления о новых сообщениях"), this);
+    m_notifications->setObjectName(QStringLiteral("NotificationsCheck"));
     m_notifications->setChecked(!m_settings || m_settings->notificationsEnabled());
     layout->addWidget(m_notifications);
 
@@ -202,6 +203,7 @@ void SettingsDialog::buildUi()
     layout->addWidget(sectionTitle(tr("Голос"), this));
 
     m_pttCheck = new QCheckBox(tr("Push-to-talk: говорить, удерживая кнопку"), this);
+    m_pttCheck->setObjectName(QStringLiteral("PttCheck"));
     m_pttCheck->setChecked(m_settings->voicePushToTalk());
     connect(m_pttCheck, &QCheckBox::toggled, this,
             [this](bool enabled) { m_settings->setVoicePushToTalk(enabled); });
@@ -211,7 +213,7 @@ void SettingsDialog::buildUi()
     devicesRow->setSpacing(8);
 
     m_inputCombo = new QComboBox(this);
-    m_inputCombo->setObjectName(QStringLiteral("ThemeCombo"));
+    m_inputCombo->setObjectName(QStringLiteral("InputDeviceCombo"));
     m_inputCombo->addItem(tr("Микрофон по умолчанию"), QString());
     for (const QAudioDeviceInfo &device : QAudioDeviceInfo::availableDevices(QAudio::AudioInput))
         m_inputCombo->addItem(device.deviceName(), device.deviceName());
@@ -220,7 +222,7 @@ void SettingsDialog::buildUi()
     devicesRow->addWidget(m_inputCombo, 1);
 
     m_outputCombo = new QComboBox(this);
-    m_outputCombo->setObjectName(QStringLiteral("ThemeCombo"));
+    m_outputCombo->setObjectName(QStringLiteral("OutputDeviceCombo"));
     m_outputCombo->addItem(tr("Динамики по умолчанию"), QString());
     for (const QAudioDeviceInfo &device : QAudioDeviceInfo::availableDevices(QAudio::AudioOutput))
         m_outputCombo->addItem(device.deviceName(), device.deviceName());
@@ -245,12 +247,14 @@ void SettingsDialog::buildUi()
     layout->addWidget(sectionTitle(tr("Окно"), this));
 
     m_trayCheck = new QCheckBox(tr("Сворачивать в трей при закрытии"), this);
+    m_trayCheck->setObjectName(QStringLiteral("TrayCheck"));
     m_trayCheck->setChecked(m_settings->closeToTray());
     connect(m_trayCheck, &QCheckBox::toggled, this,
             [this](bool enabled) { m_settings->setCloseToTray(enabled); });
     layout->addWidget(m_trayCheck);
 
     m_animationsCheck = new QCheckBox(tr("Анимации интерфейса"), this);
+    m_animationsCheck->setObjectName(QStringLiteral("AnimationsCheck"));
     m_animationsCheck->setChecked(m_settings->animationsEnabled());
     connect(m_animationsCheck, &QCheckBox::toggled, this,
             [this](bool enabled) { m_settings->setAnimationsEnabled(enabled); ui::ButtonFx::setEnabled(enabled); });

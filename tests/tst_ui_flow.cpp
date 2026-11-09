@@ -175,7 +175,7 @@ ui::MainWindow *TestUiFlow::registerClient(app::SettingsStore *settings,
     app::paths::setOverrideDataDir(dataDir);
     QDir().mkpath(dataDir);
 
-    auto *controller = new app::ClientController(settings, m_theme.data(), this);
+    auto *controller = new app::ClientController(settings, m_theme.data(), QString(), this);
     m_controllers.append(controller);
     controller->start();
 
@@ -309,7 +309,7 @@ ui::MainWindow *TestUiFlow::resumeClient(app::SettingsStore *settings, const QSt
 {
     app::paths::setOverrideDataDir(dataDir);
 
-    auto *controller = new app::ClientController(settings, m_theme.data(), this);
+    auto *controller = new app::ClientController(settings, m_theme.data(), QString(), this);
     m_controllers.append(controller);
     controller->start();
 
@@ -452,7 +452,7 @@ void TestUiFlow::englishInterface()
     app::paths::setOverrideDataDir(m_dir->filePath(QStringLiteral("english-data")));
     m_aliceSettings->setLanguage(QStringLiteral("en"));
 
-    auto *controller = new app::ClientController(m_aliceSettings.data(), m_theme.data(), this);
+    auto *controller = new app::ClientController(m_aliceSettings.data(), m_theme.data(), QString(), this);
     m_controllers.append(controller);
     controller->start();
 

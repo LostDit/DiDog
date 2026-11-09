@@ -273,7 +273,8 @@ void MainWindow::buildUi()
     auto *content = new QHBoxLayout;
     content->setContentsMargins(0, 0, 0, 0);
     content->setSpacing(0);
-    content->addWidget(buildSidebar(), 0);
+    m_sidebar = buildSidebar();
+    content->addWidget(m_sidebar, 0);
     content->addWidget(buildChatPane(), 1);
 
     m_rightTabs = new QTabWidget;
@@ -1011,6 +1012,8 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
 {
     if (event->type() == QEvent::MouseButtonRelease) {
         if (watched == m_topAvatar) {
+            if (m_rightTabs)
+                m_rightTabs->show();
             openProfile(m_user.id);
             return true;
         }

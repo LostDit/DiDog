@@ -58,6 +58,16 @@ void ButtonFx::attach(QAbstractButton *button)
     if (button->graphicsEffect())
         return;
 
+    // Только кнопки интерфейса, без скроллбаров, диалоговых и служебных.
+    static const QStringList allowed = {
+        QStringLiteral("PrimaryButton"), QStringLiteral("GhostButton"),
+        QStringLiteral("IconButton"), QStringLiteral("SendButton"),
+        QStringLiteral("LinkButton"), QStringLiteral("AttachmentChipRemove"),
+        QStringLiteral("TabButton"),
+    };
+    if (!allowed.contains(button->objectName()))
+        return;
+
     State state;
 
     state.shadow = new QGraphicsDropShadowEffect(button);

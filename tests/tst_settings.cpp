@@ -52,11 +52,7 @@ void TestSettings::cleanup()
 
 QComboBox *TestSettings::themeBox(ui::SettingsDialog &dialog) const
 {
-    for (QComboBox *combo : dialog.findChildren<QComboBox *>()) {
-        if (combo->itemData(0).toString() != QLatin1String("auto"))
-            return combo;
-    }
-    return nullptr;
+    return dialog.findChild<QComboBox *>(QStringLiteral("ThemeCombo"));
 }
 
 QComboBox *TestSettings::languageBox(ui::SettingsDialog &dialog) const
@@ -119,7 +115,7 @@ void TestSettings::notificationsToggleIsPersisted()
 {
     ui::SettingsDialog dialog(m_settings.data(), m_theme.data());
 
-    auto *checkbox = dialog.findChild<QCheckBox *>();
+    auto *checkbox = dialog.findChild<QCheckBox *>(QStringLiteral("NotificationsCheck"));
     QVERIFY(checkbox);
     QVERIFY(checkbox->isChecked());
 

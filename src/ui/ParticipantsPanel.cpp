@@ -13,6 +13,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QSet>
+#include <QStyle>
 #include <QVBoxLayout>
 
 namespace ui {
@@ -232,6 +233,19 @@ void ParticipantsPanel::onLeaveClicked()
 
 bool ParticipantsPanel::eventFilter(QObject *watched, QEvent *event)
 {
+    if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) {
+        if (auto *row = qobject_cast<QWidget *>(watched)) {
+            if (row->property("userId").isValid()) {
+                row->setProperty("hovered", event->type() == QEvent::Enter);
+                if (QStyle *style = row->style()) {
+                    style->unpolish(row);
+                    style->polish(row);
+                }
+            }
+        }
+        return false;
+    }
+
     if (event->type() == QEvent::MouseButtonRelease) {
         const qint64 userId = watched->property("userId").toLongLong();
         if (userId > 0) {
