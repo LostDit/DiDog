@@ -13,7 +13,9 @@ param(
     [string]$Dist = 'dist\MessengerApp',
     [string]$Output = '',
     # Файлы, которые не попадают в манифест (например, MessengerUpdater.exe).
-    [string[]]$Exclude = @()
+    [string[]]$Exclude = @(),
+    # Каталоги (относительно Dist), которые не попадают в манифест.
+    [string[]]$ExcludeDirs = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -30,10 +32,24 @@ if (-not $Output) {
 }
 
 $files = @()
+$skippedEmpty = 0
 Get-ChildItem $Dist -Recurse -File |
     Where-Object { $_.Name -ne 'manifest.json' -and ($Exclude -notcontains $_.Name) } |
     ForEach-Object {
         $relative = $_.FullName.Substring($Dist.Length + 1).Replace('\', '/')
+        $excluded = $false
+        foreach ($dir in $ExcludeDirs) {
+            if ($relative -eq $dir -or $relative.StartsWith("$dir/")) {
+                $excluded = $true
+                break
+            }
+        }
+        if ($excluded)
+            { return }
+        if ($_.Length -eq 0) {
+            $script:skippedEmpty++
+            return
+        }
         $hash = (Get-FileHash -Algorithm SHA256 -Path $_.FullName).Hash.ToLowerInvariant()
         $files += [ordered]@{
             path = $relative
@@ -41,6 +57,9 @@ Get-ChildItem $Dist -Recurse -File |
             sha256 = $hash
         }
     }
+if ($script:skippedEmpty -gt 0) {
+    Write-Host "Пропущено пустых файлов: $script:skippedEmpty"
+}
 
 $manifest = [ordered]@{
     version = $Version

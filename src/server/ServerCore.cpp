@@ -1077,7 +1077,7 @@ bool ServerCore::loadUpdateManifest(QString *version, QList<UpdateFile> *files,
         file.path = path;
         file.size = static_cast<qint64>(item.value(QStringLiteral("size")).toDouble());
         file.sha256 = item.value(QStringLiteral("sha256")).toString();
-        if (file.size <= 0 || file.sha256.isEmpty()) {
+        if (file.size < 0 || file.sha256.isEmpty()) {
             if (error)
                 *error = QStringLiteral("Некорректная запись манифеста: %1").arg(path);
             return false;

@@ -23,6 +23,7 @@ param(
     [switch]$Deploy,
     [switch]$IncludeUpdater,
     [switch]$IncludeServer,
+    [switch]$IncludeBridge,
     [switch]$DryRun,
 
     # Обновить и серверный бинарник (git pull + сборка + установка службы).
@@ -50,9 +51,14 @@ if (-not $IncludeServer) {
     $exclude += 'MessengerServer.exe'
 }
 
+$excludeDirs = @()
+if (-not $IncludeBridge) {
+    $excludeDirs += 'bridge'
+}
+
 Write-Host "== Манифест =="
 & (Join-Path $PSScriptRoot 'make-manifest.ps1') `
-    -Version $Version -Dist $distPath -Exclude $exclude
+    -Version $Version -Dist $distPath -Exclude $exclude -ExcludeDirs $excludeDirs
 if (-not $?) {
     throw "make-manifest.ps1 завершился с ошибкой."
 }
