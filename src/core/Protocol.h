@@ -32,6 +32,7 @@ inline constexpr const char kBillingRedeem[] = "billing.redeem";
 inline constexpr const char kThemeList[] = "theme.list";
 inline constexpr const char kThemeGet[] = "theme.get";
 inline constexpr const char kVoiceJoin[] = "voice.join";
+inline constexpr const char kVoiceToken[] = "voice.token";
 inline constexpr const char kVoiceLeave[] = "voice.leave";
 inline constexpr const char kVoiceInvite[] = "voice.invite";
 inline constexpr const char kVoiceAccept[] = "voice.accept";

@@ -42,6 +42,7 @@ public:
 
     // Каталог обновлений (manifest.json + файлы). По умолчанию — рядом с attachments.
     void setUpdatesRoot(const QString &root) { m_updatesRoot = root; }
+    void setLiveKit(const QString &url, const QString &key, const QString &secret);
     QString updatesRoot() const { return m_updatesRoot; }
 
 private:
@@ -73,6 +74,7 @@ private:
     HandlerResult handleVoiceCancel(const QJsonObject &data, ClientSession *session);
     HandlerResult handleVoiceSpeaking(const QJsonObject &data, ClientSession *session);
     HandlerResult handleVoicePubkey(const QJsonObject &data, ClientSession *session);
+    HandlerResult handleVoiceToken(const QJsonObject &data, ClientSession *session);
     HandlerResult handleVoiceSenderKey(const QJsonObject &data, ClientSession *session);
     HandlerResult handleUpdateManifest(ClientSession *session);
     HandlerResult handleUpdateDownload(const QJsonObject &data, ClientSession *session);
@@ -158,6 +160,9 @@ private:
     QHash<ClientSession *, quint32> m_sessionVoiceTokens;
     QHash<qint64, QByteArray> m_voiceKeys;
     QHash<qint64, QHash<qint64, QString>> m_voicePubkeys;
+    QString m_liveKitUrl;
+    QString m_liveKitKey;
+    QString m_liveKitSecret;
 
     bool isUserOnline(qint64 userId) const;
 };

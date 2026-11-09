@@ -12,6 +12,7 @@
 #include "data/ReactionRepository.h"
 #include "data/ReceiptRepository.h"
 #include "data/SubscriptionRepository.h"
+#include "server/LiveKitToken.h"
 #include "data/UserRepository.h"
 #include "security/PasswordHasher.h"
 #include "security/Validator.h"
@@ -214,6 +215,8 @@ HandlerResult ServerCore::handle(const QString &type, const QJsonObject &data,
         return handleThemeList(session);
     if (type == QLatin1String(core::proto::type::kThemeGet))
         return handleThemeGet(data, session);
+    if (type == QLatin1String(core::proto::type::kVoiceToken))
+        return handleVoiceToken(data, session);
     if (type == QLatin1String(core::proto::type::kVoiceJoin))
         return handleVoiceJoin(data, session);
     if (type == QLatin1String(core::proto::type::kVoiceLeave))
@@ -1156,6 +1159,48 @@ HandlerResult ServerCore::handleUpdateDownload(const QJsonObject &data, ClientSe
     payload.insert(QStringLiteral("size"), static_cast<double>(target.size));
     payload.insert(QStringLiteral("sha256"), target.sha256);
     payload.insert(QStringLiteral("offset"), static_cast<double>(offset));
+    return HandlerResult::success(payload);
+}
+
+void ServerCore::setLiveKit(const QString &url, const QString &key, const QString &secret)
+{
+    m_liveKitUrl = url.trimmed();
+    m_liveKitKey = key.trimmed();
+    m_liveKitSecret = secret.trimmed();
+}
+
+HandlerResult ServerCore::handleVoiceToken(const QJsonObject &data, ClientSession *session)
+{
+    const qint64 chatId = int64Value(data, "chat_id");
+
+    if (m_liveKitUrl.isEmpty() || m_liveKitKey.isEmpty() || m_liveKitSecret.isEmpty())
+        return HandlerResult::failure(core::ErrorCode::Internal,
+                                      QStringLiteral("LiveKit не настроен на сервере"));
+
+    data::ChatRepository chats(m_database.handle());
+    QString error;
+    bool member = false;
+    if (!chats.isMember(chatId, session->userId(), &member, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+    if (!member)
+        return HandlerResult::failure(core::ErrorCode::NotMember);
+
+    data::UserRepository users(m_database.handle());
+    data::User user;
+    if (!users.findById(session->userId(), &user, &error))
+        return HandlerResult::failure(core::ErrorCode::Internal, error);
+
+    const QString room = QStringLiteral("chat-%1").arg(chatId);
+    const QString token = createLiveKitToken(m_liveKitKey, m_liveKitSecret, room,
+                                             session->userId(), user.displayName);
+    if (token.isEmpty())
+        return HandlerResult::failure(core::ErrorCode::Internal,
+                                      QStringLiteral("Не удалось создать токен LiveKit"));
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("url"), m_liveKitUrl);
+    payload.insert(QStringLiteral("room"), room);
+    payload.insert(QStringLiteral("token"), token);
     return HandlerResult::success(payload);
 }
 

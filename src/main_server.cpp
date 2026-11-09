@@ -2,6 +2,7 @@
 #include "app/Logging.h"
 #include "app/SingleInstance.h"
 #include "server/ServerApp.h"
+#include "server/ServerCore.h"
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -296,9 +297,16 @@ int runServer(int argc, char *argv[])
         QStringLiteral("HTTP-порт healthcheck (/healthz, /metrics); 0 — выключено."),
         QStringLiteral("port"), QStringLiteral("0"));
 
+    const QCommandLineOption livekitUrlOption(QStringLiteral("livekit-url"),
+        QStringLiteral("URL LiveKit (wss://…) для голоса."), QStringLiteral("url"));
+    const QCommandLineOption livekitKeyOption(QStringLiteral("livekit-key"),
+        QStringLiteral("LiveKit API key."), QStringLiteral("key"));
+    const QCommandLineOption livekitSecretOption(QStringLiteral("livekit-secret"),
+        QStringLiteral("LiveKit API secret."), QStringLiteral("secret"));
+
     parser.addOptions({portOption, dataOption, verboseOption, tlsOption, tlsCertOption,
                        tlsKeyOption, serviceOption, addPromoOption, voicePortOption,
-                       updatesOption, httpPortOption});
+                       updatesOption, httpPortOption, livekitUrlOption, livekitKeyOption, livekitSecretOption});
     parser.process(app);
 
     bool portOk = false;
@@ -419,6 +427,14 @@ int runServer(int argc, char *argv[])
 
     if (!server.start(static_cast<quint16>(port)))
         return 4;
+
+    if (parser.isSet(livekitUrlOption)) {
+        server.core()->setLiveKit(parser.value(livekitUrlOption),
+                                  parser.value(livekitKeyOption),
+                                  parser.value(livekitSecretOption));
+        qInfo().noquote() << QStringLiteral("LiveKit: %1")
+                                 .arg(parser.value(livekitUrlOption));
+    }
 
     return app.exec();
 }

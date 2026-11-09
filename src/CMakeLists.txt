@@ -54,6 +54,7 @@ set(MESSENGER_CORE_SOURCES
     server/ClientSession.h      server/ClientSession.cpp
     server/HandlerResult.h
     server/ServerApp.h          server/ServerApp.cpp
+    server/LiveKitToken.h        server/LiveKitToken.cpp
     server/ServerCore.h         server/ServerCore.cpp
     server/TlsServer.h          server/TlsServer.cpp
 
